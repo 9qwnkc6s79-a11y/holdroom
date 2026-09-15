@@ -3,244 +3,108 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Holdroom — AI that stays in the building</title>
+  <title>Holdroom — Ready local AI. Labs never see the files.</title>
   <link rel="canonical" href="https://holdroom.ai/" />
-  <meta name="description" content="A ready local AI system for law firms, deal shops, and operators who will not give their files to a frontier lab." />
+  <meta name="description" content="A ready local AI box for firms that will not give files to a frontier lab. Compute, memory, and a model on premises. Plug into your network. Pre-launch inquiries." />
+  <meta property="og:title" content="Holdroom — Ready local AI. Labs never see the files." />
+  <meta property="og:description" content="Own the box. Compute, memory, and a model already on it. Plug into your network. Labs never see the files." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://holdroom.ai/" />
+  <meta name="theme-color" content="#111111" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --ink: #0a0a0a;
-      --nav: #111111;
-      --cream: #f5f2ed;
-      --paper: #ffffff;
-      --muted: #5c5c5c;
-      --rule: #e6e2db;
-      --violet: #7c6aef;
-      --ok: #1a7f4b;
-      --bad: #b42318;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, -apple-system, sans-serif;
-      color: var(--ink);
-      background: var(--cream);
-      line-height: 1.55;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: inherit; }
-    .wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
-
-    /* Nav */
-    .nav {
-      position: sticky; top: 0; z-index: 50;
-      background: var(--nav); color: #fff;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      height: 64px;
-    }
-    .brand {
-      font-weight: 700; font-size: 18px; letter-spacing: -0.02em;
-      text-decoration: none; color: #fff;
-    }
-    .brand .dot { color: var(--violet); }
-    .nav-links { display: flex; gap: 28px; align-items: center; }
-    .nav-links a {
-      color: rgba(255,255,255,.82); text-decoration: none;
-      font-size: 14px; font-weight: 500;
-    }
-    .nav-links a:hover { color: #fff; }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      padding: 12px 22px; border-radius: 999px;
-      font-size: 14px; font-weight: 600; text-decoration: none;
-      border: 1px solid transparent; cursor: pointer;
-      transition: opacity .15s ease;
-    }
-    .btn:hover { opacity: .9; }
-    .btn-dark { background: var(--ink); color: #fff; }
-    .btn-light { background: #fff; color: var(--ink); }
-    .btn-ghost {
-      background: transparent; color: #fff;
-      border-color: rgba(255,255,255,.35);
-    }
-    .btn-outline {
-      background: transparent; color: var(--ink);
-      border-color: var(--ink);
-    }
-    .nav .btn { padding: 9px 18px; font-size: 13px; }
-
-    /* Hero */
-    .hero { padding: 88px 0 72px; background: var(--cream); }
-    .eyebrow {
-      font-size: 12px; font-weight: 600; letter-spacing: .14em;
-      text-transform: uppercase; color: var(--muted); margin: 0 0 18px;
-    }
-    .hero h1 {
-      margin: 0 0 22px;
-      font-size: clamp(42px, 7vw, 72px);
-      line-height: 1.05; font-weight: 600; letter-spacing: -0.035em;
-      max-width: 12ch;
-    }
-    .hero h1 .dot { color: var(--violet); }
-    .lede {
-      font-size: clamp(17px, 2vw, 20px); color: var(--muted);
-      max-width: 38em; margin: 0 0 32px;
-    }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
-    .fine { font-size: 13px; color: var(--muted); margin: 0; }
-
-    /* Sections */
-    section { padding: 72px 0; }
-    .bg-white { background: var(--paper); }
-    .bg-dark { background: var(--ink); color: #fff; }
-    .bg-dark .muted, .bg-dark .lede, .bg-dark .fine { color: rgba(255,255,255,.68); }
-    .bg-cream { background: var(--cream); }
-    h2 {
-      margin: 0 0 16px;
-      font-size: clamp(28px, 4vw, 42px);
-      font-weight: 600; letter-spacing: -0.03em; line-height: 1.15;
-      max-width: 18ch;
-    }
-    h3 { margin: 0 0 8px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-    p { margin: 0 0 12px; }
-    .muted { color: var(--muted); }
-
-    /* Feature grid */
-    .grid { display: grid; gap: 16px; }
-    .g4 { grid-template-columns: repeat(4, 1fr); }
-    .g3 { grid-template-columns: repeat(3, 1fr); }
-    .g2 { grid-template-columns: repeat(2, 1fr); }
-    .card {
-      background: var(--paper); border: 1px solid var(--rule);
-      border-radius: 16px; padding: 28px 24px;
-      position: relative; overflow: hidden;
-    }
-    .card .kicker {
-      font-size: 11px; font-weight: 600; letter-spacing: .12em;
-      text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
-    }
-    .card .price {
-      font-size: 32px; font-weight: 600; letter-spacing: -0.03em;
-      margin: 10px 0 8px;
-    }
-    .icon {
-      width: 36px; height: 36px; border-radius: 999px;
-      background: rgba(124,106,239,.12); color: var(--violet);
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 16px; font-weight: 700; margin-bottom: 14px;
-    }
-    .motif {
-      position: absolute; right: -20px; bottom: -30px;
-      width: 160px; height: 160px; opacity: .06; pointer-events: none;
-      background: radial-gradient(circle at center, var(--ink) 1px, transparent 1.5px);
-      background-size: 12px 12px;
-    }
-
-    /* Table */
-    .table-wrap {
-      border: 1px solid var(--rule); border-radius: 16px; overflow: hidden;
-      background: var(--paper);
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    th, td { text-align: left; padding: 16px 18px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-    th {
-      font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
-      color: var(--muted); font-weight: 600; background: #faf9f7;
-    }
-    tr:last-child td { border-bottom: 0; }
-    .yes { color: var(--ok); font-weight: 600; }
-    .no { color: var(--bad); font-weight: 600; }
-
-    /* Form */
-    form {
-      background: var(--paper); border: 1px solid var(--rule);
-      border-radius: 16px; padding: 28px;
-    }
-    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
-    input, select, textarea {
-      width: 100%; padding: 12px 14px; border: 1px solid var(--rule);
-      border-radius: 10px; font: inherit; background: #fff; color: var(--ink);
-    }
-    textarea { min-height: 110px; resize: vertical; }
-    .ok {
-      display: none; margin-top: 14px; padding: 14px 16px; border-radius: 12px;
-      background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 14px;
-    }
-
-    footer {
-      background: var(--nav); color: rgba(255,255,255,.65);
-      padding: 36px 0 48px; font-size: 14px;
-    }
-    footer a { color: #fff; }
-    footer .brand { display: inline-block; margin-bottom: 14px; }
-
-    @media (max-width: 900px) {
-      .g4, .g3, .g2 { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
-      .hero { padding: 56px 0 48px; }
-      section { padding: 56px 0; }
-    }
-  </style>
+  <link rel="stylesheet" href="/assets/css/site.css" />
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="#top">Holdroom<span class="dot">.</span></a>
-      <nav class="nav-links">
-        <a href="#product">Product</a>
-        <a href="#compare">Compare</a>
-        <a href="#who">Who it’s for</a>
-        <a href="#faq">FAQ</a>
+      <a class="brand" href="/">Holdroom<span class="dot">.</span></a>
+      <nav class="nav-links" id="site-nav" aria-label="Primary">
+        <a href="/product/">Product</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/pricing/">Pricing</a>
+        <a href="/security/">Security</a>
+        <a href="/for/">For</a>
+        <a href="/faq/">FAQ</a>
+        <a class="btn btn-ghost nav-cta-in-menu" href="/inquire/">Inquire</a>
       </nav>
-      <a class="btn btn-ghost" href="#inquire">Request a conversation</a>
+      <a class="btn btn-ghost nav-cta" href="/inquire/">Inquire</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
     </div>
   </header>
 
-  <main>
-    <section class="hero" id="top">
-      <div class="wrap">
-        <p class="eyebrow">Private local AI</p>
-        <h1>AI that stays in the building<span class="dot">.</span></h1>
-        <p class="lede">A ready system for firms that will not give their files, deals, or client work to a frontier lab. Plug it into your network. Compute, memory, and a model are already on it.</p>
-        <div class="hero-actions">
-          <a class="btn btn-dark" href="#inquire">Request a conversation</a>
-          <a class="btn btn-outline" href="#product">See S / M / L</a>
+  <main id="main">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Ready local AI</p>
+          <h1>The box stays in the building<span class="dot">.</span></h1>
+          <p class="lede">A ready local AI box you own. Compute, memory, and a model are already on it. Plug it into your network. Labs never see the files.</p>
+          <div class="hero-actions">
+            <a class="btn btn-dark" href="/inquire/">Request a conversation</a>
+            <a class="btn btn-outline" href="/pricing/">See S / M / L</a>
+          </div>
+          <p class="fine">Pre-launch inquiries only. No checkout. Hold M is the default — $3,749. Software $29 solo or $149/mo for a firm up to 8 seats.</p>
         </div>
-        <p class="fine">Pre-launch inquiries. No checkout yet. North Texas built. Brand: holdroom.ai</p>
+        <div class="appliance" data-reveal>
+          <div class="appliance-face" aria-hidden="true">
+            <div class="appliance-top">
+              <div class="appliance-brand">Hold<span class="dot">.</span></div>
+              <div class="appliance-sku">Hold M</div>
+            </div>
+            <div class="appliance-stats">
+              <div class="appliance-stat"><span>Compute</span><span>On the box</span></div>
+              <div class="appliance-stat"><span>Memory</span><span>On the box</span></div>
+              <div class="appliance-stat"><span>Model</span><span>On the box</span></div>
+              <div class="appliance-stat"><span>Your files</span><span>Never leave</span></div>
+            </div>
+          </div>
+          <div class="appliance-meta">
+            <span>One intranet app</span>
+            <span>Egress off by default</span>
+          </div>
+        </div>
       </div>
     </section>
 
     <section class="bg-white">
       <div class="wrap">
-        <p class="eyebrow">Why Holdroom</p>
-        <h2>Built for work you will not paste into ChatGPT.</h2>
-        <p class="lede" style="margin-bottom:36px">Cloud labs process the text even when they promise not to train on it. Holdroom keeps prompts, files, and outputs on a machine you own.</p>
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">What it is</p>
+          <h2>Built for the document you refused to paste.</h2>
+          <p class="lede">Cloud labs process the text even when they promise not to train on it. Holdroom keeps prompts, files, and outputs on a machine you own.</p>
+        </div>
         <div class="grid g4">
-          <div>
-            <div class="icon">1</div>
+          <div data-reveal>
+            <div class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v6c0 5-3.2 8.2-7 9-3.8-.8-7-4-7-9V6l7-3z"/></svg>
+            </div>
             <h3>Private by design</h3>
             <p class="muted">Prompts, files, and outputs stay on hardware you control. Labs never see the corpus.</p>
           </div>
-          <div>
-            <div class="icon">2</div>
+          <div data-reveal>
+            <div class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="7" width="16" height="12" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/></svg>
+            </div>
             <h3>Ready, not a kit</h3>
-            <p class="muted">Imaged, encrypted, model loaded. One app on your intranet — not a weekend Ollama build.</p>
+            <p class="muted">Imaged, encrypted, model loaded. One app on your intranet — not a weekend build.</p>
           </div>
-          <div>
-            <div class="icon">3</div>
+          <div data-reveal>
+            <div class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+            </div>
             <h3>Flat software</h3>
             <p class="muted">$29/mo solo or $149/mo for a firm up to 8 seats. No token bill.</p>
           </div>
-          <div>
-            <div class="icon">4</div>
+          <div data-reveal>
+            <div class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.2 6.2l1.4 1.4M16.4 16.4l1.4 1.4M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4"/></svg>
+            </div>
             <h3>Sized by concurrent use</h3>
             <p class="muted">Pick S, M, or L by how many people ask at once — not by job title.</p>
           </div>
@@ -248,27 +112,88 @@
       </div>
     </section>
 
-    <section class="bg-cream" id="product">
+    <section class="bg-cream">
       <div class="wrap">
-        <p class="eyebrow">The system</p>
-        <h2>Three sizes. Same product.</h2>
-        <p class="lede" style="margin-bottom:36px">Tell us how many people will use it in a busy hour.</p>
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">Who it’s for</p>
+          <h2>Law, deal shops, and operators with real IP.</h2>
+          <p class="lede">If the file is the franchise, it should not cross the building line.</p>
+        </div>
         <div class="grid g3">
-          <div class="card">
+          <div class="card" data-reveal>
+            <div class="motif" aria-hidden="true"></div>
+            <div class="kicker">Law firms</div>
+            <h3>Privilege</h3>
+            <p class="muted">The associate-paste problem. Client work stays inside the building.</p>
+          </div>
+          <div class="card" data-reveal>
+            <div class="motif" aria-hidden="true"></div>
+            <div class="kicker">PE / deal shops</div>
+            <h3>The firm is the data</h3>
+            <p class="muted">Models, IC memos, and portfolio files are the franchise.</p>
+          </div>
+          <div class="card" data-reveal>
+            <div class="motif" aria-hidden="true"></div>
+            <div class="kicker">Operators</div>
+            <h3>Real IP</h3>
+            <p class="muted">Pricing, source, and customer files they will not upload.</p>
+          </div>
+        </div>
+        <p class="fine" style="margin-top:20px">Medical later, with paperwork first. No HIPAA claims on this site. <a href="/for/">See who it’s for</a>.</p>
+      </div>
+    </section>
+
+    <section class="bg-white">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">How it works</p>
+          <h2>Unbox. Plug in. Ask.</h2>
+          <p class="lede">No SSH. No weekend Ollama project. One intranet app.</p>
+        </div>
+        <div class="grid g3">
+          <div class="card" data-reveal>
+            <div class="step-num">1</div>
+            <h3>Unbox</h3>
+            <p class="muted">An imaged appliance. Disk encrypted. Open-weight model already loaded.</p>
+          </div>
+          <div class="card" data-reveal>
+            <div class="step-num">2</div>
+            <h3>Plug in</h3>
+            <p class="muted">Ethernet to your network. People open one app on the intranet.</p>
+          </div>
+          <div class="card" data-reveal>
+            <div class="step-num">3</div>
+            <h3>Ask</h3>
+            <p class="muted">Drop a PDF. Ask the question you would not paste into a lab chat.</p>
+          </div>
+        </div>
+        <p class="fine" style="margin-top:20px"><a href="/how-it-works/">Privacy, egress, and the status page →</a></p>
+      </div>
+    </section>
+
+    <section class="bg-cream">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">The system</p>
+          <h2>Three sizes. Same product.</h2>
+          <p class="lede">Tell us how many people will use it in a busy hour. A bigger box does not make the model as smart as a frontier lab. It lets more people use your model at once.</p>
+        </div>
+        <div class="grid g3">
+          <div class="card" data-reveal>
             <div class="motif" aria-hidden="true"></div>
             <div class="kicker">Hold S</div>
             <h3>Solo / two desks</h3>
             <div class="price">$1,999</div>
             <p class="muted">1–2 heavy chats at once. 32–64GB class. For a single professional who will not paste the file.</p>
           </div>
-          <div class="card">
+          <div class="card is-featured" data-reveal>
             <div class="motif" aria-hidden="true"></div>
             <div class="kicker">Hold M · default</div>
             <h3>5–10 person firm</h3>
             <div class="price">$3,749</div>
             <p class="muted">3–8 at once. 96–128GB class. The system we expect most firms to order.</p>
           </div>
-          <div class="card">
+          <div class="card" data-reveal>
             <div class="motif" aria-hidden="true"></div>
             <div class="kicker">Hold L</div>
             <h3>Busy floor</h3>
@@ -276,178 +201,43 @@
             <p class="muted">8–15 at once. A larger unit or a second M. Same app.</p>
           </div>
         </div>
-        <p class="fine" style="margin-top:20px">A bigger box does not make the model as smart as Claude. It lets more people use <em>your</em> model at the same time.</p>
+        <p class="fine" style="margin-top:20px">Software is separate: $29/mo solo or $149/mo firm, up to 8 seats. <a href="/pricing/">Full pricing and an honest compare →</a></p>
       </div>
     </section>
 
-    <section class="bg-white" id="compare">
-      <div class="wrap">
-        <p class="eyebrow">Compare</p>
-        <h2>What changes when the model stays on your floor.</h2>
-        <div class="table-wrap" style="margin-top:28px">
-          <table>
-            <thead>
-              <tr><th>Dimension</th><th>Frontier cloud chat</th><th>Holdroom</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Where the text goes</td><td class="no">Lab processes it</td><td class="yes">Stays on your box</td></tr>
-              <tr><td>Training on your files</td><td>“We don’t train” still means they had it</td><td class="yes">They never see it</td></tr>
-              <tr><td>Cost model</td><td>Tokens / seats / surprises</td><td class="yes">Flat software + one box</td></tr>
-              <tr><td>Hardest open-ended reasoning</td><td class="yes">Labs still win this year</td><td>Keep both until you trust the box</td></tr>
-              <tr><td>Shipping today</td><td class="yes">Yes</td><td>Pre-launch — inquiries only</td></tr>
-            </tbody>
-          </table>
+    <section class="bg-dark">
+      <div class="wrap" data-reveal>
+        <p class="eyebrow">Pre-launch</p>
+        <h2>If the fit is real, a person reads it.</h2>
+        <p class="lede">No checkout. No spam list. No sequence. North Texas built. Brand: holdroom.ai</p>
+        <div class="hero-actions">
+          <a class="btn btn-light" href="/inquire/">Inquire</a>
+          <a class="btn btn-outline-light" href="/security/">What we will and will not say</a>
         </div>
-      </div>
-    </section>
-
-    <section class="bg-dark" id="who">
-      <div class="wrap">
-        <p class="eyebrow" style="color:rgba(255,255,255,.55)">Who this is for</p>
-        <h2 style="color:#fff;max-width:16ch">Law, PE, and operators with real IP.</h2>
-        <div class="grid g3" style="margin-top:36px">
-          <div class="card" style="background:#171717;border-color:#2a2a2a;color:#fff">
-            <div class="kicker" style="color:rgba(255,255,255,.55)">Law firms</div>
-            <h3 style="color:#fff">Privilege</h3>
-            <p style="color:rgba(255,255,255,.68)">The associate-paste problem. Client work stays inside the building.</p>
-          </div>
-          <div class="card" style="background:#171717;border-color:#2a2a2a;color:#fff">
-            <div class="kicker" style="color:rgba(255,255,255,.55)">PE / deal shops</div>
-            <h3 style="color:#fff">The firm is the data</h3>
-            <p style="color:rgba(255,255,255,.68)">Models, IC memos, and portfolio files are the franchise.</p>
-          </div>
-          <div class="card" style="background:#171717;border-color:#2a2a2a;color:#fff">
-            <div class="kicker" style="color:rgba(255,255,255,.55)">Operators</div>
-            <h3 style="color:#fff">Real IP</h3>
-            <p style="color:rgba(255,255,255,.68)">Pricing, source, and customer files they will not upload.</p>
-          </div>
-        </div>
-        <p class="fine" style="margin-top:24px">Medical later, with paperwork first. No HIPAA claims on this page.</p>
-      </div>
-    </section>
-
-    <section class="bg-cream" id="faq">
-      <div class="wrap">
-        <p class="eyebrow">FAQ</p>
-        <h2>Straight answers.</h2>
-        <div class="grid g2" style="margin-top:28px">
-          <div class="card">
-            <h3>Does this replace ChatGPT?</h3>
-            <p class="muted">For work you will not paste into ChatGPT, yes. For the hardest open-ended reasoning, the labs still win. Most firms keep both until they trust the box.</p>
-          </div>
-          <div class="card">
-            <h3>Where does the model come from?</h3>
-            <p class="muted">Open-weight models that run on hardware you own. We preload and update them. You can turn updates off.</p>
-          </div>
-          <div class="card">
-            <h3>Can the whole firm use one box?</h3>
-            <p class="muted">Yes. Seats are logins. Capacity is concurrent use. Hold M is built for a 5–10 person office that is not all asking at 9:05.</p>
-          </div>
-          <div class="card">
-            <h3>Are you shipping today?</h3>
-            <p class="muted">Not yet. This page takes inquiries. If the fit is real, we will tell you when a unit can be imaged and delivered.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="bg-white" id="inquire">
-      <div class="wrap">
-        <p class="eyebrow">Inquire</p>
-        <h2>No spam list. No sequence.</h2>
-        <p class="lede" style="margin-bottom:28px">If you send this, a person reads it.</p>
-        <form id="inq" novalidate>
-          <div class="grid g2">
-            <div>
-              <label for="name">Name</label>
-              <input id="name" name="name" required />
-            </div>
-            <div>
-              <label for="firm">Firm</label>
-              <input id="firm" name="firm" required />
-            </div>
-            <div>
-              <label for="role">Role</label>
-              <input id="role" name="role" placeholder="Partner, associate, founder…" />
-            </div>
-            <div>
-              <label for="email">Email</label>
-              <input id="email" name="email" type="email" required />
-            </div>
-            <div>
-              <label for="phone">Phone (optional)</label>
-              <input id="phone" name="phone" />
-            </div>
-            <div>
-              <label for="headcount">People in the firm</label>
-              <select id="headcount" name="headcount">
-                <option>Just me</option>
-                <option>2–4</option>
-                <option selected>5–10</option>
-                <option>11–20</option>
-                <option>21+</option>
-              </select>
-            </div>
-          </div>
-          <label for="concurrent">How many people would use it at the same time in a busy hour?</label>
-          <select id="concurrent" name="concurrent">
-            <option>1–2 (Hold S)</option>
-            <option selected>3–6 (Hold M)</option>
-            <option>8–15 (Hold L)</option>
-            <option>Not sure</option>
-          </select>
-          <label for="secret">What will you not paste into ChatGPT?</label>
-          <input id="secret" name="secret" placeholder="Client memos, IC deck, source, pricing…" />
-          <label for="message">Anything else</label>
-          <textarea id="message" name="message"></textarea>
-          <div style="margin-top:20px" class="hero-actions">
-            <button class="btn btn-dark" type="submit">Send inquiry</button>
-          </div>
-          <p class="fine" style="margin-top:14px">This form stores a copy in your browser and opens an email draft. Nothing is sent to a lab.</p>
-          <div class="ok" id="ok">Inquiry saved in this browser. An email draft should have opened.</div>
-        </form>
       </div>
     </section>
   </main>
 
   <footer>
     <div class="wrap">
-      <a class="brand" href="#top">Holdroom<span class="dot">.</span></a>
-      <p>Holdroom is a working name for a private local-AI appliance. Intended domain: <a href="https://holdroom.ai/">holdroom.ai</a>. Not affiliated with OpenAI, Anthropic, xAI, or Google. Not a law firm. Not a medical device. © 2026</p>
+      <div class="footer-top">
+        <div>
+          <a class="brand" href="/">Holdroom<span class="dot">.</span></a>
+          <p class="fine">Ready local AI. The box stays in the building.</p>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="/product/">Product</a>
+          <a href="/how-it-works/">How it works</a>
+          <a href="/pricing/">Pricing</a>
+          <a href="/security/">Security</a>
+          <a href="/for/">For</a>
+          <a href="/faq/">FAQ</a>
+          <a href="/inquire/">Inquire</a>
+        </nav>
+      </div>
+      <p>Holdroom is a working name for a private local-AI appliance. Intended domain: <a href="https://holdroom.ai/">holdroom.ai</a>. Live: <a href="https://holdroom.vercel.app/">holdroom.vercel.app</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
     </div>
   </footer>
-
-  <script>
-    document.getElementById('inq').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var data = Object.fromEntries(new FormData(e.target).entries());
-      if (!data.name || !data.firm || !data.email) {
-        alert('Name, firm, and email are required.');
-        return;
-      }
-      var rec = Object.assign({ ts: new Date().toISOString() }, data);
-      var all = JSON.parse(localStorage.getItem('holdroom_inquiries') || '[]');
-      all.push(rec);
-      localStorage.setItem('holdroom_inquiries', JSON.stringify(all));
-      var body = [
-        'Holdroom inquiry',
-        'Time: ' + rec.ts,
-        'Name: ' + rec.name,
-        'Firm: ' + rec.firm,
-        'Role: ' + (rec.role || ''),
-        'Email: ' + rec.email,
-        'Phone: ' + (rec.phone || ''),
-        'Headcount: ' + rec.headcount,
-        'Concurrent: ' + rec.concurrent,
-        'Will not paste: ' + (rec.secret || ''),
-        'Message: ' + (rec.message || '')
-      ].join('\n');
-      var mail = 'mailto:daniel.keene223@gmail.com?subject=' +
-        encodeURIComponent('Holdroom inquiry — ' + rec.firm) +
-        '&body=' + encodeURIComponent(body);
-      window.location.href = mail;
-      document.getElementById('ok').style.display = 'block';
-    });
-  </script>
+  <script src="/assets/js/site.js"></script>
 </body>
 </html>
