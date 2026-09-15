@@ -36,8 +36,11 @@ Static multi-page HTML. No build step. No paid APIs.
 | `/for/` | Buyer situations — law, PE/deal, operators |
 | `/faq/` | Straight answers |
 | `/inquire/` | Locked form |
+| `/app/` | Internal Phase 1 UI wireframe (clickable HTML/CSS/JS, fake Fund A / Fund B data, not live) |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
+
+`/app/` is a Holdroom-owned product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
 Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Core offer: plug-and-go in-house suite + secure data + customized to you + same suite from the road. Tagline: “AI that stays in the building” (the firm, not one desk). The product may still be called an appliance or unit.
 
