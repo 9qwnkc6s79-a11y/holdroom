@@ -1,5 +1,6 @@
 # Holdroom
 
-Private local-AI appliance. Pre-launch site. Canonical brand domain: https://holdroom.ai/
-
-Hosted free on GitHub Pages until the domain is purchased; then point DNS at the free host.
+Private local-AI appliance.
+Live: https://holdroom.vercel.app
+Brand: https://holdroom.ai/
+Design inspiration: go.ai (visual system only; not affiliated).
