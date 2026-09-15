@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inquire — Holdroom</title>
+  <link rel="canonical" href="https://holdroom.ai/inquire/" />
+  <meta name="description" content="Request a Holdroom conversation. Pre-launch inquiries only. The form saves a copy in your browser and opens an email draft. Nothing is sent to a lab." />
+  <meta name="theme-color" content="#111111" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/site.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/">Holdroom<span class="dot">.</span></a>
+      <nav class="nav-links" id="site-nav" aria-label="Primary">
+        <a href="/product/">Product</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/pricing/">Pricing</a>
+        <a href="/security/">Security</a>
+        <a href="/for/">For</a>
+        <a href="/faq/">FAQ</a>
+        <a class="btn btn-ghost nav-cta-in-menu" href="/inquire/">Inquire</a>
+      </nav>
+      <a class="btn btn-ghost nav-cta" href="/inquire/">Inquire</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">Inquire</p>
+        <h1>No spam list. No sequence<span class="dot">.</span></h1>
+        <p class="lede">If you send this, a person reads it. Pre-launch only — no checkout.</p>
+      </div>
+    </section>
+
+    <section class="bg-white" style="padding-top:8px">
+      <div class="wrap-narrow wrap">
+        <form class="inquiry" id="inq" novalidate>
+          <div class="grid g2">
+            <div>
+              <label for="name">Name</label>
+              <input id="name" name="name" autocomplete="name" required />
+            </div>
+            <div>
+              <label for="firm">Firm</label>
+              <input id="firm" name="firm" autocomplete="organization" required />
+            </div>
+            <div>
+              <label for="role">Role</label>
+              <input id="role" name="role" placeholder="Partner, associate, founder…" />
+            </div>
+            <div>
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" required />
+            </div>
+            <div>
+              <label for="phone">Phone (optional)</label>
+              <input id="phone" name="phone" type="tel" autocomplete="tel" />
+            </div>
+            <div>
+              <label for="headcount">People in the firm</label>
+              <select id="headcount" name="headcount">
+                <option>Just me</option>
+                <option>2–4</option>
+                <option selected>5–10</option>
+                <option>11–20</option>
+                <option>21+</option>
+              </select>
+            </div>
+          </div>
+          <label for="concurrent">How many people would use it at the same time in a busy hour?</label>
+          <select id="concurrent" name="concurrent">
+            <option>1–2 (Hold S)</option>
+            <option selected>3–6 (Hold M)</option>
+            <option>8–15 (Hold L)</option>
+            <option>Not sure</option>
+          </select>
+          <label for="secret">What will you not paste into ChatGPT?</label>
+          <input id="secret" name="secret" placeholder="Client memos, IC deck, source, pricing…" />
+          <label for="message">Anything else</label>
+          <textarea id="message" name="message"></textarea>
+          <div class="hero-actions" style="margin-top:20px">
+            <button class="btn btn-dark" type="submit">Send inquiry</button>
+          </div>
+          <p class="fine" style="margin-top:14px">This form stores a copy in your browser and opens an email draft to daniel.keene223@gmail.com. Nothing is sent to a lab. Required: name, firm, email.</p>
+          <div class="form-ok" id="ok" role="status">Inquiry saved in this browser. An email draft should have opened.</div>
+          <div class="form-err" id="err" role="alert"></div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div class="footer-top">
+        <div>
+          <a class="brand" href="/">Holdroom<span class="dot">.</span></a>
+          <p class="fine">Ready local AI. The box stays in the building.</p>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="/product/">Product</a>
+          <a href="/how-it-works/">How it works</a>
+          <a href="/pricing/">Pricing</a>
+          <a href="/security/">Security</a>
+          <a href="/for/">For</a>
+          <a href="/faq/">FAQ</a>
+          <a href="/inquire/">Inquire</a>
+        </nav>
+      </div>
+      <p>Holdroom is a working name for a private local-AI appliance. Intended domain: <a href="https://holdroom.ai/">holdroom.ai</a>. Live: <a href="https://holdroom.vercel.app/">holdroom.vercel.app</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
+    </div>
+  </footer>
+  <script src="/assets/js/site.js"></script>
+  <script src="/assets/js/inquire.js"></script>
+</body>
+</html>
