@@ -105,7 +105,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding-bottom: 2px;
 }
 .nav-cta { flex-shrink: 0; }
-.nav-cta-in-menu { display: none; }
+.nav-links .nav-cta-in-menu { display: none; }
 .nav-toggle {
   display: none;
   width: 42px;
@@ -788,7 +788,7 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .nav-cta { display: none; }
-  .nav-cta-in-menu {
+  .nav.is-open .nav-links .nav-cta-in-menu {
     display: inline-flex;
     margin-top: 8px;
   }
