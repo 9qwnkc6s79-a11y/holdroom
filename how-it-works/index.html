@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>How it works — Holdroom</title>
   <link rel="canonical" href="https://holdroom.ai/how-it-works/" />
-  <meta name="description" content="Unbox, plug into your network, and ask. Holdroom keeps files on the box. Egress is off by default. A local status page shows the state." />
+  <meta name="description" content="Unbox an imaged workstation, plug into your network, sign in as owner, drop a PDF, and ask. Work stays on premises. A status page shows traffic is not leaving." />
   <meta name="theme-color" content="#111111" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,27 +39,72 @@
       <div class="wrap">
         <p class="eyebrow">How it works</p>
         <h1>Unbox. Plug in. Ask<span class="dot">.</span></h1>
-        <p class="lede">The job is the document they refused to paste. The path is short on purpose.</p>
+        <p class="lede">The job is the document they refused to paste. The path is short on purpose. The data stays with you — it does not go to the frontier labs.</p>
       </div>
     </section>
 
     <section class="bg-white" style="padding-top:24px">
       <div class="wrap">
-        <div class="grid g3">
+        <div class="grid g3" style="margin-bottom:28px">
           <div class="card" data-reveal>
             <div class="step-num">1</div>
             <h3>Unbox</h3>
-            <p class="muted">The unit arrives imaged. Disk encryption is on. An open-weight model is already on the box. You do not assemble a stack over a weekend.</p>
+            <p class="muted">A white-label mini workstation, already imaged. Disk encrypted. Chat and fast models loaded. You do not assemble a stack.</p>
           </div>
           <div class="card" data-reveal>
             <div class="step-num">2</div>
             <h3>Plug in</h3>
-            <p class="muted">Ethernet to your network. Power on. People reach one app on the intranet. No public cloud login. No SSH required to ask a question.</p>
+            <p class="muted">Ethernet to your network. Power on. The owner signs in first on the LAN app, then invites seats. No public cloud login. No SSH to ask a question.</p>
           </div>
           <div class="card" data-reveal>
             <div class="step-num">3</div>
             <h3>Ask</h3>
-            <p class="muted">Drop a PDF. Ask about the memo, the model, or the pricing sheet. Prompts, files, and outputs stay on the machine you own.</p>
+            <p class="muted">Drop a PDF, or put files in the watched folder. Ask. Retrieval and answers stay on premises. Your files stay yours.</p>
+          </div>
+        </div>
+
+        <div class="flow" data-reveal>
+          <div class="flow-step">
+            <div class="step-num">1</div>
+            <div>
+              <h3>Arrive imaged</h3>
+              <p class="muted">The unit ships ready. Encryption is on. Models are local. Same software whether you ordered S, M, or L.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">2</div>
+            <div>
+              <h3>Join the room’s network</h3>
+              <p class="muted">Plug into the LAN. People reach one intranet app. Work stays on your network — not a lab account.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">3</div>
+            <div>
+              <h3>Owner login, then invites</h3>
+              <p class="muted">The first account is the owner. They invite seats. Solo is one login; firm software is up to 8 seats.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">4</div>
+            <div>
+              <h3>Add documents</h3>
+              <p class="muted">Upload in the app, or drop files into a watched folder. The app can search those documents so a question can use the memo that should stay in the room.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">5</div>
+            <div>
+              <h3>Ask without leaving the floor</h3>
+              <p class="muted">Chat with the local models. The pass test: a non-technical person drops a PDF and asks. No SSH.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">6</div>
+            <div>
+              <h3>Check the status / connections page</h3>
+              <p class="muted">See model state, disk encryption, and whether outbound is on. Proof for IT and counsel — not a sales paragraph.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -69,18 +114,19 @@
       <div class="wrap">
         <div class="grid g2" style="align-items:center">
           <div data-reveal>
-            <p class="eyebrow">Privacy / egress</p>
-            <h2>Outbound is off unless you turn it on.</h2>
-            <p class="lede">The point of a local box is that a lab never sees the corpus. Egress starts off. Updates are optional. If IT wants a hole, that is a written choice — not a default.</p>
-            <p class="muted">We will not tell you this is “air-gapped by certification.” We will tell you the intended posture: work stays on the LAN; the box does not call a lab to answer a question.</p>
+            <p class="eyebrow">Network</p>
+            <h2>Default-deny outbound.</h2>
+            <p class="lede">The unit does not call a frontier lab or a data company to answer. Egress starts off. Signed updates are optional and can be disabled. If IT wants a hole, that is a written choice — not a silent default.</p>
+            <p class="muted">We will not call this a certified air gap. We will say the intended posture: work stays on premises; the status page is how you see it.</p>
           </div>
-          <div class="status" data-reveal aria-label="Example status page">
-            <div class="status-row"><span>Holdroom status</span><span>Local only</span></div>
-            <div class="status-row"><span>Model</span><span class="status-ok">Loaded</span></div>
+          <div class="status" data-reveal aria-label="Example status and connections page">
+            <div class="status-row"><span>Status / connections</span><span>On your network</span></div>
+            <div class="status-row"><span>Chat model</span><span class="status-ok">Loaded</span></div>
+            <div class="status-row"><span>Fast model</span><span class="status-ok">Loaded</span></div>
             <div class="status-row"><span>Disk</span><span class="status-ok">Encrypted</span></div>
-            <div class="status-row"><span>Outbound / egress</span><span class="status-off">Off</span></div>
-            <div class="status-row"><span>Files seen by labs</span><span class="status-ok">Never</span></div>
-            <div class="status-row"><span>Last update check</span><span>Disabled by you</span></div>
+            <div class="status-row"><span>Outbound</span><span class="status-off">Denied</span></div>
+            <div class="status-row"><span>Traffic to labs</span><span class="status-ok">None</span></div>
+            <div class="status-row"><span>Signed updates</span><span>Disabled by you</span></div>
           </div>
         </div>
       </div>
@@ -89,25 +135,24 @@
     <section class="bg-white">
       <div class="wrap">
         <div class="section-head" data-reveal>
-          <p class="eyebrow">Proof</p>
-          <h2>A status page you can show IT.</h2>
-          <p class="lede">Trust is not a paragraph on a marketing site. The box has a local status page so a technical partner can see model state, disk encryption, and whether outbound is on — without taking a sales call as evidence.</p>
+          <p class="eyebrow">Backup and proof</p>
+          <h2>You own the disk. You can show the page.</h2>
         </div>
         <div class="grid g3">
           <div data-reveal>
-            <h3>What it shows</h3>
-            <p class="muted">Loaded model, disk lock, egress on/off, and whether update checks are enabled. Plain language. Screenshot-friendly.</p>
+            <h3>Backup</h3>
+            <p class="muted">There is no Holdroom cloud. Backup is the encrypted disk you own, or a copy you make of it. Unplug the unit and the work stays with you.</p>
+          </div>
+          <div data-reveal>
+            <h3>What the status page shows</h3>
+            <p class="muted">Models loaded, disk lock, outbound on/off, update checks on/off. Plain language. Screenshot-friendly for IT.</p>
           </div>
           <div data-reveal>
             <h3>What it is not</h3>
-            <p class="muted">Not a public uptime badge. Not a SOC 2 report. Not a claim that nothing can ever leak if someone walks the box out the door.</p>
-          </div>
-          <div data-reveal>
-            <h3>Who looks at it</h3>
-            <p class="muted">The person who will get the call if an associate pastes a client file. Counsel, IT, or the partner who owns the risk.</p>
+            <p class="muted">Not a public uptime badge. Not a SOC 2 report. Not a claim that nothing can leak if someone walks the hardware out of the room.</p>
           </div>
         </div>
-        <p class="fine" style="margin-top:28px"><a href="/security/">Read what we will and will not say →</a></p>
+        <p class="fine" style="margin-top:28px"><a href="/security/">What we will and will not say →</a></p>
       </div>
     </section>
   </main>
@@ -117,7 +162,7 @@
       <div class="footer-top">
         <div>
           <a class="brand" href="/">Holdroom<span class="dot">.</span></a>
-          <p class="fine">Ready local AI. The box stays in the building.</p>
+          <p class="fine">AI that stays in the building. Your files stay yours.</p>
         </div>
         <nav class="footer-links" aria-label="Footer">
           <a href="/product/">Product</a>

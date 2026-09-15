@@ -1,6 +1,6 @@
 # Holdroom
 
-Ready local AI: a box you own. Compute, memory, and a model already on it. Plug into the network. Labs never see the files.
+AI that stays in the building. A ready local AI appliance you own. Work stays on your network. Your files stay yours — they do not go to the frontier labs or data companies.
 
 - Live: https://holdroom.vercel.app
 - Brand / canonical: https://holdroom.ai (domain intended; not required to resolve)
@@ -18,6 +18,10 @@ Ready local AI: a box you own. Compute, memory, and a model already on it. Plug 
 
 Pre-launch inquiries only. No checkout. No token bill. Setup is quoted after fit.
 
+## What they get
+
+White-label mini workstation, imaged before ship; encrypted disk; local open-weight models (chat + fast); LAN app (chat, upload, watched folder / document retrieval); owner login then seat invites; default-deny outbound; optional signed updates they can disable; status / connections page; backup is the encrypted disk they own. Same software on S/M/L, sized by busy-hour concurrent use.
+
 ## Site
 
 Static multi-page HTML. No build step. No paid APIs.
@@ -25,15 +29,17 @@ Static multi-page HTML. No build step. No paid APIs.
 | Path | Page |
 | --- | --- |
 | `/` | Home — offer above the fold |
-| `/product/` | What ships, stack, S/M/L |
-| `/how-it-works/` | Unbox → plug in → ask; egress; status page |
+| `/product/` | What you get, documents, S/M/L |
+| `/how-it-works/` | Unbox → plug in → ask; network; status; backup |
 | `/pricing/` | Hardware, software, setup, honest compare |
-| `/security/` | Local data; what we will / will not say |
+| `/security/` | Data stays with you; what we will / will not say |
 | `/for/` | Law, PE/deal, operators |
 | `/faq/` | Straight answers |
 | `/inquire/` | Locked form |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
+
+Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). The product may still be called an appliance or unit. Tagline: “AI that stays in the building.”
 
 ## Claims locks
 
