@@ -28,7 +28,7 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — pitch deck: story → problem → product → why now → offer → context → CTA |
+| `/` | Home — short offer, stacked compare, CTA |
 | `/product/` | Plug-and-go suite, custom, remote, specs, S/M/L |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
 | `/pricing/` | Hardware, software, setup, honest compare |

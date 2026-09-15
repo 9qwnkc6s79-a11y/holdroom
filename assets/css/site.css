@@ -477,25 +477,47 @@ section { padding: 96px 0; }
   margin-bottom: 14px;
 }
 
-/* Table */
+/* Compare — stacked, labeled, no sideways scroll */
+.compare {
+  display: grid;
+  gap: 12px;
+}
+.compare-row {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+}
+.compare-row h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.compare-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.compare-side {
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+.compare-side.typical { background: #fff8f7; }
+.compare-side.hold { background: #f3faf6; }
+.compare-side .kicker { margin-bottom: 6px; }
+.compare-side p { margin: 0; font-size: 14px; line-height: 1.45; }
+.compare-side.hold p { font-weight: 600; color: var(--ok); }
+
+/* Table (desktop-only pages that still need one — never require swipe) */
 .table-wrap {
   border: 1px solid var(--rule);
   border-radius: 16px;
-  overflow: auto;
+  overflow: visible;
   background: var(--paper);
-  -webkit-overflow-scrolling: touch;
-}
-.table-hint {
-  display: none;
-  font-size: 12px;
-  color: var(--muted);
-  margin: 0 0 10px;
 }
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 15px;
-  min-width: 640px;
 }
 th, td {
   text-align: left;
@@ -802,10 +824,10 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
   .stat-row,
   .footer-top,
   .next-rail,
-  .pillars { grid-template-columns: 1fr; }
+  .pillars,
+  .compare-sides { grid-template-columns: 1fr; }
   .flow-step { grid-template-columns: 40px 1fr; padding: 18px 16px; }
-  .table-hint { display: block; }
-  table { min-width: 560px; }
+  table { min-width: 0; }
   .hero { padding: 48px 0 56px; }
   section { padding: 72px 0; }
 }
