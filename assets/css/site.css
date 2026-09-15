@@ -98,8 +98,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   white-space: nowrap;
 }
-.nav-links a:hover,
-.nav-links a[aria-current="page"] { color: #fff; }
+.nav-links a:hover { color: #fff; }
+.nav-links a[aria-current="page"] {
+  color: #fff;
+  box-shadow: inset 0 -2px 0 var(--violet);
+  padding-bottom: 2px;
+}
 .nav-cta { flex-shrink: 0; }
 .nav-cta-in-menu { display: none; }
 .nav-toggle {
@@ -262,6 +266,7 @@ section { padding: 88px 0; }
   border-color: var(--ink);
   box-shadow: var(--shadow);
 }
+.card.is-featured .kicker { color: var(--ink); }
 .card .kicker {
   font-size: 11px;
   font-weight: 600;
@@ -416,12 +421,19 @@ section { padding: 88px 0; }
   border-radius: 16px;
   overflow: auto;
   background: var(--paper);
+  -webkit-overflow-scrolling: touch;
+}
+.table-hint {
+  display: none;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 10px;
 }
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 15px;
-  min-width: 880px;
+  min-width: 640px;
 }
 th, td {
   text-align: left;
@@ -568,15 +580,16 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
 .status-ok { color: #7ddea8; }
 .status-off { color: #f0c36d; }
 
-/* Reveal */
-[data-reveal] {
+/* Reveal — visible by default so a JS failure never blanks the page */
+[data-reveal].will-reveal {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
 }
-[data-reveal].is-in {
+[data-reveal].is-in,
+[data-reveal].will-reveal.is-in {
   opacity: 1;
   transform: none;
+  transition: opacity 0.7s ease, transform 0.7s ease;
 }
 
 .page-hero { padding: 64px 0 24px; }
@@ -609,7 +622,9 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
 }
 .list-plain li:last-child { border-bottom: 0; }
 
-@media (max-width: 980px) {
+.vs-grid { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 1100px) {
   .nav-links,
   .nav-cta { display: none; }
   .nav.is-open .nav-links {
@@ -631,17 +646,23 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
     margin-top: 8px;
   }
   .nav-toggle { display: inline-flex; }
+}
+
+@media (max-width: 900px) {
   .hero-grid,
   .g4, .g3, .g2,
+  .vs-grid,
   .stat-row,
   .footer-top { grid-template-columns: 1fr; }
+  .table-hint { display: block; }
+  table { min-width: 560px; }
   .hero { padding: 48px 0 56px; }
   section { padding: 64px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .btn, .card, [data-reveal] { transition: none; }
-  [data-reveal] { opacity: 1; transform: none; }
+  .btn, .card, [data-reveal], [data-reveal].will-reveal { transition: none; }
+  [data-reveal], [data-reveal].will-reveal { opacity: 1; transform: none; }
   .btn:hover, .card:hover { transform: none; }
 }
