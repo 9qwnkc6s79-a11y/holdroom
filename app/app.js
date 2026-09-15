@@ -109,6 +109,9 @@
     offline: false,
     route: "signin",
     extraRooms: [],
+    extraSeats: [],
+    generatedInvite: "",
+    inviteSeq: 0,
     emptyRoomsDemo: false,
     emptySeatsDemo: localStorage.getItem(STORAGE.seatsEmpty) === "1",
     threads: { "fund-a": [], "fund-b": [] },
@@ -515,7 +518,7 @@
       '<div class="panel">' +
         '<p class="screen-kicker">Status</p>' +
         "<h1>This box.</h1>" +
-        "<p class=\"lede\">Health of the firm’s Holdroom — not a cloud dashboard. Egress FAIL=blocked is the good outcome.</p>" +
+        "<p class=\"lede\">Health of this box. Egress FAIL=blocked is the good outcome.</p>" +
         '<div class="card">' +
           '<div class="status-row"><span>Health</span><b class="egress-ok">ok</b></div>' +
           '<div class="status-row"><span>Image</span><b>holdroom-phase1-wireframe</b></div>' +
@@ -542,14 +545,25 @@
           '<p class="screen-kicker">Admin</p>' +
           "<h1>No seats issued.</h1>" +
           "<p class=\"lede\">Create an invite for the first partner. Holdroom does not keep an always-on admin account and does not take a copy of the corpus.</p>" +
+          (state.generatedInvite
+            ? '<div class="card invite-card">' +
+                '<p class="screen-kicker">Invite ready</p>' +
+                '<p class="invite-code">' + esc(state.generatedInvite) + "</p>" +
+                "<p class=\"muted\" style=\"margin:0\">Share this code in person. The partner pairs on this box — it is not emailed from outside the firm.</p>" +
+              "</div>"
+            : "") +
           '<div class="btn-row">' +
-            '<button class="btn btn-dark" type="button" data-act="seats-demo-off">Show issued seats</button>' +
+            '<button class="btn btn-dark" type="button" data-act="mint-invite">' +
+              (state.generatedInvite ? "Generate another invite" : "Generate invite") +
+            "</button>" +
+            '<button class="btn btn-outline" type="button" data-act="seats-demo-off">Show issued seats</button>' +
           "</div>" +
+          (state.toast ? '<div class="banner banner-ok" style="margin-top:14px"><p>' + esc(state.toast) + "</p></div>" : "") +
         "</div>"
       );
     }
 
-    var seats = SEATS.map(function (s) {
+    var seats = state.extraSeats.concat(SEATS).map(function (s) {
       return (
         '<div class="card">' +
           '<div class="file-row">' +
@@ -607,7 +621,7 @@
         "</div>" +
         '<div class="card howto" style="margin-top:10px">' +
           "<h2>Remote how-to</h2>" +
-          "<p class=\"muted\" style=\"margin:0 0 8px\">Firm-owned path. Never a Holdroom cloud, and never a proxy that runs the model for you.</p>" +
+          "<p class=\"muted\" style=\"margin:0 0 8px\">Firm-owned path. Holdroom does not host the tunnel and does not run the model off this box.</p>" +
           "<ol>" +
             "<li>Connect this phone or laptop to the firm’s WireGuard, Tailscale-class mesh, or existing client VPN first.</li>" +
             "<li>Then open the same Holdroom URL your IT set (for example <code>https://ai.firm.local</code>).</li>" +
@@ -807,7 +821,20 @@
       return;
     }
     if (act === "mint-invite") {
-      state.toast = "Invite HOLD-7K2M created. Share it in person — it is not emailed by a Holdroom cloud.";
+      state.inviteSeq += 1;
+      var code = state.emptySeatsDemo && state.inviteSeq === 1
+        ? "HOLD-BETA"
+        : "HOLD-" + (6 + state.inviteSeq) + "K2M";
+      if (!state.emptySeatsDemo && state.inviteSeq === 1) code = "HOLD-7K2M";
+      state.generatedInvite = code;
+      state.extraSeats.unshift({
+        name: "Pending invite",
+        role: "Seat reserved",
+        rooms: "—",
+        device: code,
+        pending: true
+      });
+      state.toast = "Invite " + code + " created. Share it in person. Issued by this box — not emailed from outside the firm.";
       draw();
       return;
     }
