@@ -1,7 +1,7 @@
 /* Holdroom Phase 1 wireframe SW.
    Offline = “can’t reach the room.” Do not cache a corpus. */
 const OFFLINE_URL = "/app/offline.html";
-const CACHE = "holdroom-offline-v1";
+const CACHE = "holdroom-offline-v2";
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
