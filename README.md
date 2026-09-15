@@ -1,6 +1,6 @@
 # Holdroom
 
-AI that stays in the building. A ready local AI appliance you own. Work stays on your network. Your files stay yours — they do not go to the frontier labs or data companies.
+AI that stays in the building. A complete plug-and-go in-house AI suite you own. Secure data stays with you — not with frontier labs or data companies. Customized to the firm. Same private system from the office or, securely, the road.
 
 - Live: https://holdroom.vercel.app
 - Brand / canonical: https://holdroom.ai (domain intended; not required to resolve)
@@ -20,7 +20,7 @@ Pre-launch inquiries only. No checkout. No token bill. Setup is quoted after fit
 
 ## What they get
 
-White-label mini workstation, imaged before ship; encrypted disk; local open-weight models (chat + fast); LAN app (chat, upload, watched folder / document retrieval); owner login then seat invites; default-deny outbound; optional signed updates they can disable; status / connections page; backup is the encrypted disk they own. Same software on S/M/L, sized by busy-hour concurrent use.
+White-label mini workstation, imaged before ship (customized to the firm); encrypted disk; local open-weight models (chat + fast); firm app (chat, upload, watched folder / document retrieval); owner login then seat invites; default-deny outbound; optional signed updates they can disable; status / connections page; backup is the encrypted disk they own; secure remote access to the same suite (path confirmed at imaging — not a named VPN, not zero-attack-surface, not a lab upload). Same software on S/M/L, sized by busy-hour concurrent use.
 
 ## Site
 
@@ -28,18 +28,18 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — offer above the fold |
-| `/product/` | What you get, documents, S/M/L |
-| `/how-it-works/` | Unbox → plug in → ask; network; status; backup |
+| `/` | Home — pitch deck: story → problem → product → why now → offer → context → CTA |
+| `/product/` | Plug-and-go suite, custom, remote, specs, S/M/L |
+| `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
 | `/pricing/` | Hardware, software, setup, honest compare |
-| `/security/` | Data stays with you; what we will / will not say |
-| `/for/` | Law, PE/deal, operators |
+| `/security/` | What we will / will not claim (incl. remote) |
+| `/for/` | Buyer situations — law, PE/deal, operators |
 | `/faq/` | Straight answers |
 | `/inquire/` | Locked form |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
-Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). The product may still be called an appliance or unit. Tagline: “AI that stays in the building.”
+Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Core offer: plug-and-go in-house suite + secure data + customized to you + same suite from the road. Tagline: “AI that stays in the building” (the firm, not one desk). The product may still be called an appliance or unit.
 
 ## Claims locks
 
