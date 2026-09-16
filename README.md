@@ -10,12 +10,11 @@ Operating layer for the firm’s knowledge. In-house AI on your network. An onto
 
 | Item | Role | Price |
 | --- | --- | --- |
-| Team | Floor / entry — not hero | Talk to us |
-| **Firm** | **Default quote — v1 hero** | **$28k hardware + $48k/yr platform** |
-| Company | Price card only — not v1 | Talk to us |
-| Campus | Price card only — not v1 | Talk to us |
+| **Firm** | Smallest public size | **$18k hardware + $24k/yr platform** |
+| **Enterprise** | Mid-size / featured | **$28k hardware + $48k/yr platform** |
+| **Corporation** | Largest | Talk to us — no public price |
 
-Internal aim: **50–250 person firms** (Firm SKU hero). Public homepage must **not** gate on headcount — Team is the floor; a ~15 person shop is welcome. Keep 50–250 quieter (pricing, FAQ “typical customer,” deep product).
+Public homepage must **not** gate on headcount. Soft ranges OK (Enterprise often 50–250). Do not use “floor”, “default”, or “hero SKU” in public UI. Do not use Team / Company / Campus as public size names.
 
 - Hardware = how they believe us (encrypted cluster in their environment)
 - Platform = the business (Hatch OS + ontology + knowledge base + packs + house model on their data)
@@ -26,7 +25,7 @@ Pre-launch inquiries only. No checkout. No token bill.
 
 ## What they get
 
-Encrypted cluster (firm-owned / in their environment); Hatch OS (login, files, secure remote over **their** VPN); ontology imaged to how they work; knowledge base customized to **their** corpus; house model; moral pack; legal pack. Not a Hatch cloud LLM as the product. Featured quote is Firm; Team is the floor.
+Encrypted cluster (firm-owned / in their environment); Hatch OS (login, files, secure remote over **their** VPN); ontology imaged to how they work; knowledge base customized to **their** corpus; house model; moral pack; legal pack. Not a Hatch cloud LLM as the product. Published prices: Firm and Enterprise. Corporation is custom.
 
 Selling trajectory: **ontology across the board** — not just chat-on-docs.
 
@@ -36,10 +35,10 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — operating layer + stack viz, inclusive hero, Firm cards, compare, CTA |
-| `/product/` | Ontology-centered stack, knowledge-base customization, remote, tiers |
+| `/` | Home — operating layer + stack viz, inclusive hero, size cards, compare, CTA |
+| `/product/` | Ontology-centered stack, knowledge-base customization, remote, sizes |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
-| `/pricing/` | Team / Firm / Company / Campus, honest compare |
+| `/pricing/` | Firm / Enterprise / Corporation, honest compare |
 | `/security/` | What we will / will not claim (incl. remote) |
 | `/for/` | Firms that will not leak the file — law, PE/deal, operators as beachheads |
 | `/faq/` | Straight answers |
