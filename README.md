@@ -10,7 +10,7 @@ Operating layer for the firm’s knowledge. In-house AI on your network. An onto
 
 | Item | Role | Price |
 | --- | --- | --- |
-| **Firm** | Smallest public size | **$18k hardware + $24k/yr platform** |
+| **Firm** | Smallest public size | Talk to us — dollars not locked yet |
 | **Enterprise** | Mid-size / featured | **$28k hardware + $48k/yr platform** |
 | **Corporation** | Largest | Talk to us — no public price |
 
@@ -25,7 +25,7 @@ Pre-launch inquiries only. No checkout. No token bill.
 
 ## What they get
 
-Encrypted cluster (firm-owned / in their environment); Hatch OS (login, files, secure remote over **their** VPN); ontology imaged to how they work; knowledge base customized to **their** corpus; house model; moral pack; legal pack. Not a Hatch cloud LLM as the product. Published prices: Firm and Enterprise. Corporation is custom.
+Encrypted cluster (firm-owned / in their environment); Hatch OS (login, files, secure remote over **their** VPN); ontology imaged to how they work; knowledge base customized to **their** corpus; house model; moral pack; legal pack. Not a Hatch cloud LLM as the product. Published price: Enterprise. Firm and Corporation are talk to us until dollars are locked.
 
 Selling trajectory: **ontology across the board** — not just chat-on-docs.
 
