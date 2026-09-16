@@ -1,7 +1,7 @@
-/* Holdroom Phase 1 wireframe SW.
+/* Hatch OS Phase 1 wireframe SW.
    Offline = “can’t reach the room.” Do not cache a corpus. */
 const OFFLINE_URL = "/app/offline.html";
-const CACHE = "holdroom-offline-v2";
+const CACHE = "hatch-offline-v1";
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -49,7 +49,7 @@ self.addEventListener("fetch", function (event) {
       if (request.destination === "document") {
         return caches.match(OFFLINE_URL);
       }
-      return new Response("", { status: 503, statusText: "Can’t reach the Holdroom" });
+      return new Response("", { status: 503, statusText: "Can’t reach Hatch OS" });
     })
   );
 });

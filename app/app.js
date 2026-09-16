@@ -234,14 +234,14 @@
     return (
       '<div class="gate">' +
         '<div class="gate-inner">' +
-          '<a class="brand" href="#/ask">Holdroom<span class="dot">.</span></a>' +
-          "<h1>Can’t reach the Holdroom.</h1>" +
+          '<a class="brand" href="#/ask">Hatch<span class="dot">.</span></a>' +
+          "<h1>Can’t reach Hatch OS.</h1>" +
           "<p class=\"lede\">Join the office network or the firm VPN, then retry. This phone does not keep a local copy of the library.</p>" +
           '<div class="btn-row">' +
             '<button class="btn btn-dark" type="button" data-act="offline-off">Retry</button>' +
             '<button class="btn btn-outline" type="button" data-act="offline-off">End offline demo</button>' +
           "</div>" +
-          "<p class=\"fine\" style=\"margin-top:18px\">Holdroom does not fall back to a public lab when the box is unreachable.</p>" +
+          "<p class=\"fine\" style=\"margin-top:18px\">Hatch OS does not fall back to a public lab when the box is unreachable.</p>" +
         "</div>" +
       "</div>"
     );
@@ -251,7 +251,7 @@
     return (
       '<div class="gate">' +
         '<div class="gate-inner">' +
-          '<a class="brand" href="#/signin">Holdroom<span class="dot">.</span></a>' +
+          '<a class="brand" href="#/signin">Hatch<span class="dot">.</span></a>' +
           "<h1>This device is not paired.</h1>" +
           "<p class=\"lede\">Ask your admin for an invite code. The session lives on this box — the phone stores a pointer, not the corpus.</p>" +
           (state.pairError ? '<div class="banner banner-warn" role="alert"><p>' + esc(state.pairError) + "</p></div>" : "") +
@@ -291,8 +291,8 @@
     var r = room();
     return (
       '<div class="app-shell">' +
-        '<aside class="desktop-nav" aria-label="Holdroom">' +
-          '<a class="brand" href="#/ask">Holdroom<span class="dot">.</span></a>' +
+        '<aside class="desktop-nav" aria-label="Hatch OS">' +
+          '<a class="brand" href="#/ask">Hatch<span class="dot">.</span></a>' +
           navLink("#/ask", "Ask", "ask") +
           navLink("#/rooms", "Rooms", "rooms") +
           navLink("#/library", "Library", "library") +
@@ -303,7 +303,7 @@
           '<p class="rail-foot">Same box as the office. <a href="/">Marketing site</a></p>' +
         "</aside>" +
         '<header class="topbar">' +
-          '<a class="brand" href="#/ask">Holdroom<span class="dot">.</span></a>' +
+          '<a class="brand" href="#/ask">Hatch<span class="dot">.</span></a>' +
           '<div class="topbar-meta">' +
             '<a class="room-chip" href="#/rooms" title="Current room">' + esc(r.name) + "</a>" +
             '<a class="health-dot" href="#/status" title="Box health ok" aria-label="Box health ok"></a>' +
@@ -330,7 +330,7 @@
           '<p class="screen-kicker">Ask</p>' +
           "<h1>Nothing in this room yet.</h1>" +
           "<p class=\"lede\">Ask, or open Library and drop a PDF. Answers stream from this box — you do not pick a public model.</p>" +
-          '<div class="tip">You are talking to the firm’s Holdroom, not a public lab.</div>' +
+          '<div class="tip">You are talking to the firm’s Hatch OS, not a public lab.</div>' +
           '<div class="prompts">' +
             (state.room === "fund-a"
               ? '<button class="prompt" type="button" data-prompt="What is the customer concentration in the Northshore CIM?">Customer concentration</button>' +
@@ -441,7 +441,7 @@
       list =
         '<div class="card">' +
           "<h2>Nothing indexed in " + esc(r.name) + ".</h2>" +
-          "<p class=\"muted\" style=\"margin:0\">Drop a PDF into this room. Files stay on the firm’s box. Holdroom support does not receive a copy.</p>" +
+          "<p class=\"muted\" style=\"margin:0\">Drop a PDF into this room. Files stay on the firm’s box. Hatch support does not receive a copy.</p>" +
         "</div>";
     } else {
       list = files.map(function (f) {
@@ -521,7 +521,7 @@
         "<p class=\"lede\">Health of this box. Egress FAIL=blocked is the good outcome.</p>" +
         '<div class="card">' +
           '<div class="status-row"><span>Health</span><b class="egress-ok">ok</b></div>' +
-          '<div class="status-row"><span>Image</span><b>holdroom-phase1-wireframe</b></div>' +
+          '<div class="status-row"><span>Image</span><b>hatch-os-phase1-wireframe</b></div>' +
           '<div class="status-row"><span>Model loaded</span><b>local instruct (box)</b></div>' +
           '<div class="status-row"><span>Disk free</span><b>412 GB</b></div>' +
           '<div class="status-row"><span>Last backup</span><b>14 Sep 2026 · 22:10</b></div>' +
@@ -544,7 +544,7 @@
         '<div class="panel">' +
           '<p class="screen-kicker">Admin</p>' +
           "<h1>No seats issued.</h1>" +
-          "<p class=\"lede\">Create an invite for the first partner. Holdroom does not keep an always-on admin account and does not take a copy of the corpus.</p>" +
+          "<p class=\"lede\">Create an invite for the first partner. Hatch does not keep an always-on admin account and does not take a copy of the corpus.</p>" +
           (state.generatedInvite
             ? '<div class="card invite-card">' +
                 '<p class="screen-kicker">Invite ready</p>' +
@@ -600,7 +600,7 @@
         "</div>" +
         '<div class="card" style="margin-top:10px">' +
           "<h2>Updates</h2>" +
-          "<p class=\"muted\">Import a signed offline bundle → inactive slot → health → cutover / rollback. No always-on Holdroom remote admin.</p>" +
+          "<p class=\"muted\">Import a signed offline bundle → inactive slot → health → cutover / rollback. No always-on Hatch remote admin.</p>" +
           '<div class="btn-row">' +
             '<button class="btn btn-ghost" type="button" data-act="update">Import bundle (stub)</button>' +
           "</div>" +
@@ -614,17 +614,17 @@
       '<div class="panel">' +
         '<p class="screen-kicker">Settings</p>' +
         "<h1>This device.</h1>" +
-        "<p class=\"lede\">Sign out, reset TOTP, and how to reach the same box from the road. Holdroom does not host the tunnel.</p>" +
+        "<p class=\"lede\">Sign out, reset TOTP, and how to reach the same box from the road. Hatch does not host the tunnel.</p>" +
         '<div class="card device">' +
           "<div><strong>" + esc(state.device || "This browser") + "</strong><p class=\"fine\">Paired · session pointer only</p></div>" +
           '<span class="pill pill-ok">On box</span>' +
         "</div>" +
         '<div class="card howto" style="margin-top:10px">' +
           "<h2>Remote how-to</h2>" +
-          "<p class=\"muted\" style=\"margin:0 0 8px\">Firm-owned path. Holdroom does not host the tunnel and does not run the model off this box.</p>" +
+          "<p class=\"muted\" style=\"margin:0 0 8px\">Firm-owned path. Hatch does not host the tunnel and does not run the model off this box.</p>" +
           "<ol>" +
             "<li>Connect this phone or laptop to the firm’s WireGuard, Tailscale-class mesh, or existing client VPN first.</li>" +
-            "<li>Then open the same Holdroom URL your IT set (for example <code>https://ai.firm.local</code>).</li>" +
+            "<li>Then open the same Hatch OS URL your IT set (for example <code>https://ai.firm.local</code>).</li>" +
             "<li>If the tunnel is down, you will see “can’t reach the room.” There is no on-device model.</li>" +
           "</ol>" +
           '<p class="fine" style="margin-top:12px">Remote is not configured in this wireframe. Your IT owns the tunnel. Until it exists, use the box on the office LAN only.</p>' +
@@ -858,7 +858,7 @@
       return;
     }
     if (act === "update") {
-      state.toast = "Waiting for a signed offline bundle. There is no live Holdroom remote push.";
+      state.toast = "Waiting for a signed offline bundle. There is no live Hatch remote push.";
       draw();
       return;
     }

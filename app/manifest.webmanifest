@@ -1,7 +1,7 @@
 {
-  "name": "Holdroom",
-  "short_name": "Holdroom",
-  "description": "The firm’s Holdroom — same rooms, same library, on this box.",
+  "name": "Hatch OS",
+  "short_name": "Hatch",
+  "description": "The firm’s Hatch OS — same rooms, same library, on this box.",
   "start_url": "/app/#/ask",
   "scope": "/app/",
   "display": "standalone",

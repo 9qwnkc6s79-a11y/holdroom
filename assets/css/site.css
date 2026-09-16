@@ -343,6 +343,53 @@ section { padding: 96px 0; }
   letter-spacing: -0.04em;
   margin: 10px 0 8px;
 }
+.card .price-talk {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 10px 0 8px;
+}
+.price-stack {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 10px;
+}
+.price-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.price-line .amt {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.price-line .lbl {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card.is-coming {
+  background: #faf9f7;
+}
+.card.is-coming:hover { box-shadow: none; transform: none; }
+.coming-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.card .card-cta { margin-top: 16px; }
 .card.dark {
   background: #171717;
   border-color: #2a2a2a;
@@ -817,9 +864,13 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
   .nav-toggle { display: inline-flex; }
 }
 
+@media (max-width: 1100px) {
+  .g4 { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
   .hero-grid,
-  .g4, .g3, .g2,
+  .g3, .g2,
   .vs-grid,
   .stat-row,
   .footer-top,
@@ -830,6 +881,10 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
   table { min-width: 0; }
   .hero { padding: 48px 0 56px; }
   section { padding: 72px 0; }
+}
+
+@media (max-width: 640px) {
+  .g4 { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,26 +1,32 @@
-# Holdroom
+# Hatch
 
-AI that stays in the building. A complete plug-and-go in-house AI suite you own. Secure data stays with you — not with frontier labs or data companies. Customized to the firm. Same private system from the office or, securely, the road.
+Private AI clean room for mid-size firms. Encrypted cluster + Hatch OS so employees work without feeding frontier labs (OpenAI / Anthropic / Bedrock).
 
-- Live: https://holdroom.vercel.app
-- Brand / canonical: https://holdroom.ai (domain intended; not required to resolve)
+- Live: https://holdroom.vercel.app (legacy project host)
+- Working name: **Hatch** / **Hatch OS**
 - Visual system inspired by go.ai (cream, dark nav, violet period, Inter, pills). Not affiliated. Do not copy their claims or copy.
 
-## Offer (do not blur)
+## Offer (locked)
 
-| Item | Price |
-| --- | --- |
-| Hold S | $1,999 |
-| Hold M (default) | $3,749 |
-| Hold L | $7,499 |
-| Software, solo | $29/mo |
-| Software, firm (up to 8 seats) | $149/mo |
+| Item | Role | Price |
+| --- | --- | --- |
+| Team | Floor / entry — not hero | Talk to us |
+| **Firm** | **Default quote — v1 hero** | **$28k hardware + $48k/yr platform** |
+| Company | Price card only — not v1 | Talk to us |
+| Campus | Price card only — not v1 | Talk to us |
 
-Pre-launch inquiries only. No checkout. No token bill. Setup is quoted after fit.
+Hero market: **50–250 person firms**. Design and sell **Firm first**.
+
+- Hardware = how they believe us (encrypted cluster in their environment)
+- Platform = the business (Hatch OS + packs + house model on their data)
+
+Dead — do not quote: Hold S/M/L at $1,999 / $3,749 / $7,499; software $29 / $149.
+
+Pre-launch inquiries only. No checkout. No token bill.
 
 ## What they get
 
-White-label mini workstation, imaged before ship (customized to the firm); encrypted disk; local open-weight models (chat + fast); firm app (chat, upload, watched folder / document retrieval); owner login then seat invites; default-deny outbound; optional signed updates they can disable; status / connections page; backup is the encrypted disk they own; secure remote access to the same suite (path confirmed at imaging — not a named VPN, not zero-attack-surface, not a lab upload). Same software on S/M/L, sized by busy-hour concurrent use.
+Encrypted cluster (firm-owned / in their environment); Hatch OS (ChatGPT-like login, files, secure remote over **their** VPN); house model adapted on **their** data; moral pack; legal pack. Not a Hatch cloud LLM as the product. Same software designed Firm first.
 
 ## Site
 
@@ -28,27 +34,27 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — short offer, stacked compare, CTA |
-| `/product/` | Plug-and-go suite, custom, remote, specs, S/M/L |
+| `/` | Home — clean room, Firm default, stacked compare, CTA |
+| `/product/` | Stack, packs, remote, Firm tiers |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
-| `/pricing/` | Hardware, software, setup, honest compare |
+| `/pricing/` | Team / Firm / Company / Campus, honest compare |
 | `/security/` | What we will / will not claim (incl. remote) |
-| `/for/` | Buyer situations — law, PE/deal, operators |
+| `/for/` | 50–250 firms — law, PE/deal, operators |
 | `/faq/` | Straight answers |
 | `/inquire/` | Locked form |
 | `/app/` | Internal Phase 1 UI wireframe (clickable HTML/CSS/JS, fake Fund A / Fund B data, not live) |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
-`/app/` is a Holdroom-owned product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
+`/app/` is a Hatch OS product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
-Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Core offer: plug-and-go in-house suite + secure data + customized to you + same suite from the road. Tagline: “AI that stays in the building” (the firm, not one desk). The product may still be called an appliance or unit.
+Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: private AI clean room. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
 
 ## Claims locks
 
 Do not add: HIPAA, SOC 2, “beats Claude/GPT”, invented customers, checkout, paid APIs, or cold-outreach copy.
 
-Inquiry form: `localStorage` key `holdroom_inquiries` + `mailto:daniel.keene223@gmail.com`. Fields stay as on `/inquire/` (name, firm, role, email, phone, headcount, concurrent, secret, message).
+Inquiry form: `localStorage` key `hatch_inquiries` + `mailto:daniel.keene223@gmail.com`. Fields stay as on `/inquire/` (name, firm, role, email, phone, headcount, tier, secret, message).
 
 ## Local
 
