@@ -21,9 +21,9 @@
 
     var rec = Object.assign({ ts: new Date().toISOString() }, data);
     try {
-      var all = JSON.parse(localStorage.getItem("holdroom_inquiries") || "[]");
+      var all = JSON.parse(localStorage.getItem("hatch_inquiries") || localStorage.getItem("holdroom_inquiries") || "[]");
       all.push(rec);
-      localStorage.setItem("holdroom_inquiries", JSON.stringify(all));
+      localStorage.setItem("hatch_inquiries", JSON.stringify(all));
     } catch (storageErr) {
       if (err) {
         err.textContent = "Could not save a local copy in this browser. An email draft will still open.";
@@ -32,7 +32,7 @@
     }
 
     var body = [
-      "Holdroom inquiry",
+      "Hatch inquiry",
       "Time: " + rec.ts,
       "Name: " + rec.name,
       "Firm: " + rec.firm,
@@ -40,14 +40,14 @@
       "Email: " + rec.email,
       "Phone: " + (rec.phone || ""),
       "Headcount: " + rec.headcount,
-      "Concurrent: " + rec.concurrent,
+      "Tier: " + (rec.tier || rec.concurrent || ""),
       "Will not paste: " + (rec.secret || ""),
       "Message: " + (rec.message || "")
     ].join("\n");
 
     var mail =
       "mailto:daniel.keene223@gmail.com?subject=" +
-      encodeURIComponent("Holdroom inquiry — " + rec.firm) +
+      encodeURIComponent("Hatch inquiry — " + rec.firm) +
       "&body=" +
       encodeURIComponent(body);
 
