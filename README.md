@@ -34,8 +34,8 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — inclusive hero (in-house / secure / customized), stacked compare, CTA |
-| `/product/` | In-house + secure + knowledge-base pitch, stack, packs, remote, tiers |
+| `/` | Home — hero (secure in-house AI on your knowledge), stacked compare, CTA |
+| `/product/` | Secure in-house AI on your knowledge, stack, packs, remote, tiers |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
 | `/pricing/` | Team / Firm / Company / Campus, honest compare |
 | `/security/` | What we will / will not claim (incl. remote) |
@@ -48,7 +48,7 @@ Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
 `/app/` is a Hatch OS product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
-Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: private AI clean room. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
+Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: secure in-house AI on your knowledge. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
 
 ## Claims locks
 

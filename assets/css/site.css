@@ -226,6 +226,7 @@ p { margin: 0 0 12px; }
 
 /* Layout */
 .hero { padding: 64px 0 72px; background: var(--cream); }
+.hero h1 { font-size: clamp(32px, 6.4vw, 60px); }
 .hero-grid {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -725,6 +726,7 @@ footer .brand { display: inline-block; margin-bottom: 10px; }
 
 .page-hero { padding: 64px 0 24px; }
 .page-hero h1 { max-width: 14ch; }
+.page-hero.pitch h1 { max-width: 22ch; font-size: clamp(32px, 6.4vw, 60px); }
 
 .stat-row {
   display: grid;
