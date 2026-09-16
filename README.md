@@ -1,6 +1,6 @@
 # Hatch
 
-Private AI clean room for mid-size firms. Encrypted cluster + Hatch OS so employees work without feeding frontier labs (OpenAI / Anthropic / Bedrock).
+In-house AI. Secure data that stays with you. Customized to the firm’s needs and knowledge base. Encrypted cluster + Hatch OS so employees work without feeding frontier labs (OpenAI / Anthropic / Bedrock).
 
 - Live: https://holdroom.vercel.app (legacy project host)
 - Working name: **Hatch** / **Hatch OS**
@@ -15,7 +15,7 @@ Private AI clean room for mid-size firms. Encrypted cluster + Hatch OS so employ
 | Company | Price card only — not v1 | Talk to us |
 | Campus | Price card only — not v1 | Talk to us |
 
-Hero market: **50–250 person firms**. Design and sell **Firm first**.
+Internal aim: **50–250 person firms** (Firm SKU hero). Public homepage must **not** gate on headcount — Team is the floor; a ~15 person shop is welcome. Keep 50–250 quieter (pricing, FAQ “typical customer,” deep product).
 
 - Hardware = how they believe us (encrypted cluster in their environment)
 - Platform = the business (Hatch OS + packs + house model on their data)
@@ -26,7 +26,7 @@ Pre-launch inquiries only. No checkout. No token bill.
 
 ## What they get
 
-Encrypted cluster (firm-owned / in their environment); Hatch OS (ChatGPT-like login, files, secure remote over **their** VPN); house model adapted on **their** data; moral pack; legal pack. Not a Hatch cloud LLM as the product. Same software designed Firm first.
+Encrypted cluster (firm-owned / in their environment); Hatch OS (ChatGPT-like login, files, secure remote over **their** VPN); house model adapted on **their** knowledge base; moral pack; legal pack. Not a Hatch cloud LLM as the product. Featured quote is Firm; Team is the floor.
 
 ## Site
 
@@ -34,12 +34,12 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — clean room, Firm default, stacked compare, CTA |
-| `/product/` | Stack, packs, remote, Firm tiers |
+| `/` | Home — inclusive hero (in-house / secure / customized), stacked compare, CTA |
+| `/product/` | In-house + secure + knowledge-base pitch, stack, packs, remote, tiers |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
 | `/pricing/` | Team / Firm / Company / Campus, honest compare |
 | `/security/` | What we will / will not claim (incl. remote) |
-| `/for/` | 50–250 firms — law, PE/deal, operators |
+| `/for/` | Firms that will not leak the file — law, PE/deal, operators as beachheads |
 | `/faq/` | Straight answers |
 | `/inquire/` | Locked form |
 | `/app/` | Internal Phase 1 UI wireframe (clickable HTML/CSS/JS, fake Fund A / Fund B data, not live) |
