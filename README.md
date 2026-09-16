@@ -10,12 +10,11 @@ In-house AI. Secure data that stays with you. Customized to the firm’s needs a
 
 | Item | Role | Price |
 | --- | --- | --- |
-| Team | Floor / entry — not hero | Talk to us |
-| **Firm** | **Default quote — v1 hero** | **$28k hardware + $48k/yr platform** |
-| Company | Price card only — not v1 | Talk to us |
-| Campus | Price card only — not v1 | Talk to us |
+| **Firm** | Office / draft public number | **$18k hardware + $24k/yr platform** (draft) |
+| **Enterprise** | Larger shop | **$28k hardware + $48k/yr platform** |
+| Corporation | Custom | Inquire / talk to us |
 
-Internal aim: **50–250 person firms** (Firm SKU hero). Public homepage must **not** gate on headcount — Team is the floor; a ~15 person shop is welcome. Keep 50–250 quieter (pricing, FAQ “typical customer,” deep product).
+Public homepage must **not** show dollars or a price grid — soft-CTA to `/pricing/`. Do not gate on headcount. No Team / Company / Campus language.
 
 - Hardware = how they believe us (encrypted cluster in their environment)
 - Platform = the business (Hatch OS + packs + house model on their data)
@@ -26,7 +25,7 @@ Pre-launch inquiries only. No checkout. No token bill.
 
 ## What they get
 
-Encrypted cluster (firm-owned / in their environment); Hatch OS (ChatGPT-like login, files, secure remote over **their** VPN); house model adapted on **their** knowledge base; moral pack; legal pack. Not a Hatch cloud LLM as the product. Featured quote is Firm; Team is the floor.
+Encrypted cluster you own, in your environment; Hatch OS (ChatGPT-like login, files, secure remote over **your** VPN); house model adapted on **your** knowledge; moral pack; legal pack. Not a Hatch cloud LLM as the product. Public sizes: Firm, Enterprise, Corporation.
 
 ## Site
 
@@ -34,10 +33,10 @@ Static multi-page HTML. No build step. No paid APIs.
 
 | Path | Page |
 | --- | --- |
-| `/` | Home — inclusive hero (in-house / secure / customized), stacked compare, CTA |
-| `/product/` | In-house + secure + knowledge-base pitch, stack, packs, remote, tiers |
+| `/` | Home — hero (secure in-house AI on your knowledge), no pricing, CTA |
+| `/product/` | Secure in-house AI on your knowledge, stack, packs, remote |
 | `/how-it-works/` | Unbox → plug in → ask; status; remote; backup |
-| `/pricing/` | Team / Firm / Company / Campus, honest compare |
+| `/pricing/` | Firm / Enterprise / Corporation only |
 | `/security/` | What we will / will not claim (incl. remote) |
 | `/for/` | Firms that will not leak the file — law, PE/deal, operators as beachheads |
 | `/faq/` | Straight answers |
@@ -48,7 +47,7 @@ Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
 `/app/` is a Hatch OS product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
-Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: private AI clean room. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
+Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: secure in-house AI on your knowledge. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
 
 ## Claims locks
 
