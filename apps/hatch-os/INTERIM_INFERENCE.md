@@ -52,3 +52,5 @@ HATCH_AGENT_LLM_PROVIDER=openai-compatible
 
 Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id when Hermes is up. Prefer vLLM `--tool-call-parser hermes`. If these vars are unset, agent turns fall back to `HATCH_LLM_*`.
 
+Telegram dogfood (`npm run telegram`, [@Hatchboundariesbot](https://t.me/Hatchboundariesbot)) uses this same Ask / agent path. See `apps/hatch-os/README.md`.
+
