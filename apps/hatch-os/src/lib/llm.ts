@@ -1,13 +1,21 @@
+import type { ToolCall } from "./tool-parse";
+import type { OpenAiTool } from "./tools";
+
 /** 16 GB Mac / local Ollama fallback. */
 export const DEFAULT_MODEL = "qwen3:8b";
 /** RunPod Serverless Qwen3.8-27B (OpenAI chat.completions). */
 /** RunPod A100 FP8 worker — lowercase qwen/qwen3.8-27b 500s on this endpoint. */
 export const RUNPOD_MODEL = "Qwen/Qwen3.8-27B-FP8";
 export const RUNPOD_ENDPOINT_ID = "diqb3ykkxo0i16";
+/** Hermes 4.3 36B — agent / tool loop. Paste the RunPod endpoint id in .env.local. */
+export const HERMES_MODEL = "NousResearch/Hermes-4.3-36B";
+export const HERMES_ENDPOINT_PLACEHOLDER = "<HERMES_ENDPOINT>";
 /** Appliance / Spark target name. */
 export const PREFERRED_MODEL = "qwen3.8";
 export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
 export const REMOTE_CHAT_TIMEOUT_MS = 180_000;
+
+export type LlmLane = "ask" | "agent";
 
 export function isRunpodUrl(raw: string) {
   return /runpod\.ai/i.test(raw);
@@ -25,6 +33,9 @@ export interface LlmEndpoint {
   host: string;
   provider: string;
   label: string;
+  lane: LlmLane;
+  keyEnv: string;
+  dedicated: boolean;
 }
 
 function stripSlash(url: string) {
@@ -67,12 +78,26 @@ function needsApiKey(base: string) {
   return asUrl(base).startsWith("https://");
 }
 
-function buildEndpoint(raw: string, model: string, apiKey: string, provider: string): LlmEndpoint {
+function endpointLabel(base: string, model: string, ollama: boolean) {
+  if (isRunpodUrl(base) && /hermes/i.test(model)) return "RunPod / Hermes";
+  if (isRunpodUrl(base)) return "RunPod / Qwen3.8";
+  if (ollama) return "Ollama (local)";
+  return "OpenAI-compatible";
+}
+
+function buildEndpoint(
+  raw: string,
+  model: string,
+  apiKey: string,
+  provider: string,
+  lane: LlmLane,
+  keyEnv: string,
+  dedicated = false,
+): LlmEndpoint {
   const base = stripSlash(raw || LOCAL_OLLAMA);
   const ollama = isOllamaEndpoint(base);
   const openaiRoot = base.endsWith("/v1") ? base : `${base}/v1`;
   const nativeRoot = base.replace(/\/v1$/, "");
-  const runpod = isRunpodUrl(base);
   return {
     kind: ollama ? "ollama" : "remote",
     rawBase: base,
@@ -82,36 +107,80 @@ function buildEndpoint(raw: string, model: string, apiKey: string, provider: str
     apiKey: apiKey.trim(),
     host: endpointHost(base),
     provider,
-    label: runpod ? "RunPod / Qwen3.8" : ollama ? "Ollama (local)" : "OpenAI-compatible",
+    label: endpointLabel(base, model, ollama),
+    lane,
+    keyEnv,
+    dedicated,
   };
+}
+
+function askDefaults(raw: string) {
+  const ollama = isOllamaEndpoint(raw);
+  return {
+    raw,
+    provider: process.env.HATCH_LLM_PROVIDER || "openai-compatible",
+    apiKey: process.env.HATCH_LLM_API_KEY || "",
+    model:
+      process.env.HATCH_LLM_MODEL ||
+      (isRunpodUrl(raw) ? RUNPOD_MODEL : ollama ? DEFAULT_MODEL : PREFERRED_MODEL),
+  };
+}
+
+export function agentLlmDedicated() {
+  return Boolean(process.env.HATCH_AGENT_LLM_BASE_URL || process.env.HATCH_AGENT_LLM_MODEL);
 }
 
 export function llmConfig() {
   const raw = stripSlash(process.env.HATCH_LLM_BASE_URL || LOCAL_OLLAMA);
-  const provider = process.env.HATCH_LLM_PROVIDER || "openai-compatible";
-  const apiKey = process.env.HATCH_LLM_API_KEY || "";
-  const ollama = isOllamaEndpoint(raw);
-  const model =
-    process.env.HATCH_LLM_MODEL ||
-    (isRunpodUrl(raw) ? RUNPOD_MODEL : ollama ? DEFAULT_MODEL : PREFERRED_MODEL);
-  const primary = buildEndpoint(raw, model, apiKey, provider);
+  const ask = askDefaults(raw);
+  const primary = buildEndpoint(ask.raw, ask.model, ask.apiKey, ask.provider, "ask", "HATCH_LLM_API_KEY");
   const fallback =
     primary.kind === "remote"
-      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible")
+      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible", "ask", "HATCH_LLM_API_KEY")
       : null;
-  return { primary, fallback, provider };
+  return { primary, fallback, provider: ask.provider };
+}
+
+export function agentLlmConfig() {
+  const ask = llmConfig();
+  const dedicated = agentLlmDedicated();
+  const raw = stripSlash(process.env.HATCH_AGENT_LLM_BASE_URL || ask.primary.rawBase);
+  const provider =
+    process.env.HATCH_AGENT_LLM_PROVIDER || ask.provider || "openai-compatible";
+  const apiKey = process.env.HATCH_AGENT_LLM_API_KEY || ask.primary.apiKey;
+  const model =
+    process.env.HATCH_AGENT_LLM_MODEL ||
+    (process.env.HATCH_AGENT_LLM_BASE_URL ? HERMES_MODEL : ask.primary.model);
+  const keyEnv = process.env.HATCH_AGENT_LLM_API_KEY
+    ? "HATCH_AGENT_LLM_API_KEY"
+    : dedicated
+      ? "HATCH_AGENT_LLM_API_KEY (or HATCH_LLM_API_KEY)"
+      : "HATCH_LLM_API_KEY";
+  const primary = buildEndpoint(raw, model, apiKey, provider, "agent", keyEnv, dedicated);
+  const fallback =
+    primary.kind === "remote"
+      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible", "agent", keyEnv)
+      : null;
+  return { primary, fallback, provider, dedicated, usingAskFallback: !dedicated };
 }
 
 export function connectHelp(probe: LlmProbe) {
   const { primary } = llmConfig();
+  const agent = agentLlmConfig();
   const lines = [
     "No model is ready. This dry-run does not call a named public lab and will not invent an answer.",
     "",
-    "Temporary remote — RunPod Serverless Qwen3.8-27B:",
+    "Ask — RunPod Serverless Qwen3.8-27B:",
     `  HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/openai/v1`,
     `  HATCH_LLM_MODEL=${RUNPOD_MODEL}`,
     "  HATCH_LLM_API_KEY=<RunPod API key>",
     "  HATCH_LLM_PROVIDER=openai-compatible",
+    "",
+    "Agent / tools — RunPod Hermes 4.3 36B (paste the endpoint id):",
+    `  HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/${HERMES_ENDPOINT_PLACEHOLDER}/openai/v1`,
+    `  HATCH_AGENT_LLM_MODEL=${HERMES_MODEL}`,
+    "  HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>",
+    "  HATCH_AGENT_LLM_PROVIDER=openai-compatible",
     "",
     "Local fallback (16 GB Mac / Ollama):",
     "  1. ollama serve",
@@ -119,7 +188,10 @@ export function connectHelp(probe: LlmProbe) {
     "  3. HATCH_LLM_BASE_URL=http://127.0.0.1:11434",
     `  4. HATCH_LLM_MODEL=${DEFAULT_MODEL}`,
     "",
-    `Configured now: ${primary.kind} · ${primary.host} · model ${primary.model}.`,
+    `Ask now: ${primary.kind} · ${primary.host} · model ${primary.model}.`,
+    agent.dedicated
+      ? `Agent now: ${agent.primary.kind} · ${agent.primary.host} · model ${agent.primary.model}.`
+      : "Agent now: using Ask (HATCH_AGENT_LLM_* unset).",
     probe.error ? `Last error: ${probe.error}` : "",
     "Later: same env on the appliance vLLM endpoint. Do not paste the API key into chat.",
   ];
@@ -141,6 +213,7 @@ export function ollamaInstallHelp(model: string) {
     hasKey: Boolean(llmConfig().primary.apiKey),
     fallback: false,
     label: llmConfig().primary.label,
+    lane: "ask",
     models: [],
   });
 }
@@ -158,6 +231,9 @@ export interface LlmProbe {
   hasKey: boolean;
   fallback: boolean;
   label?: string;
+  lane?: LlmLane;
+  dedicated?: boolean;
+  usingAskFallback?: boolean;
   models: string[];
   error?: string;
 }
@@ -186,6 +262,8 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
     hasKey: Boolean(endpoint.apiKey),
     fallback: false,
     label: endpoint.label,
+    lane: endpoint.lane,
+    dedicated: endpoint.dedicated,
     models: [] as string[],
   };
   if (needsApiKey(endpoint.rawBase) && !endpoint.apiKey) {
@@ -194,7 +272,7 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
       connected: false,
       reachable: false,
       modelPulled: false,
-      error: `HATCH_LLM_API_KEY is required for ${endpoint.host}`,
+      error: `${endpoint.keyEnv} is required for ${endpoint.host}`,
     };
   }
   try {
@@ -248,7 +326,7 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
         connected: true,
         reachable: true,
         modelPulled: true,
-        error: "RunPod /models timed out — Ask will still try chat.completions (cold start up to 3 min).",
+        error: `RunPod /models timed out — ${endpoint.lane === "agent" ? "Agent" : "Ask"} will still try chat.completions (cold start up to 3 min).`,
       };
     }
     return {
@@ -272,6 +350,8 @@ async function probeOllama(endpoint: LlmEndpoint, fallback = false): Promise<Llm
     hasKey: Boolean(endpoint.apiKey),
     fallback,
     label: endpoint.label,
+    lane: endpoint.lane,
+    dedicated: endpoint.dedicated,
     models: [] as string[],
   };
   try {
@@ -320,72 +400,97 @@ async function probeEndpoint(endpoint: LlmEndpoint, fallback = false): Promise<L
   return endpoint.kind === "remote" ? probeRemote(endpoint) : probeOllama(endpoint, fallback);
 }
 
-let resolved: LlmEndpoint | null = null;
+const resolved: Record<LlmLane, LlmEndpoint | null> = { ask: null, agent: null };
 
-export async function probeLlm(): Promise<LlmProbe> {
-  const { primary, fallback } = llmConfig();
-  const first = await probeEndpoint(primary);
+async function probeLane(lane: LlmLane): Promise<LlmProbe> {
+  const cfg = lane === "agent" ? agentLlmConfig() : llmConfig();
+  const first = await probeEndpoint(cfg.primary);
+  const tagged = {
+    ...first,
+    lane,
+    dedicated: lane === "agent" ? agentLlmDedicated() : true,
+    usingAskFallback: lane === "agent" ? !agentLlmDedicated() : false,
+  };
   if (first.connected) {
-    resolved = primary;
-    return first;
+    resolved[lane] = cfg.primary;
+    return tagged;
   }
   /* RunPod with a key: do not steal Ask onto Ollama just because /models is slow. */
-  if (isRunpodUrl(primary.rawBase) && primary.apiKey) {
-    resolved = primary;
-    return { ...first, connected: true, reachable: first.reachable || true, label: primary.label };
+  if (isRunpodUrl(cfg.primary.rawBase) && cfg.primary.apiKey) {
+    resolved[lane] = cfg.primary;
+    return { ...tagged, connected: true, reachable: first.reachable || true, label: cfg.primary.label };
   }
-  if (fallback) {
-    const second = await probeEndpoint(fallback, true);
+  if (cfg.fallback) {
+    const second = await probeEndpoint(cfg.fallback, true);
     if (second.connected) {
-      resolved = fallback;
+      resolved[lane] = cfg.fallback;
       return {
         ...second,
         fallback: true,
+        lane,
+        dedicated: tagged.dedicated,
+        usingAskFallback: tagged.usingAskFallback,
         error: first.error
-          ? `${first.error} — using local Ollama fallback ${fallback.host} / ${fallback.model}`
-          : `Using local Ollama fallback ${fallback.host} / ${fallback.model}`,
+          ? `${first.error} — using local Ollama fallback ${cfg.fallback.host} / ${cfg.fallback.model}`
+          : `Using local Ollama fallback ${cfg.fallback.host} / ${cfg.fallback.model}`,
       };
     }
-    resolved = null;
+    resolved[lane] = null;
     return {
-      ...first,
+      ...tagged,
       error: [first.error, second.error].filter(Boolean).join(" · "),
     };
   }
-  resolved = null;
-  return first;
+  resolved[lane] = null;
+  return tagged;
+}
+
+export async function probeLlm(): Promise<LlmProbe> {
+  return probeLane("ask");
+}
+
+export async function probeAgentLlm(): Promise<LlmProbe> {
+  return probeLane("agent");
 }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  name?: string;
+  tool_call_id?: string;
 }
 
-export async function streamLlm(
+export interface StreamLlmResult {
+  toolCalls: ToolCall[];
+}
+
+async function streamLane(
+  lane: LlmLane,
   messages: ChatMessage[],
   onDelta: (text: string) => void,
-): Promise<void> {
-  const { primary, fallback } = llmConfig();
+  tools?: OpenAiTool[],
+): Promise<StreamLlmResult> {
+  const cfg = lane === "agent" ? agentLlmConfig() : llmConfig();
+  const cached = resolved[lane];
   const order =
-    isRunpodUrl(primary.rawBase) && primary.apiKey
-      ? fallback
-        ? [primary, fallback]
-        : [primary]
-      : resolved
-        ? [resolved]
-        : fallback
-          ? [primary, fallback]
-          : [primary];
+    isRunpodUrl(cfg.primary.rawBase) && cfg.primary.apiKey
+      ? cfg.fallback
+        ? [cfg.primary, cfg.fallback]
+        : [cfg.primary]
+      : cached
+        ? [cached]
+        : cfg.fallback
+          ? [cfg.primary, cfg.fallback]
+          : [cfg.primary];
 
   let last = "LLM unreachable";
   for (const endpoint of order) {
     if (needsApiKey(endpoint.rawBase) && !endpoint.apiKey) {
-      last = `HATCH_LLM_API_KEY is required for ${endpoint.host}`;
+      last = `${endpoint.keyEnv} is required for ${endpoint.host}`;
       continue;
     }
     try {
-      await streamEndpoint(endpoint, messages, onDelta);
-      return;
+      return await streamEndpoint(endpoint, messages, onDelta, tools);
     } catch (err) {
       last = err instanceof Error ? err.message : "LLM failed";
     }
@@ -393,11 +498,27 @@ export async function streamLlm(
   throw new Error(last);
 }
 
+export async function streamLlm(
+  messages: ChatMessage[],
+  onDelta: (text: string) => void,
+): Promise<void> {
+  await streamLane("ask", messages, onDelta);
+}
+
+export async function streamAgentLlm(
+  messages: ChatMessage[],
+  onDelta: (text: string) => void,
+  tools?: OpenAiTool[],
+): Promise<StreamLlmResult> {
+  return streamLane("agent", messages, onDelta, tools);
+}
+
 async function streamEndpoint(
   endpoint: LlmEndpoint,
   messages: ChatMessage[],
   onDelta: (text: string) => void,
-) {
+  tools?: OpenAiTool[],
+): Promise<StreamLlmResult> {
   const headers = headersFor(endpoint);
   const remote = endpoint.kind === "remote";
   const openai = await fetch(`${endpoint.openaiRoot}/chat/completions`, {
@@ -409,6 +530,7 @@ async function streamEndpoint(
       stream: true,
       temperature: 0.2,
       ...(remote ? { max_tokens: 1024 } : { think: false }),
+      ...(remote && tools?.length ? { tools, tool_choice: "auto" } : {}),
     }),
     signal: remote ? AbortSignal.timeout(REMOTE_CHAT_TIMEOUT_MS) : undefined,
   }).catch((err) => {
@@ -419,8 +541,8 @@ async function streamEndpoint(
   });
 
   if (openai?.ok && openai.body) {
-    await readOpenAiStream(openai.body, onDelta);
-    return;
+    const toolCalls = await readOpenAiStream(openai.body, onDelta);
+    return { toolCalls };
   }
 
   if (endpoint.kind === "ollama") {
@@ -437,7 +559,7 @@ async function streamEndpoint(
     }).catch(() => null);
     if (native?.ok && native.body) {
       await readOllamaStream(native.body, onDelta);
-      return;
+      return { toolCalls: [] };
     }
     const status = native?.status || openai?.status || 0;
     throw new Error(status ? `Ollama HTTP ${status} at ${endpoint.host}` : `Ollama unreachable at ${endpoint.host}`);
@@ -453,15 +575,31 @@ async function streamEndpoint(
 }
 
 function stripThink(text: string) {
-  return text.replace(/<think>[\s\S]*?<\/think>/g, "");
+  return text.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "");
 }
 
-async function readOpenAiStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void) {
+function parseArgsObject(raw?: string): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+async function readOpenAiStream(
+  body: ReadableStream<Uint8Array>,
+  onDelta: (text: string) => void,
+): Promise<ToolCall[]> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let raw = "";
   let emitted = 0;
+  const acc: { id?: string; name?: string; arguments?: string }[] = [];
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -475,17 +613,41 @@ async function readOpenAiStream(body: ReadableStream<Uint8Array>, onDelta: (text
       if (data === "[DONE]") {
         const clean = stripThink(raw).slice(emitted);
         if (clean) onDelta(clean);
-        return;
+        return acc
+          .filter((a) => a.name)
+          .map((a) => ({ name: a.name as string, arguments: parseArgsObject(a.arguments) }));
       }
       try {
-        const json = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
-        const delta = json.choices?.[0]?.delta?.content;
-        if (delta) {
-          raw += delta;
+        const json = JSON.parse(data) as {
+          choices?: {
+            delta?: {
+              content?: string;
+              tool_calls?: {
+                index?: number;
+                id?: string;
+                function?: { name?: string; arguments?: string };
+              }[];
+            };
+          }[];
+        };
+        const delta = json.choices?.[0]?.delta;
+        if (delta?.content) {
+          raw += delta.content;
           const clean = stripThink(raw);
           if (clean.length > emitted) {
             onDelta(clean.slice(emitted));
             emitted = clean.length;
+          }
+        }
+        if (delta?.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = typeof tc.index === "number" ? tc.index : acc.length;
+            if (!acc[idx]) acc[idx] = { arguments: "" };
+            if (tc.id) acc[idx].id = tc.id;
+            if (tc.function?.name) acc[idx].name = `${acc[idx].name || ""}${tc.function.name}`;
+            if (tc.function?.arguments) {
+              acc[idx].arguments = `${acc[idx].arguments || ""}${tc.function.arguments}`;
+            }
           }
         }
       } catch {
@@ -493,6 +655,9 @@ async function readOpenAiStream(body: ReadableStream<Uint8Array>, onDelta: (text
       }
     }
   }
+  return acc
+    .filter((a) => a.name)
+    .map((a) => ({ name: a.name as string, arguments: parseArgsObject(a.arguments) }));
 }
 
 async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void) {

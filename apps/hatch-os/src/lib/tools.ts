@@ -8,7 +8,24 @@ import {
   retrieveFirm,
   writeDraft,
 } from "./store";
+import {
+  parseHermesToolCalls,
+  parseToolCalls,
+  parseToolTrailer,
+  stripToolMarkup,
+  stripToolTrailer,
+  type ToolCall,
+} from "./tool-parse";
 import type { DepartmentId, Source, ToolEvent } from "./types";
+
+export {
+  parseHermesToolCalls,
+  parseToolCalls,
+  parseToolTrailer,
+  stripToolMarkup,
+  stripToolTrailer,
+};
+export type { ToolCall };
 
 export const TOOL_NAMES = [
   "search_library",
@@ -50,33 +67,46 @@ export const TOOL_SCHEMAS = [
   },
 ];
 
-export interface ToolCall {
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
 export interface ToolContext {
   workspaceId: DepartmentId;
   accessibleDepartments: string[];
   enterprise?: boolean;
 }
 
-const TOOL_LINE = /(?:^|\n)TOOL\s*(\{[\s\S]*\})\s*$/;
-
-export function parseToolTrailer(text: string): ToolCall | null {
-  const match = text.match(TOOL_LINE);
-  if (!match) return null;
-  try {
-    const json = JSON.parse(match[1]) as { name?: string; arguments?: Record<string, unknown>; args?: Record<string, unknown> };
-    if (!json.name) return null;
-    return { name: json.name, arguments: json.arguments || json.args || {} };
-  } catch {
-    return null;
-  }
+export interface OpenAiTool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, { type: string; description?: string }>;
+      required?: string[];
+    };
+  };
 }
 
-export function stripToolTrailer(text: string): string {
-  return text.replace(TOOL_LINE, "").trim();
+export function openaiToolSchemas(): OpenAiTool[] {
+  return TOOL_SCHEMAS.map((t) => {
+    const properties = Object.fromEntries(
+      Object.entries(t.parameters).map(([key, desc]) => [
+        key,
+        { type: "string", description: String(desc) },
+      ]),
+    );
+    return {
+      type: "function" as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: {
+          type: "object" as const,
+          properties,
+          required: Object.keys(properties),
+        },
+      },
+    };
+  });
 }
 
 function asString(value: unknown, fallback = ""): string {

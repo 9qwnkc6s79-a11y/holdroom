@@ -49,9 +49,9 @@ export default function StatusPage() {
         <p className="screen-kicker">Status</p>
         <h1>This box.</h1>
         <p className="lede">
-          Software dry-run — appliance not connected. Ask uses a temporary OpenAI-compatible
-          endpoint, then local Ollama if that is down. Egress FAIL=blocked is the good production
-          outcome. PASS=reachable is an error.
+          Software dry-run — appliance not connected. Ask uses Qwen; agent / tool loops use
+          Hermes when <code>HATCH_AGENT_LLM_*</code> is set, otherwise the same Ask endpoint.
+          Egress FAIL=blocked is the good production outcome. PASS=reachable is an error.
         </p>
         {error ? (
           <div className="banner banner-warn" role="alert">
@@ -79,20 +79,51 @@ export default function StatusPage() {
         <div className="card">
           <div className="status-row">
             <span>Inference</span>
-            <b>{status?.llm?.label || (status?.llm?.kind === "ollama" ? "Ollama (local)" : "OpenAI-compatible")}</b>
+            <b>
+              {status?.llm && status?.agentLlm && !status.agentLlm.usingAskFallback
+                ? `Ask: ${status.llm.label || status.llm.model} / Agent: ${status.agentLlm.label || status.agentLlm.model}`
+                : status?.llm?.label || (status?.llm?.kind === "ollama" ? "Ollama (local)" : "OpenAI-compatible")}
+            </b>
+          </div>
+          <div className="status-row">
+            <span>Ask</span>
+            <b>
+              {status?.llm
+                ? `${status.llm.model || "qwen3:8b"}${status.llm.label ? ` · ${status.llm.label}` : ""}`
+                : "…"}
+            </b>
+          </div>
+          <div className="status-row">
+            <span>Agent</span>
+            <b>
+              {status?.agentLlm
+                ? `${status.agentLlm.model}${status.agentLlm.label ? ` · ${status.agentLlm.label}` : ""}${
+                    status.agentLlm.usingAskFallback ? " · fallback to Ask" : ""
+                  }`
+                : status?.llm?.model || "qwen3:8b"}
+            </b>
           </div>
           <div className="status-row">
             <span>Configured model</span>
             <b>{status?.llm?.model || "qwen3:8b"}</b>
           </div>
           <div className="status-row">
-            <span>Endpoint</span>
+            <span>Ask endpoint</span>
             <b>
               {status?.llm?.host || "…"}
               {status?.llm?.kind ? ` · ${status.llm.kind}` : ""}
               {status?.llm?.fallback ? " · local fallback" : ""}
             </b>
           </div>
+          {status?.agentLlm && !status.agentLlm.usingAskFallback ? (
+            <div className="status-row">
+              <span>Agent endpoint</span>
+              <b>
+                {status.agentLlm.host || "…"}
+                {status.agentLlm.kind ? ` · ${status.agentLlm.kind}` : ""}
+              </b>
+            </div>
+          ) : null}
           <div className="status-row">
             <span>Reachable</span>
             <b className={status?.llm?.reachable ? "egress-ok" : "egress-bad"}>
@@ -190,8 +221,13 @@ export default function StatusPage() {
             <h2>Connect a model</h2>
             <ol>
               <li>
-                RunPod A100 FP8: <code>https://api.runpod.ai/v2/diqb3ykkxo0i16/openai/v1</code>,{" "}
+                Ask (Qwen): <code>https://api.runpod.ai/v2/diqb3ykkxo0i16/openai/v1</code>,{" "}
                 <code>Qwen/Qwen3.8-27B-FP8</code>, <code>HATCH_LLM_API_KEY</code>
+              </li>
+              <li>
+                Agent (Hermes): paste the RunPod id into{" "}
+                <code>HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/&lt;HERMES_ENDPOINT&gt;/openai/v1</code>,{" "}
+                <code>NousResearch/Hermes-4.3-36B</code>
               </li>
               <li>
                 Local fallback: <code>ollama serve</code> then{" "}

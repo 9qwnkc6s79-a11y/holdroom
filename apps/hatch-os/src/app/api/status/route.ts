@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchBoxStatus } from "@/lib/adapters";
-import { probeLlm, llmConfig } from "@/lib/llm";
+import { probeLlm, probeAgentLlm, llmConfig, agentLlmConfig } from "@/lib/llm";
 import { MOCK_STATUS } from "@/lib/mock-data";
 import type { BoxStatus, EgressCheck } from "@/lib/types";
 
@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const demo = url.searchParams.get("egress");
   const llm = await probeLlm();
+  const agentLlm = await probeAgentLlm();
 
   if (demo === "pass") {
     const egress: EgressCheck = {
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
       ok: false,
       egress_check: egress,
       llm,
+      agentLlm,
       dryRun: true,
       source: "mock",
     };
@@ -42,6 +44,7 @@ export async function GET(req: Request) {
       last_egress_check: "never",
       egress_check: egress,
       llm,
+      agentLlm,
       dryRun: true,
       source: "mock",
     };
@@ -50,6 +53,7 @@ export async function GET(req: Request) {
 
   const status = await fetchBoxStatus();
   const { primary } = llmConfig();
+  const agent = agentLlmConfig();
   return NextResponse.json(
     {
       ...status,
@@ -63,6 +67,17 @@ export async function GET(req: Request) {
         baseUrl: primary.rawBase,
         host: llm.host || primary.host,
         label: llm.label || primary.label,
+        lane: "ask" as const,
+      },
+      agentLlm: {
+        ...agentLlm,
+        model: agentLlm.model,
+        baseUrl: agent.primary.rawBase,
+        host: agentLlm.host || agent.primary.host,
+        label: agentLlm.label || agent.primary.label,
+        lane: "agent" as const,
+        dedicated: agent.dedicated,
+        usingAskFallback: agent.usingAskFallback,
       },
     },
     { headers: { "Cache-Control": "no-store" } },
