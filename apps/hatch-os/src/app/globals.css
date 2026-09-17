@@ -3,7 +3,7 @@
   --navy: #0c2340;
   --accent: #0c2340;
   --page: #ffffff;
-  --sidebar: #f9f9f9;
+  --sidebar: #f4f4f4;
   --paper: #ffffff;
   --cream: #f7f7f8;
   --muted: #6b6b6b;
@@ -237,9 +237,19 @@ select {
 .thread-rail-actions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   margin-bottom: 12px;
 }
+.thread-rail-actions .btn {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-weight: 500;
+}
+.thread-rail-actions .btn:hover { background: var(--hover); }
 .thread-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .thread-item {
   width: 100%;
@@ -703,7 +713,7 @@ summary:focus-visible {
 }
 .prompt {
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--rule);
   background: #fff;
   font-size: 13px;
@@ -961,7 +971,9 @@ summary:focus-visible {
     display: block;
     position: sticky;
     top: 8px;
-    padding: 4px 0 24px;
+    padding: 4px 14px 24px 0;
+    margin-right: 4px;
+    border-right: 1px solid var(--rule);
   }
   .chat-panel {
     min-width: 0;
