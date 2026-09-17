@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEvent, FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
 import { ACCEPT_ATTR, ingestStatusLabel } from "@/lib/files";
@@ -27,8 +28,10 @@ export default function FilesPage() {
     setInLibrary,
     importDrive,
     createFolder,
+    openArtifact,
     toast,
   } = useHatch();
+  const router = useRouter();
   const [over, setOver] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -207,6 +210,16 @@ export default function FilesPage() {
                     </p>
                   ) : null}
                   <div className="grant-row" style={{ gridColumn: "1 / -1" }}>
+                    <button
+                      className="linkish"
+                      type="button"
+                      onClick={() => {
+                        openArtifact(file.id);
+                        router.push("/chat");
+                      }}
+                    >
+                      Open in panel
+                    </button>
                     <button className="linkish" type="button" onClick={() => setInLibrary(file.id, !file.inLibrary)}>
                       {file.inLibrary ? "Remove from Library" : "Add to Library"}
                     </button>

@@ -9,7 +9,7 @@ import {
   retrieveFirm,
 } from "@/lib/store";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "@/lib/tools";
-import type { ChatMessage, ToolEvent } from "@/lib/types";
+import type { ChatAttachment, ChatMessage, ToolEvent } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     query?: string;
     accessibleDepartments?: string[];
     enterprise?: boolean;
+    attachments?: ChatAttachment[];
   } | null;
 
   const workspaceId = migrateWorkspaceId(body?.departmentId || body?.roomId || LITTLE_ELM);
@@ -51,7 +52,9 @@ export async function POST(req: Request) {
   const toolResults: ToolEvent[] = reads.map((r) => r.event);
   const extra = reads.map((r) => r.extra).filter(Boolean);
 
-  const userMsg = newMsg("user", query);
+  const userMsg = newMsg("user", query, {
+    attachments: Array.isArray(body?.attachments) ? body.attachments : undefined,
+  });
   const assistantMsg = newMsg("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
 

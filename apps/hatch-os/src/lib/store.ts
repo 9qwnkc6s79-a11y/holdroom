@@ -447,6 +447,31 @@ export function readFileRecord(fileId: string): { file: HatchFile; text: string 
   return { file, text: text || `(no extracted text for ${file.name})` };
 }
 
+export function findFileById(fileId: string): HatchFile | null {
+  return allFiles(readState()).find((f) => f.id === fileId) || null;
+}
+
+/** Disk path for an uploaded or seed file. Drafts from write_draft land in uploads. */
+export function storedFilePath(file: HatchFile): string | null {
+  const uploaded = path.join(UPLOADS, file.departmentId, `${file.id}-${file.name}`);
+  if (existsSync(uploaded)) return uploaded;
+  const seedDept = path.join(seedDir(), file.departmentId, file.name);
+  if (existsSync(seedDept)) return seedDept;
+  const seedHq = path.join(seedDir(), HQ_OPS, file.name);
+  if (existsSync(seedHq)) return seedHq;
+  return null;
+}
+
+export function readFileBytes(fileId: string): { file: HatchFile; bytes: Buffer; path: string | null } | null {
+  const rec = readFileRecord(fileId);
+  if (!rec) return null;
+  const disk = storedFilePath(rec.file);
+  if (disk) {
+    return { file: rec.file, bytes: readFileSync(disk), path: disk };
+  }
+  return { file: rec.file, bytes: Buffer.from(rec.text, "utf8"), path: null };
+}
+
 export function findFilesByName(query: string): HatchFile[] {
   const q = query.toLowerCase();
   return allFiles(readState()).filter((f) => q.includes(f.name.toLowerCase()) || q.includes(f.id.toLowerCase()));
@@ -610,8 +635,11 @@ export function writeDraft(input: {
   const event: ToolEvent = {
     name: "write_draft",
     ok: !result.error,
-    detail: result.error || `Draft written to ${workspaceLabel(acl.departmentId)} Files: ${filename} (not in Library until promoted).`,
+    detail:
+      result.error ||
+      `Draft written to ${workspaceLabel(acl.departmentId)} Files: ${filename} (not in Library until promoted).`,
     departmentId: acl.departmentId,
+    fileId: result.error ? undefined : result.file.id,
   };
   recordAudit(event);
   return { file: result.file, event };
@@ -688,6 +716,7 @@ export function importDriveStub(input: {
       ok: !result.error,
       detail: result.error || `Imported ${item.path} → ${workspaceLabel(acl.departmentId)} Files`,
       departmentId: acl.departmentId,
+      fileId: result.error ? undefined : result.file.id,
     });
   }
   events.forEach(recordAudit);
@@ -721,13 +750,17 @@ export function createThread(departmentId: DepartmentId, title = "New thread"): 
   return thread;
 }
 
-export function updateThread(threadId: string, patch: Partial<Pick<ChatThread, "title" | "archived" | "messages">>): ChatThread | null {
+export function updateThread(
+  threadId: string,
+  patch: Partial<Pick<ChatThread, "title" | "archived" | "messages" | "lastArtifactId">>,
+): ChatThread | null {
   const state = readState();
   const thread = state.threads.find((t) => t.id === threadId);
   if (!thread) return null;
   if (patch.title != null) thread.title = patch.title;
   if (patch.archived != null) thread.archived = patch.archived;
   if (patch.messages) thread.messages = patch.messages;
+  if (patch.lastArtifactId !== undefined) thread.lastArtifactId = patch.lastArtifactId;
   thread.updatedAt = new Date().toISOString();
   writeState(state);
   return thread;

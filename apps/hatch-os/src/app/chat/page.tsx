@@ -1,11 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { ArtifactPanel } from "@/components/ArtifactPanel";
 import { useHatch } from "@/components/AppProvider";
-import { MicIcon, SendIcon } from "@/components/Icons";
+import { MicIcon, PaperclipIcon, SendIcon } from "@/components/Icons";
 import { Shell } from "@/components/Shell";
 import { SourcesList } from "@/components/SourcesList";
+import { ACCEPT_ATTR } from "@/lib/files";
 import { HQ_OPS, LITTLE_ELM, PROSPER, workspaceLabel } from "@/lib/departments";
+import type { HatchFile } from "@/lib/types";
 
 export default function ChatPage() {
   const {
@@ -18,18 +21,25 @@ export default function ChatPage() {
     streaming,
     inboundHandoffs,
     session,
+    artifactOpen,
     ask,
+    ingest,
     newThread,
     selectThread,
     renameThread,
     archiveThread,
     handoffToDepartment,
+    openArtifact,
+    openArtifactBySource,
   } = useHatch();
   const [openSources, setOpenSources] = useState<string | null>(null);
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [handoffTo, setHandoffTo] = useState(HQ_OPS);
   const [handoffSummary, setHandoffSummary] = useState("");
+  const [pending, setPending] = useState<HatchFile[]>([]);
+  const [attaching, setAttaching] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const attachRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const messages = currentThread?.messages;
 
@@ -37,10 +47,19 @@ export default function ChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, streaming]);
 
+  async function addAttachment(file?: File | null) {
+    if (!file || streaming) return;
+    setAttaching(true);
+    const rec = await ingest(file);
+    setAttaching(false);
+    if (rec) setPending((prev) => [...prev.filter((f) => f.id !== rec.id), rec]);
+  }
+
   function send(query: string) {
     const q = query.trim();
     if (!q || streaming) return;
-    void ask(q);
+    void ask(q, { attachments: pending });
+    setPending([]);
     if (inputRef.current) {
       inputRef.current.value = "";
       inputRef.current.style.height = "auto";
@@ -84,7 +103,7 @@ export default function ChatPage() {
   const targets = [LITTLE_ELM, PROSPER, HQ_OPS].filter((id) => id !== currentWorkspaceId);
 
   return (
-    <Shell stageClass="stage-ask stage-chat">
+    <Shell stageClass={`stage-ask stage-chat${artifactOpen ? " is-artifact" : ""}`}>
       <aside className="thread-rail" aria-label="Threads">
         <div className="thread-rail-head">
           <p className="screen-kicker">Threads</p>
@@ -164,6 +183,21 @@ export default function ChatPage() {
               m.role === "user" ? (
                 <div key={m.id} className="bubble bubble-user">
                   <p>{m.text}</p>
+                  {m.attachments?.length ? (
+                    <div className="doc-chips">
+                      {m.attachments.map((a) => (
+                        <button
+                          key={a.fileId}
+                          type="button"
+                          className="doc-chip"
+                          onClick={() => openArtifact(a.fileId)}
+                        >
+                          {a.name}
+                          <span>Open in panel</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div key={m.id} className="bubble bubble-ai">
@@ -173,12 +207,25 @@ export default function ChatPage() {
                   </p>
                   {m.tools?.length ? (
                     <div className="tool-chips">
-                      {m.tools.map((t, i) => (
-                        <span key={`${t.name}-${i}`} className={`pill ${t.ok ? "pill-ok" : "pill-warn"}`}>
-                          {t.name}
-                          {t.departmentId ? ` · ${workspaceLabel(t.departmentId)}` : ""} — {t.detail}
-                        </span>
-                      ))}
+                      {m.tools.map((t, i) =>
+                        t.fileId ? (
+                          <button
+                            key={`${t.name}-${i}`}
+                            type="button"
+                            className={`pill ${t.ok ? "pill-ok" : "pill-warn"} doc-chip-pill`}
+                            onClick={() => openArtifact(t.fileId!)}
+                          >
+                            {t.name}
+                            {t.departmentId ? ` · ${workspaceLabel(t.departmentId)}` : ""} — {t.detail}
+                            <span>Open in panel</span>
+                          </button>
+                        ) : (
+                          <span key={`${t.name}-${i}`} className={`pill ${t.ok ? "pill-ok" : "pill-warn"}`}>
+                            {t.name}
+                            {t.departmentId ? ` · ${workspaceLabel(t.departmentId)}` : ""} — {t.detail}
+                          </span>
+                        ),
+                      )}
                     </div>
                   ) : null}
                   {m.done ? (
@@ -195,7 +242,9 @@ export default function ChatPage() {
                       </span>
                     </div>
                   ) : null}
-                  {m.done && openSources === m.id ? <SourcesList sources={m.sources} /> : null}
+                  {m.done && openSources === m.id ? (
+                    <SourcesList sources={m.sources} onOpen={openArtifactBySource} />
+                  ) : null}
                 </div>
               ),
             )}
@@ -254,7 +303,28 @@ export default function ChatPage() {
           </form>
         ) : null}
       </div>
+      <ArtifactPanel />
       <form className="composer" onSubmit={onSubmit}>
+        {pending.length || attaching ? (
+          <div className="composer-attach-row">
+            {pending.map((file) => (
+              <span key={file.id} className="doc-chip">
+                {file.name}
+                <button type="button" className="linkish" onClick={() => openArtifact(file.id)}>
+                  Open in panel
+                </button>
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={() => setPending((prev) => prev.filter((f) => f.id !== file.id))}
+                >
+                  Remove
+                </button>
+              </span>
+            ))}
+            {attaching ? <span className="fine">Adding to Files…</span> : null}
+          </div>
+        ) : null}
         <div className="composer-box">
           <textarea
             ref={inputRef}
@@ -276,6 +346,26 @@ export default function ChatPage() {
               }
             }}
           />
+          <input
+            ref={attachRef}
+            className="hidden-file"
+            type="file"
+            accept={ACCEPT_ATTR}
+            onChange={(e) => {
+              void addAttachment(e.currentTarget.files?.[0]);
+              e.currentTarget.value = "";
+            }}
+          />
+          <button
+            className="icon-btn"
+            type="button"
+            title="Attach a file"
+            aria-label="Attach a file"
+            disabled={streaming || attaching}
+            onClick={() => attachRef.current?.click()}
+          >
+            <PaperclipIcon />
+          </button>
           <button
             className="icon-btn"
             type="button"

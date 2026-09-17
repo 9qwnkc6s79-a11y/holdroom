@@ -26,9 +26,14 @@ export async function PATCH(req: Request) {
     id?: string;
     title?: string;
     archived?: boolean;
+    lastArtifactId?: string | null;
   } | null;
   if (!body?.id) return NextResponse.json({ error: "Missing thread id." }, { status: 400 });
-  const thread = updateThread(body.id, { title: body.title, archived: body.archived });
+  const thread = updateThread(body.id, {
+    title: body.title,
+    archived: body.archived,
+    lastArtifactId: body.lastArtifactId,
+  });
   if (!thread) return NextResponse.json({ error: "Unknown thread." }, { status: 404 });
   return NextResponse.json({ thread });
 }
