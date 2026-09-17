@@ -53,7 +53,9 @@ export function Shell({
   useEffect(() => {
     fetch("/api/status", { cache: "no-store" })
       .then((r) => r.json())
-      .then((s: { llm?: { connected?: boolean } }) => setLlmOk(Boolean(s.llm?.connected)))
+      .then((s: { llm?: { reachable?: boolean; connected?: boolean } }) =>
+        setLlmOk(Boolean(s.llm?.reachable)),
+      )
       .catch(() => setLlmOk(false));
   }, [pathname]);
 

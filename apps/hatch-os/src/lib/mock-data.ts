@@ -65,7 +65,7 @@ export const MOCK_STATUS: BoxStatus = {
   },
   label: "Software dry-run — appliance not connected",
   stack: "Hatch-os-ui",
-  model: "qwen3.8 (interim Ollama)",
+  model: "qwen3:8b (16 GB Mac dogfood)",
   disk_free: "local disk",
   last_backup: "No appliance backup — dry-run only.",
   last_egress_check: "dry-run",

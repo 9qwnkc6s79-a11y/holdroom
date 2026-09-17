@@ -77,12 +77,30 @@ export default function StatusPage() {
         ) : null}
         <div className="card">
           <div className="status-row">
-            <span>Local LLM</span>
+            <span>Configured model</span>
+            <b>{status?.llm?.model || "qwen3:8b"}</b>
+          </div>
+          <div className="status-row">
+            <span>Ollama</span>
+            <b className={status?.llm?.reachable ? "egress-ok" : "egress-bad"}>
+              {status?.llm
+                ? status.llm.reachable
+                  ? `reachable · ${status.llm.baseUrl}`
+                  : `not reachable · ${status.llm.error || status.llm.baseUrl}`
+                : "…"}
+            </b>
+          </div>
+          <div className="status-row">
+            <span>Ask ready</span>
             <b className={status?.llm?.connected ? "egress-ok" : "egress-bad"}>
               {status?.llm?.connected
-                ? `connected · ${status.llm.model}`
-                : `disconnected · ${status?.llm?.error || "Ollama down"}`}
+                ? `${status.llm.model} pulled`
+                : status?.llm?.error || "not ready"}
             </b>
+          </div>
+          <div className="status-row">
+            <span>Preferred later</span>
+            <b>{status?.llm?.preferredModel || "qwen3.8"} · appliance / Spark (needs more than 16 GB RAM)</b>
           </div>
           <div className="status-row">
             <span>Health</span>
@@ -154,7 +172,7 @@ export default function StatusPage() {
             Demo unchecked
           </button>
         </div>
-        {!status?.llm?.connected ? (
+        {!status?.llm?.reachable || !status?.llm?.connected ? (
           <div className="card howto" style={{ marginTop: 10 }}>
             <h2>Connect local Qwen</h2>
             <ol>
@@ -166,7 +184,9 @@ export default function StatusPage() {
                 <code>ollama serve</code>
               </li>
               <li>
-                <code>ollama pull {status?.llm?.model || "qwen3.8"}</code>
+                <code>ollama pull {status?.llm?.model || "qwen3:8b"}</code>
+                {" "}
+                (16 GB Mac dogfood. Later on Spark: <code>qwen3.8</code>)
               </li>
               <li>
                 Restart Hatch OS: <code>cd apps/hatch-os && npm run dev</code>

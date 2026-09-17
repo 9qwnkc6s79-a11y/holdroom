@@ -53,8 +53,8 @@ export async function GET(req: Request) {
   return NextResponse.json(
     {
       ...status,
-      ok: llm.connected,
-      model: llm.connected ? model : `${model} (disconnected)`,
+      ok: llm.reachable,
+      model,
       label: "Software dry-run — appliance not connected",
       dryRun: true,
       llm: { ...llm, model, baseUrl },

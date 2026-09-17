@@ -4,27 +4,40 @@ Hatch OS Ask talks to a **local** OpenAI-compatible chat endpoint. Today that is
 
 Firm / library content never goes to OpenAI, Anthropic, or Bedrock.
 
-## Model tag
+## Model tags
 
-Default is **`qwen3.8`** (Qwen3.8-27B, ~18 GB). That is Daniel’s “Qwen 3.8”. Ask calls OpenAI-compatible `POST {base}/v1/chat/completions` with `model: "qwen3.8"`.
+| When | Ollama tag | Why |
+| --- | --- | --- |
+| **Tomorrow on Daniel’s 16 GB Mac** | **`qwen3:8b`** | Fits 16 GB RAM. Default in `.env.local.example`. |
+| **Appliance / Spark (enough VRAM)** | **`qwen3.8`** | Qwen3.8-27B (~18 GB). Preferred target. Do not default this on the 16 GB laptop. |
 
-Small-machine fallback is documented in `README.md` only (`qwen3:8b`). Do not change the default.
+Do not point Ask at `llama3.1:8b` even if it is already pulled.
+
+Ask calls `POST {base}/v1/chat/completions` with the configured `HATCH_LLM_MODEL`.
 
 ## Env (same shape on the appliance)
 
 ```bash
 HATCH_LLM_BASE_URL=http://127.0.0.1:11434
-HATCH_LLM_MODEL=qwen3.8
+HATCH_LLM_MODEL=qwen3:8b
 HATCH_LLM_API_KEY=            # unused by Ollama; used later if vLLM requires a key
 ```
 
 Copy `.env.local.example` → `.env.local`.
 
+When Sparks arrive, change only the model (or the base URL):
+
+```bash
+HATCH_LLM_MODEL=qwen3.8
+# or
+HATCH_LLM_BASE_URL=http://<appliance>:8000
+```
+
 ## How Ask works
 
 1. Client `POST /api/chat` with `{ roomId, query }`.
 2. Server retrieves **this room only** from the Library store (seed + uploads). v0 scoring is keyword overlap on ~700-char chunks.
-3. Probe Ollama `GET /api/tags`. If down or the model is missing, the stream is a **clear error** plus copy-paste Mac install/pull commands. No invented answer.
+3. Probe Ollama `GET /api/tags`. Status shows **configured model** and **whether Ollama is reachable**. If down or the configured model is missing, the stream is a **clear error** plus copy-paste Mac install/pull commands. No invented answer.
 4. If up: build a Boundaries-only prompt (passages + “cite filenames”) and stream:
    - first try OpenAI-compatible `POST {base}/v1/chat/completions`
    - else native `POST {base}/api/chat`
@@ -35,10 +48,9 @@ Nothing in this path calls a frontier API.
 ## Laptop (today)
 
 ```bash
-# 1. Ollama
-#    https://ollama.com/download   or   brew install ollama
+# 1. Ollama (already on Daniel’s Mac)
 ollama serve
-ollama pull qwen3.8
+ollama pull qwen3:8b
 
 # 2. Hatch OS
 cd apps/hatch-os
@@ -49,7 +61,7 @@ npm run dev
 
 Open http://127.0.0.1:3000 — pair with `BOUNDARIES` + any six digits.
 
-First Ask may take several minutes while `qwen3.8` (~18 GB) loads. Keep `ollama serve` running. Do not point Ask at `llama3.1:8b`.
+Status should show configured model `qwen3:8b` and Ollama reachable. First Ask may take ~30–90s on CPU while the 8B loads.
 
 ## Appliance (later)
 
@@ -57,7 +69,7 @@ Keep the Ask route and env names. Change only:
 
 ```bash
 HATCH_LLM_BASE_URL=http://<appliance>:8000   # vLLM OpenAI-compatible root
-HATCH_LLM_MODEL=<served-model-id>
+HATCH_LLM_MODEL=qwen3.8                      # or the served id
 HATCH_LLM_API_KEY=<if-required>
 ```
 

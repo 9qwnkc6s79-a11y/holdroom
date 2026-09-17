@@ -85,7 +85,10 @@ export interface BoxStatus {
   source: "adapter" | "mock";
   llm?: {
     connected: boolean;
+    reachable?: boolean;
+    modelPulled?: boolean;
     model: string;
+    preferredModel?: string;
     baseUrl: string;
     error?: string;
   };

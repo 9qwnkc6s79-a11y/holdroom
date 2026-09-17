@@ -2,7 +2,7 @@
 
 ChatGPT-simple firm AI: login, files, chat. This app is the Hatch-owned UI — not Open WebUI, not a Hatch cloud, not the marketing site.
 
-**This checkout is a software dry-run.** The DGX Spark / appliance is not connected. Ask uses **local Ollama + Qwen3.8** (`qwen3.8`, Qwen3.8-27B, ~18 GB default) on the same Mac. The API shape stays the same so we later point `HATCH_LLM_*` at the appliance vLLM endpoint.
+**This checkout is a software dry-run.** The DGX Spark / appliance is not connected. Daniel’s Mac has **16 GB RAM**, so tomorrow’s default is **`qwen3:8b`**. **`qwen3.8`** (Qwen3.8-27B, ~18 GB) is the appliance / Spark target once there is enough VRAM. Same `HATCH_LLM_*` shape either way.
 
 Inference and files stay on this machine. No frontier API (OpenAI / Anthropic / Bedrock) for firm or library content.
 
@@ -14,7 +14,7 @@ The public marketing site (`hatchsystems.ai` / Vercel project **holdroom**) stay
 # 1. Local Qwen (required for Ask)
 #    https://ollama.com/download   or   brew install ollama
 ollama serve
-ollama pull qwen3.8
+ollama pull qwen3:8b
 
 # 2. App
 cd apps/hatch-os
@@ -27,9 +27,9 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
 If Ollama is down, Ask shows copy-paste install/pull commands and does **not** invent answers.
 
-First Ask can take a few minutes while `qwen3.8` (~18 GB) loads. Leave `ollama serve` running. Daniel’s Mac already has Ollama (and `llama3.1:8b`); pull `qwen3.8` separately — do not reuse the Llama tag.
+Daniel’s Mac already has Ollama (and `llama3.1:8b`). Pull **`qwen3:8b`** separately — do not point Ask at Llama. First Ask can take a minute on CPU while the 8B loads.
 
-**Small-machine fallback only:** if `ollama pull qwen3.8` fails (disk/RAM), `ollama pull qwen3:8b` and set `HATCH_LLM_MODEL=qwen3:8b` in `.env.local`. Default stays `qwen3.8`.
+**Later (Spark / enough VRAM):** `ollama pull qwen3.8` and set `HATCH_LLM_MODEL=qwen3.8`. That is the preferred appliance target. Do not use `qwen3.8` as the 16 GB laptop default.
 
 See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md) for the later appliance swap.
 
@@ -74,7 +74,7 @@ PWA: add to home screen. Offline page: “Can’t reach Hatch…”. The service
 
 ```bash
 HATCH_LLM_BASE_URL=http://127.0.0.1:11434
-HATCH_LLM_MODEL=qwen3.8
+HATCH_LLM_MODEL=qwen3:8b
 HATCH_LLM_API_KEY=
 ```
 

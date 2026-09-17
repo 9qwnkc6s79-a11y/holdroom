@@ -1,4 +1,6 @@
-export const DEFAULT_MODEL = "qwen3.8";
+/** 16 GB Mac dogfood. Appliance / Spark target is PREFERRED_MODEL. */
+export const DEFAULT_MODEL = "qwen3:8b";
+export const PREFERRED_MODEL = "qwen3.8";
 
 export function llmConfig() {
   const baseUrl = (process.env.HATCH_LLM_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
@@ -26,7 +28,10 @@ export function ollamaInstallHelp(model: string) {
 
 export interface LlmProbe {
   connected: boolean;
+  reachable: boolean;
+  modelPulled: boolean;
   model: string;
+  preferredModel: string;
   baseUrl: string;
   models: string[];
   error?: string;
@@ -34,36 +39,44 @@ export interface LlmProbe {
 
 export async function probeLlm(): Promise<LlmProbe> {
   const { baseUrl, model } = llmConfig();
+  const base = { model, preferredModel: PREFERRED_MODEL, baseUrl, models: [] as string[] };
   try {
     const res = await fetch(`${baseUrl}/api/tags`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) {
-      return { connected: false, model, baseUrl, models: [], error: `Ollama HTTP ${res.status}` };
+      return {
+        ...base,
+        connected: false,
+        reachable: false,
+        modelPulled: false,
+        error: `Ollama HTTP ${res.status}`,
+      };
     }
     const json = (await res.json()) as { models?: { name?: string }[] };
     const models = (json.models || []).map((m) => m.name || "").filter(Boolean);
-    const have = models.some((n) => {
-      const base = n.split(":")[0];
-      return n === model || base === model || n.startsWith(`${model}:`);
+    const modelPulled = models.some((n) => {
+      const tag = n.split(":")[0];
+      return n === model || tag === model || n.startsWith(`${model}:`);
     });
-    if (!have) {
+    if (!modelPulled) {
       return {
-        connected: false,
-        model,
-        baseUrl,
+        ...base,
         models,
-        error: `Ollama is up but ${model} is not pulled. Run: ollama pull ${model}`,
+        connected: false,
+        reachable: true,
+        modelPulled: false,
+        error: `Ollama is reachable but ${model} is not pulled. Run: ollama pull ${model}`,
       };
     }
-    return { connected: true, model, baseUrl, models };
+    return { ...base, models, connected: true, reachable: true, modelPulled: true };
   } catch {
     return {
+      ...base,
       connected: false,
-      model,
-      baseUrl,
-      models: [],
+      reachable: false,
+      modelPulled: false,
       error: `Cannot reach Ollama at ${baseUrl}`,
     };
   }
