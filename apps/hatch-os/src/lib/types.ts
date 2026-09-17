@@ -1,4 +1,4 @@
-export type RoomId = "matter-alpha" | "matter-beta" | string;
+export type RoomId = "little-elm" | "prosper" | "hq-ops" | string;
 
 export type FileKind = "PDF" | "Office" | "Markdown" | "Image";
 
@@ -14,6 +14,7 @@ export interface LibraryFile {
   progress: number;
   error?: string;
   roomId: RoomId;
+  demo?: boolean;
 }
 
 export interface Room {
@@ -82,4 +83,11 @@ export interface BoxStatus {
   last_backup?: string;
   last_egress_check?: string;
   source: "adapter" | "mock";
+  llm?: {
+    connected: boolean;
+    model: string;
+    baseUrl: string;
+    error?: string;
+  };
+  dryRun?: boolean;
 }

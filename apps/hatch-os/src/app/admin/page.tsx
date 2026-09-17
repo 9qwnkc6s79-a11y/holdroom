@@ -2,7 +2,7 @@
 
 import { useHatch, seatLine } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
-import { MATTER_ALPHA, MATTER_BETA } from "@/lib/mock-data";
+import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/mock-data";
 import { roomLabel } from "@/lib/rooms";
 import type { RoomId } from "@/lib/types";
 
@@ -65,7 +65,7 @@ export default function AdminPage() {
         <p className="screen-kicker">Admin</p>
         <h1>Seats and the box.</h1>
         <p className="lede">
-          Invite, revoke, room grants. Support works from Status plus a synthetic repro — not from
+          Invite, revoke, room grants for Boundaries Coffee. Support works from Status — not from
           a copy of client files.
         </p>
         <div className="stat-pills">
@@ -93,28 +93,41 @@ export default function AdminPage() {
                 <label>
                   <input
                     type="checkbox"
-                    checked={seat.rooms.includes(MATTER_ALPHA)}
+                    checked={seat.rooms.includes(LITTLE_ELM)}
                     onChange={(e) => {
                       const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, MATTER_ALPHA]
-                        : seat.rooms.filter((r) => r !== MATTER_ALPHA);
+                        ? [...seat.rooms, LITTLE_ELM]
+                        : seat.rooms.filter((r) => r !== LITTLE_ELM);
                       grantRooms(seat.id, next);
                     }}
                   />
-                  Matter Alpha
+                  Little Elm
                 </label>
                 <label>
                   <input
                     type="checkbox"
-                    checked={seat.rooms.includes(MATTER_BETA)}
+                    checked={seat.rooms.includes(PROSPER)}
                     onChange={(e) => {
                       const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, MATTER_BETA]
-                        : seat.rooms.filter((r) => r !== MATTER_BETA);
+                        ? [...seat.rooms, PROSPER]
+                        : seat.rooms.filter((r) => r !== PROSPER);
                       grantRooms(seat.id, next);
                     }}
                   />
-                  Matter Beta
+                  Prosper
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={seat.rooms.includes(HQ_OPS)}
+                    onChange={(e) => {
+                      const next: RoomId[] = e.target.checked
+                        ? [...seat.rooms, HQ_OPS]
+                        : seat.rooms.filter((r) => r !== HQ_OPS);
+                      grantRooms(seat.id, next);
+                    }}
+                  />
+                  HQ / Ops
                 </label>
                 <button className="linkish" type="button" onClick={() => revokeSeat(seat.id)}>
                   Revoke
@@ -142,8 +155,8 @@ export default function AdminPage() {
         <div className="card" style={{ marginTop: 16 }}>
           <h2>Backup</h2>
           <p className="muted">
-            Last success 14 Sep 2026 · 22:10. Restore drill is a placeholder. No backup recorded
-            means do not put real files on this box.
+            No appliance backup in this software dry-run. Restore drill is a placeholder. Do not
+            put production files on this laptop until a box exists.
           </p>
           <div className="btn-row">
             <button className="btn btn-ghost" type="button" onClick={startBackup}>

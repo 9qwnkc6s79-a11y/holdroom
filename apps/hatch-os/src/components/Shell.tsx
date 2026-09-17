@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AskIcon, LibraryIcon, MoreIcon, RoomsIcon } from "./Icons";
 import { useHatch } from "./AppProvider";
 
@@ -21,6 +23,22 @@ const PHONE = [
   { href: "/more", label: "More", icon: <MoreIcon />, routes: ["/more", "/status", "/admin", "/settings"] },
 ];
 
+function BrandMark({ large }: { large?: boolean }) {
+  return (
+    <Link className="brand" href="/ask">
+      <Image
+        className={`brand-logo${large ? " is-large" : ""}`}
+        src="/brand/boundaries-logo.svg"
+        alt="Boundaries Coffee"
+        width={180}
+        height={36}
+        unoptimized
+        priority
+      />
+    </Link>
+  );
+}
+
 export function Shell({
   children,
   stageClass,
@@ -30,13 +48,22 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const { currentRoom } = useHatch();
+  const [llmOk, setLlmOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s: { llm?: { connected?: boolean } }) => setLlmOk(Boolean(s.llm?.connected)))
+      .catch(() => setLlmOk(false));
+  }, [pathname]);
 
   return (
     <div className="app-shell">
-      <aside className="desktop-nav" aria-label="Hatch OS">
-        <Link className="brand" href="/ask">
-          Hatch<span className="dot">.</span>
-        </Link>
+      <div className="dry-banner" role="status">
+        Software dry-run — appliance not connected
+      </div>
+      <aside className="desktop-nav" aria-label="Boundaries Coffee">
+        <BrandMark large />
         {DESKTOP.map((item) => (
           <span key={item.href}>
             {item.sep ? <div className="nav-sep" /> : null}
@@ -49,19 +76,20 @@ export function Shell({
             </Link>
           </span>
         ))}
-        <p className="rail-foot">
-          Same box as the office. Phase 1 beta.
-        </p>
+        <p className="rail-foot">Powered by Hatch OS</p>
       </aside>
       <header className="topbar">
-        <Link className="brand" href="/ask">
-          Hatch<span className="dot">.</span>
-        </Link>
+        <BrandMark />
         <div className="topbar-meta">
           <Link className="room-chip" href="/rooms" title="Current room">
             {currentRoom.name}
           </Link>
-          <Link className="health-dot" href="/status" title="Box health" aria-label="Box health" />
+          <Link
+            className={`health-dot${llmOk === false ? " is-bad" : ""}`}
+            href="/status"
+            title={llmOk === false ? "Local LLM disconnected" : "Box health"}
+            aria-label="Box health"
+          />
         </div>
       </header>
       <main id="stage" className={`stage${stageClass ? ` ${stageClass}` : ""}`}>

@@ -1,4 +1,4 @@
-import { MATTER_ALPHA, MATTER_BETA, migrateRoomId } from "./rooms";
+import { HQ_OPS, LITTLE_ELM, PROSPER, migrateRoomId } from "./rooms";
 import type { AuthMethod, RoomId } from "./types";
 
 const PREFIX = "hatch_os_";
@@ -12,6 +12,8 @@ export const KEYS = {
   room: `${PREFIX}room`,
 } as const;
 
+const DEFAULT_ROOMS: RoomId[] = [LITTLE_ELM, PROSPER, HQ_OPS];
+
 function migrateRooms(ids: RoomId[]): RoomId[] {
   return ids.map(migrateRoomId);
 }
@@ -20,11 +22,11 @@ export function readSession() {
   if (typeof window === "undefined") return null;
   if (localStorage.getItem(KEYS.paired) !== "1") return null;
   const roomsRaw = localStorage.getItem(KEYS.rooms);
-  let rooms: RoomId[] = [MATTER_ALPHA, MATTER_BETA];
+  let rooms: RoomId[] = DEFAULT_ROOMS;
   try {
     if (roomsRaw) rooms = migrateRooms(JSON.parse(roomsRaw) as RoomId[]);
   } catch {
-    rooms = [MATTER_ALPHA, MATTER_BETA];
+    rooms = DEFAULT_ROOMS;
   }
   return {
     deviceName: localStorage.getItem(KEYS.device) || "This browser",
@@ -56,8 +58,8 @@ export function clearSession() {
 }
 
 export function readRoom(): RoomId {
-  if (typeof window === "undefined") return MATTER_ALPHA;
-  return migrateRoomId(localStorage.getItem(KEYS.room) || MATTER_ALPHA);
+  if (typeof window === "undefined") return LITTLE_ELM;
+  return migrateRoomId(localStorage.getItem(KEYS.room) || LITTLE_ELM);
 }
 
 export function writeRoom(id: RoomId) {

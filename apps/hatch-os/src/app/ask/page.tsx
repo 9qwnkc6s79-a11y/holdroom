@@ -5,7 +5,7 @@ import { useHatch } from "@/components/AppProvider";
 import { MicIcon, SendIcon } from "@/components/Icons";
 import { Shell } from "@/components/Shell";
 import { SourcesList } from "@/components/SourcesList";
-import { MATTER_ALPHA, MATTER_BETA } from "@/lib/mock-data";
+import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/mock-data";
 
 export default function AskPage() {
   const { currentRoom, currentRoomId, thread, streaming, ask } = useHatch();
@@ -33,32 +33,42 @@ export default function AskPage() {
   }
 
   const prompts =
-    currentRoomId === MATTER_ALPHA
+    currentRoomId === LITTLE_ELM
       ? [
-          ["What is the customer concentration in the Northshore CIM?", "Customer concentration"],
-          ["Summarize the quality of earnings findings.", "Quality of earnings"],
-          ["What is in the other matter?", "Other matter (isolation)"],
-          ["What does the site photo show?", "Site photo"],
+          ["What is the Little Elm open/close checklist?", "Open / close"],
+          ["How does loyalty work — TapMango or text COFFEE?", "Loyalty"],
+          ["What is the catering protocol?", "Catering"],
+          ["Who is the GM at Little Elm?", "GM"],
+          ["What is in the Prosper room?", "Other store (isolation)"],
         ]
-      : currentRoomId === MATTER_BETA
+      : currentRoomId === PROSPER
         ? [
-            ["What does the Harbor CIM say about LTM revenue?", "Harbor CIM"],
-            ["What does the Northshore CIM say?", "Other matter (isolation)"],
+            ["Who is the GM at Prosper?", "GM"],
+            ["How does loyalty work — TapMango or text COFFEE?", "Loyalty"],
+            ["What is the Prosper open/close checklist?", "Open / close"],
+            ["What is the Little Elm checklist?", "Other store (isolation)"],
           ]
-        : [["What is in this room?", "Ask without the library"]];
+        : currentRoomId === HQ_OPS
+          ? [
+              ["Summarize the DEMO catering protocol.", "Catering"],
+              ["What are the TapMango loyalty tiers?", "Loyalty tiers"],
+              ["Who runs Little Elm and Prosper?", "GM roster"],
+            ]
+          : [["What is in this room?", "Ask this room"]];
 
   return (
     <Shell stageClass="stage-ask">
       <div className="panel">
         {!thread.length ? (
           <div className="empty-ask">
-            <p className="screen-kicker">Ask</p>
-            <h1>Nothing in this room yet.</h1>
+            <p className="screen-kicker">Ask · {currentRoom.name}</p>
+            <h1>Ask this store’s library.</h1>
             <p className="lede">
-              Ask, or open Library and drop a PDF. Answers stream from this box — you do not pick a
-              public model.
+              Answers come from the DEMO files in {currentRoom.name}, via local Qwen on this
+              machine. If Ollama is down you will see install commands — nothing is invented
+              silently.
             </p>
-            <div className="tip">You are talking to the firm’s Hatch, not a public lab.</div>
+            <div className="tip">Boundaries Coffee dry-run. Retrieval stays in this room.</div>
             <div className="prompts">
               {prompts.map(([q, label]) => (
                 <button key={label} className="prompt" type="button" onClick={() => send(q)}>
@@ -76,7 +86,7 @@ export default function AskPage() {
                 </div>
               ) : (
                 <div key={m.id} className="bubble bubble-ai">
-                  <p>
+                  <p className="bubble-text">
                     {m.text}
                     {!m.done ? <span className="cursor" /> : null}
                   </p>
@@ -90,7 +100,7 @@ export default function AskPage() {
                         Sources · {m.sources.length ? m.sources.length : "none retrieved"}
                       </button>
                       <span className="fine">
-                        {m.sources.length ? currentRoom.name : "General model knowledge"}
+                        {m.sources.length ? currentRoom.name : "No library hit in this room"}
                       </span>
                     </div>
                   ) : null}
@@ -109,7 +119,7 @@ export default function AskPage() {
             id="ask-input"
             name="q"
             rows={1}
-            placeholder="Ask this room…"
+            placeholder={`Ask ${currentRoom.name}…`}
             disabled={streaming}
             required
             onInput={(e) => {

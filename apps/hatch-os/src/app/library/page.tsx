@@ -19,7 +19,7 @@ export default function LibraryPage() {
   const files = currentRoom.files;
 
   function takeFile(file?: File | null) {
-    if (file) ingest(file.name);
+    if (file) ingest(file);
   }
 
   function onDrop(event: DragEvent<HTMLLabelElement>) {
@@ -34,9 +34,9 @@ export default function LibraryPage() {
         <p className="screen-kicker">Library</p>
         <h1>Files in {currentRoom.name}.</h1>
         <p className="lede">
-          Add to this room only. PDF, Office, markdown, and images (PNG, JPEG, WebP, GIF). Extract,
-          chunk, and embed stay on the box. Image OCR is stubbed in this beta. This is not
-          training, and the phone does not sync the corpus.
+          Add to this room only. PDF, Office, markdown, and images (PNG, JPEG, WebP, GIF). Files
+          persist on this machine under <code>data/uploads</code>. DEMO seed files are labeled
+          DEMO. Image OCR is stubbed. This is not training.
         </p>
         <label
           className={`drop${over ? " is-over" : ""}`}
@@ -85,6 +85,7 @@ export default function LibraryPage() {
                     <div className="file-name">{file.name}</div>
                     <p className="fine">
                       {file.kind} · {currentRoom.name}
+                      {file.demo ? " · DEMO" : ""}
                     </p>
                   </div>
                   <span className={`pill ${pillFor(file.status)}`}>

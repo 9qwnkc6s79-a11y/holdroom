@@ -49,8 +49,8 @@ export default function StatusPage() {
         <p className="screen-kicker">Status</p>
         <h1>This box.</h1>
         <p className="lede">
-          Health of this box. Egress FAIL=blocked is the good outcome. PASS=reachable is an error
-          in production.
+          Software dry-run — appliance not connected. Local LLM is Ollama on this Mac. Egress
+          FAIL=blocked is the good production outcome. PASS=reachable is an error.
         </p>
         {error ? (
           <div className="banner banner-warn" role="alert">
@@ -70,7 +70,20 @@ export default function StatusPage() {
             </p>
           </div>
         ) : null}
+        {status?.dryRun ? (
+          <div className="banner banner-warn" role="status">
+            <p>Software dry-run — appliance not connected</p>
+          </div>
+        ) : null}
         <div className="card">
+          <div className="status-row">
+            <span>Local LLM</span>
+            <b className={status?.llm?.connected ? "egress-ok" : "egress-bad"}>
+              {status?.llm?.connected
+                ? `connected · ${status.llm.model}`
+                : `disconnected · ${status?.llm?.error || "Ollama down"}`}
+            </b>
+          </div>
           <div className="status-row">
             <span>Health</span>
             <b className={status?.ok ? "egress-ok" : "egress-bad"}>{status?.ok ? "ok" : "not ok"}</b>
@@ -141,6 +154,26 @@ export default function StatusPage() {
             Demo unchecked
           </button>
         </div>
+        {!status?.llm?.connected ? (
+          <div className="card howto" style={{ marginTop: 10 }}>
+            <h2>Connect local Qwen</h2>
+            <ol>
+              <li>
+                Install Ollama: <code>https://ollama.com/download</code> or{" "}
+                <code>brew install ollama</code>
+              </li>
+              <li>
+                <code>ollama serve</code>
+              </li>
+              <li>
+                <code>ollama pull qwen3:8b</code>
+              </li>
+              <li>
+                Restart Hatch OS: <code>cd apps/hatch-os && npm run dev</code>
+              </li>
+            </ol>
+          </div>
+        ) : null}
         <p className="fine" style={{ marginTop: 14 }}>
           This page does not prove model quality, RAG correctness, or that a real corpus is
           absent. Operators keep files synthetic until accept.

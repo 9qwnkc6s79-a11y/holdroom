@@ -12,13 +12,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Hatch OS",
-  description: "The firm’s Hatch OS — login, files, chat. Inference stays on this box.",
+  title: "Boundaries Coffee · Hatch OS",
+  description: "Boundaries Coffee dry-run — login, files, chat. Interim local Qwen on this machine.",
   robots: { index: false, follow: false },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Hatch OS",
+    title: "Boundaries",
     statusBarStyle: "default",
   },
   icons: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f5f2ed",
+  themeColor: "#0c2340",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

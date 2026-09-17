@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.local.example
+
+# runtime library (seed is committed under /seed)
+/data
 
 # vercel
 .vercel

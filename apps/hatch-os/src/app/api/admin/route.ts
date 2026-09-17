@@ -9,8 +9,8 @@ export async function GET() {
       seats: INITIAL_SEATS,
       line: SEAT_LINE,
       backup: {
-        lastSuccess: "14 Sep 2026 · 22:10",
-        note: "No always-on Hatch remote admin. Restore drill is a placeholder in Phase 1.",
+        lastSuccess: "none — software dry-run",
+        note: "No appliance backup. Restore drill is a placeholder.",
       },
       updates: {
         note: "Import a signed offline bundle → inactive slot → health → cutover / rollback.",
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (action === "backup") {
     return NextResponse.json({
       ok: true,
-      message: "Backup started (stub). Last success stays 14 Sep 2026 until a real box exists.",
+      message: "Backup started (stub). No appliance is connected.",
     });
   }
   if (action === "update") {

@@ -85,6 +85,9 @@ export default function SettingsPage() {
             <p>{toast}</p>
           </div>
         ) : null}
+        <p className="fine" style={{ marginTop: 24 }}>
+          Powered by Hatch OS
+        </p>
       </div>
     </Shell>
   );

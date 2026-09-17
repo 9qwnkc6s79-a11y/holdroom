@@ -1,78 +1,94 @@
-# Hatch OS (Phase 1 UI)
+# Hatch OS — Boundaries Coffee dry-run
 
-ChatGPT-simple firm AI on the box: login, files, chat. This app is the Hatch-owned UI — not Open WebUI, not a Hatch cloud, not the marketing site.
+ChatGPT-simple firm AI: login, files, chat. This app is the Hatch-owned UI — not Open WebUI, not a Hatch cloud, not the marketing site.
 
-Inference and files stay on the firm box. Remote access is over the **firm’s VPN / WireGuard** only. Encrypted logs. No frontier API for firm content.
+**This checkout is a software dry-run.** The DGX Spark / appliance is not connected. Ask uses **local Ollama + Qwen3 8B** (`qwen3:8b`) on the same Mac. The API shape stays the same so we later point `HATCH_LLM_*` at the appliance vLLM endpoint.
+
+Inference and files stay on this machine. No frontier API (OpenAI / Anthropic / Bedrock) for firm or library content.
 
 The public marketing site (`hatchsystems.ai` / Vercel project **holdroom**) stays a static site at the repo root. Do not deploy this Next.js app as that project’s root.
 
-## Run
+## Mac setup (Daniel — tomorrow)
 
 ```bash
+# 1. Local Qwen (required for Ask)
+#    https://ollama.com/download   or   brew install ollama
+ollama serve
+ollama pull qwen3:8b
+
+# 2. App
 cd apps/hatch-os
+cp .env.local.example .env.local
 npm install
 npm run dev
 ```
 
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-```bash
-npm run build
-npm start
-```
+If Ollama is down, Ask shows copy-paste install/pull commands and does **not** invent answers.
+
+See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md) for the later appliance swap.
 
 ## Pair (mock auth)
 
 | Invite | Result |
 | --- | --- |
-| `HATCH-BETA` | Partner. Matter Alpha + Matter Beta. TOTP = any six digits. |
-| `HATCH-ASSOC` | Associate. Matter Alpha only. |
+| `BOUNDARIES` or `HATCH-BETA` or `COFFEE` | Partner. Little Elm + Prosper + HQ / Ops. TOTP = any six digits. |
+| `HATCH-ASSOC` | Associate. Little Elm only. |
 | `HATCH-NOSEAT` | “No seat for this invite — admin can add one.” |
 | Passkey button | Registers a passkey on this box when the browser supports it; otherwise a demo pair. |
 
 SSO is later. No SMS. No “sign in with Google.”
 
+## Tenant (dogfood)
+
+- **Boundaries Coffee** — navy `#0c2340`, accent `#E1523F`, logo in `public/brand/`.
+- Rooms: **Little Elm** (27078 East University Drive, Little Elm, TX 76227), **Prosper** (1450 Frontier Pkwy., Prosper, TX 75078), **HQ / Ops**.
+- Banner: “Software dry-run — appliance not connected”.
+- “Powered by Hatch OS” only in the desktop footer and Settings.
+
+## Seed library (DEMO)
+
+Labeled DEMO. Catering protocol, loyalty (TapMango tiers **or** text **COFFEE** → next house drip free), open/close checklists, GM stubs (Rafael / Little Elm, Heath / Prosper). Image + PDF + markdown. Uploads persist under `data/`.
+
 ## Screens
 
 Ask · Rooms · Library · Status · Admin · Settings. Phone tabs: Ask · Rooms · Library · More.
 
-- **Ask** — composer, streaming from `/api/chat`, room chip, Sources under answers.
-- **Rooms** — Matter Alpha / Matter Beta isolation. No cross-matter search.
-- **Library** — upload to the current room (PDF, Office, markdown, **PNG / JPEG / WebP / GIF**), queued → extracting / OCR stub → indexed → ready. Unsupported types get a clear reject.
-- **Status** — box health. **FAIL=blocked** is good. **PASS=reachable** is an error. Unchecked is not live.
+- **Ask** — composer, stream from `/api/chat` → local Qwen, room chip, Sources under answers.
+- **Rooms** — Little Elm / Prosper / HQ isolation. No cross-store search.
+- **Library** — upload to the current room (PDF, Office, markdown, PNG / JPEG / WebP / GIF). Persisted. Image OCR stubbed.
+- **Status** — LLM connected / disconnected + dry-run. **FAIL=blocked** is good. **PASS=reachable** is an error.
 - **Admin** — seats/invites, room grants, backup and signed-update placeholders.
 - **Settings** — devices, sign out, remote how-to (firm tunnel; never Hatch cloud).
 
 PWA: add to home screen. Offline page: “Can’t reach Hatch…”. The service worker caches only `offline.html` — never the corpus.
 
-## Mock API + optional adapters
+## Env
 
-Demo rooms are **Matter Alpha** and **Matter Beta** (not “Fund”). Isolation is the same: retrieve, uploads, and chat stay in one matter. Synthetic Matter Alpha (Northshore CIM / QoE / site photo) and Matter Beta (Harbor CIM) live in `src/lib/mock-data.ts`.
+`.env.local.example`:
 
-**Images:** PNG, JPEG, WebP, and GIF upload into the current room. Ingest is stubbed (filename + “image asset” passage; no real OCR). Reject copy names the supported types.
+```bash
+HATCH_LLM_BASE_URL=http://127.0.0.1:11434
+HATCH_LLM_MODEL=qwen3:8b
+HATCH_LLM_API_KEY=
+```
+
+Optional adapters: `STATUS_URL` `:8090`, `RAG_URL` `:8091`. If those ports are down, the UI uses the on-disk store.
+
+## API
 
 | Route | Role |
 | --- | --- |
 | `POST /api/auth/pair` | Invite + TOTP or passkey |
-| `POST /api/chat` | Streaming answer, room-scoped |
+| `POST /api/chat` | Room-scoped RAG + stream from local LLM |
 | `GET /api/rooms` | Room list, `crossRoomSearch: false` |
 | `GET /api/library?room=` | Files in one room |
 | `GET /api/search?q=&room=` | Room-scoped retrieve |
-| `POST /api/ingest` | Queue ingest for a room |
-| `GET /api/status` | Health + egress. `?egress=pass` / `?egress=unknown` demos |
+| `POST /api/ingest` | Multipart upload **or** JSON delete |
+| `GET /api/status` | Health + LLM probe + egress demos |
 | `GET/POST /api/admin` | Seats, backup, updates |
-
-Copy `.env.example` to `.env.local` to point at the dry-run box:
-
-- `STATUS_URL` (default `http://127.0.0.1:8090`) — `GET /status`
-- `RAG_URL` (default `http://127.0.0.1:8091`) — `/search`, `/ingest`
-
-If those ports are down, the UI keeps the synthetic mock. RAG hits are still filtered to the current room.
 
 ## Non-goals
 
-Open WebUI white-label, Hatch-cloud chat, BYO frontier keys, App Store, spend, inventing BOM dollars, ontology on day one.
-
-## Brand
-
-Cream `#f5f2ed`, ink `#111`, violet `#7c6aef`, Inter. Name is Hatch / Hatch OS only.
+No real Toast connectors. No invented dollar amounts. No marketing-site changes. No claim that hardware ships. No Open WebUI white-label, Hatch-cloud chat, BYO frontier keys, App Store, or ontology on day one.

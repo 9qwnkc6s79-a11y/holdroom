@@ -1,40 +1,36 @@
 import type { RoomId } from "./types";
 
-export const MATTER_ALPHA = "matter-alpha";
-export const MATTER_BETA = "matter-beta";
+export const LITTLE_ELM = "little-elm";
+export const PROSPER = "prosper";
+export const HQ_OPS = "hq-ops";
+
+export const ALL_ROOMS = [LITTLE_ELM, PROSPER, HQ_OPS] as const;
 
 export function migrateRoomId(id: string): RoomId {
-  if (id === "fund-a") return MATTER_ALPHA;
-  if (id === "fund-b") return MATTER_BETA;
+  if (id === "fund-a" || id === "matter-alpha") return LITTLE_ELM;
+  if (id === "fund-b" || id === "matter-beta") return PROSPER;
   return id;
 }
 
 export function roomLabel(id: string): string {
-  if (id === MATTER_ALPHA || id === "fund-a") return "Matter Alpha";
-  if (id === MATTER_BETA || id === "fund-b") return "Matter Beta";
+  const rid = migrateRoomId(id);
+  if (rid === LITTLE_ELM) return "Little Elm";
+  if (rid === PROSPER) return "Prosper";
+  if (rid === HQ_OPS) return "HQ / Ops";
   return id;
 }
 
 export function belongsToRoom(sourceRoom: string, roomId: string): boolean {
   const room = sourceRoom.toLowerCase();
   const id = migrateRoomId(roomId);
-  if (id === MATTER_ALPHA) {
-    return (
-      room.includes("matter alpha") ||
-      room === "matter-alpha" ||
-      room.includes("fund a") ||
-      room === "fund-a" ||
-      (room.includes("alpha") && !room.includes("beta"))
-    );
+  if (id === LITTLE_ELM) {
+    return room.includes("little elm") || room === "little-elm";
   }
-  if (id === MATTER_BETA) {
-    return (
-      room.includes("matter beta") ||
-      room === "matter-beta" ||
-      room.includes("fund b") ||
-      room === "fund-b" ||
-      (room.includes("beta") && !room.includes("alpha"))
-    );
+  if (id === PROSPER) {
+    return room.includes("prosper") || room === "prosper";
+  }
+  if (id === HQ_OPS) {
+    return room.includes("hq") || room.includes("ops") || room === "hq-ops";
   }
   return room === id.toLowerCase();
 }

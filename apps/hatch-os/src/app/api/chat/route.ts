@@ -1,54 +1,59 @@
-import { pickAnswer, type LibraryHint } from "@/lib/answers";
-import { ragSearch } from "@/lib/adapters";
-import { MATTER_ALPHA } from "@/lib/mock-data";
-import { belongsToRoom } from "@/lib/rooms";
+import { probeLlm, streamLlm, ollamaInstallHelp, llmConfig } from "@/lib/llm";
+import { buildAskMessages } from "@/lib/prompt";
+import { retrieve } from "@/lib/store";
+import { LITTLE_ELM, migrateRoomId } from "@/lib/rooms";
 
 export const dynamic = "force-dynamic";
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     roomId?: string;
     query?: string;
-    files?: LibraryHint[];
   } | null;
 
-  const roomId = body?.roomId || MATTER_ALPHA;
+  const roomId = migrateRoomId(body?.roomId || LITTLE_ELM);
   const query = (body?.query || "").trim();
   if (!query) {
     return Response.json({ error: "Ask a question." }, { status: 400 });
   }
 
-  let pack = pickAnswer(roomId, query, body?.files);
-  const isolated = /not in this room|will not retrieve the other matter|will not retrieve the other fund/.test(
-    pack.text,
-  );
+  const sources = retrieve(roomId, query);
+  const probe = await probeLlm();
+  const encoder = new TextEncoder();
 
-  const rag = await ragSearch(query);
-  if (rag && rag.length && !isolated && pack.sources.length === 0) {
-    const scoped = rag.filter((s) => belongsToRoom(s.room, roomId));
-    if (scoped.length) {
-      pack = {
-        text: `From this room’s library only: ${scoped[0].snippet}`,
-        sources: scoped,
-      };
-    }
+  if (!probe.connected) {
+    const help = ollamaInstallHelp(llmConfig().model);
+    const detail = probe.error ? `${probe.error}\n\n${help}` : help;
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: true, delta: detail })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sources: [], error: true })}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
-  const encoder = new TextEncoder();
+  const messages = buildAskMessages(roomId, query, sources);
   const stream = new ReadableStream({
     async start(controller) {
-      const chunks = pack.text.match(/\S+\s*/g) ?? [pack.text];
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: chunk })}\n\n`));
-        await delay(18);
+      try {
+        await streamLlm(messages, (delta) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta })}\n\n`));
+        });
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sources })}\n\n`));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "LLM failed";
+        const help = `${msg}\n\n${ollamaInstallHelp(llmConfig().model)}`;
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: true, delta: help })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sources: [], error: true })}\n\n`));
       }
-      controller.enqueue(
-        encoder.encode(`data: ${JSON.stringify({ done: true, sources: pack.sources })}\n\n`),
-      );
       controller.close();
     },
   });
@@ -57,7 +62,6 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store",
-      Connection: "keep-alive",
     },
   });
 }

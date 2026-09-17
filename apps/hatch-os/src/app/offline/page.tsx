@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 
@@ -11,7 +12,7 @@ export default function OfflinePage() {
     <div className="gate">
       <div className="gate-inner">
         <p className="brand">
-          Hatch<span className="dot">.</span>
+          <Image className="brand-logo is-large" src="/brand/boundaries-logo.svg" alt="Boundaries Coffee" width={200} height={40} unoptimized priority />
         </p>
         <h1>Can’t reach Hatch.</h1>
         <p className="lede">

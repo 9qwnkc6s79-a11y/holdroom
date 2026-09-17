@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -79,7 +80,7 @@ export default function SignInPage() {
     <div className="gate">
       <div className="gate-inner">
         <p className="brand">
-          Hatch<span className="dot">.</span>
+          <Image className="brand-logo is-large" src="/brand/boundaries-logo.svg" alt="Boundaries Coffee" width={200} height={40} unoptimized priority />
         </p>
         <h1>This device is not paired.</h1>
         <p className="lede">
@@ -107,8 +108,8 @@ export default function SignInPage() {
             required
           />
           <p className="field-hint">
-            Beta stub. Try HATCH-BETA, HATCH-ASSOC (Matter Alpha only), or HATCH-NOSEAT for the
-            empty-seat path.
+            Dry-run stub. Try BOUNDARIES or HATCH-BETA (all rooms), HATCH-ASSOC (Little Elm only),
+            or HATCH-NOSEAT for the empty-seat path.
           </p>
           <label htmlFor="totp">Authenticator code</label>
           <input

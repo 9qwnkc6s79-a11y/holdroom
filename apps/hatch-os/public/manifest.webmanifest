@@ -1,13 +1,13 @@
 {
-  "name": "Hatch OS",
-  "short_name": "Hatch",
-  "description": "The firm’s Hatch OS — same rooms, same library, on this box.",
+  "name": "Boundaries Coffee",
+  "short_name": "Boundaries",
+  "description": "Boundaries Coffee on Hatch OS — same rooms, same library, on this box.",
   "start_url": "/ask",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f5f2ed",
-  "theme_color": "#111111",
+  "theme_color": "#0c2340",
   "icons": [
     {
       "src": "/icons/icon.svg",

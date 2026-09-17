@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { isAcceptedFilename, kindFromFilename, REJECT_COPY } from "@/lib/files";
-import { INITIAL_DEVICES, INITIAL_ROOMS, INITIAL_SEATS, MATTER_ALPHA, MATTER_BETA, SEAT_LINE } from "@/lib/mock-data";
+import { HQ_OPS, INITIAL_DEVICES, INITIAL_ROOMS, INITIAL_SEATS, LITTLE_ELM, PROSPER, SEAT_LINE } from "@/lib/mock-data";
 import { migrateRoomId } from "@/lib/rooms";
 import { clearSession, readRoom, readSession, writeRoom, writeSession } from "@/lib/storage";
 import type {
@@ -47,7 +47,7 @@ interface HatchContextValue {
   pair: (input: { invite: string; totp?: string; device?: string; method: AuthMethod }) => Promise<boolean>;
   signOut: () => void;
   ask: (query: string) => Promise<void>;
-  ingest: (filename: string) => void;
+  ingest: (file: File) => void;
   deleteFile: (fileId: string) => void;
   mintInvite: () => void;
   revokeSeat: (id: string) => void;
@@ -77,11 +77,12 @@ function newId(prefix: string) {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [currentRoomId, setCurrentRoomId] = useState<RoomId>(MATTER_ALPHA);
+  const [currentRoomId, setCurrentRoomId] = useState<RoomId>(LITTLE_ELM);
   const [rooms, setRooms] = useState<Room[]>(cloneRooms);
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({
-    [MATTER_ALPHA]: [],
-    [MATTER_BETA]: [],
+    [LITTLE_ELM]: [],
+    [PROSPER]: [],
+    [HQ_OPS]: [],
   });
   const [streaming, setStreaming] = useState(false);
   const [lastSources, setLastSources] = useState<Source[] | null>(null);
@@ -95,6 +96,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emptySeatsDemo, setEmptySeatsDemo] = useState(false);
   const [inviteSeq, setInviteSeq] = useState(0);
 
+  const refreshRooms = useCallback(async () => {
+    try {
+      const res = await fetch("/api/rooms", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { rooms?: Room[] };
+      if (!data.rooms?.length) return;
+      setRooms(data.rooms);
+      setThreads((prev) => {
+        const next = { ...prev };
+        for (const room of data.rooms || []) {
+          if (!next[room.id]) next[room.id] = [];
+        }
+        return next;
+      });
+    } catch {
+      /* keep seed stubs */
+    }
+  }, []);
+
   useEffect(() => {
     const stored = readSession();
     const room = readRoom();
@@ -103,7 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deviceName: stored.deviceName,
         method: stored.method,
         role: stored.role,
-        rooms: stored.rooms,
+        rooms: stored.rooms.map(migrateRoomId),
         pairedAt: new Date().toISOString(),
       });
       setDevices((prev) =>
@@ -111,11 +131,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           d.current ? { ...d, name: stored.deviceName, lastSeen: "This session" } : d,
         ),
       );
-      const allowed = stored.rooms.includes(room) ? room : stored.rooms[0] || MATTER_ALPHA;
-      setCurrentRoomId(allowed);
+      const allowed = stored.rooms.map(migrateRoomId).includes(room)
+        ? room
+        : stored.rooms[0] || LITTLE_ELM;
+      setCurrentRoomId(migrateRoomId(allowed));
     }
+    void refreshRooms();
     setReady(true);
-  }, []);
+  }, [refreshRooms]);
 
   const visibleRooms = useMemo(() => {
     if (!session) return rooms;
@@ -159,7 +182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           deviceName: data.deviceName || input.device || "This browser",
           method: data.method || input.method,
           role: data.role || "Partner",
-          rooms: (data.rooms || [MATTER_ALPHA, MATTER_BETA]).map(migrateRoomId),
+          rooms: (data.rooms || [LITTLE_ELM, PROSPER, HQ_OPS]).map(migrateRoomId),
           pairedAt: new Date().toISOString(),
         };
         writeSession(next);
@@ -169,7 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             d.current ? { ...d, name: next.deviceName, lastSeen: "This session" } : d,
           ),
         );
-        const first = next.rooms[0] || MATTER_ALPHA;
+        const first = next.rooms[0] || LITTLE_ELM;
         setCurrentRoomId(first);
         writeRoom(first);
         return true;
@@ -213,13 +236,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setStreaming(true);
 
       try {
-        const library = (rooms.find((r) => r.id === roomId)?.files || [])
-          .filter((f) => f.status === "ready" || f.status === "indexed")
-          .map((f) => ({ name: f.name, kind: f.kind }));
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, query, files: library }),
+          body: JSON.stringify({ roomId, query }),
         });
         if (!res.ok || !res.body) {
           throw new Error("offline");
@@ -238,7 +258,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           for (const part of parts) {
             const line = part.replace(/^data:\s*/, "");
             if (!line) continue;
-            const payload = JSON.parse(line) as { delta?: string; done?: boolean; sources?: Source[] };
+            const payload = JSON.parse(line) as {
+              delta?: string;
+              done?: boolean;
+              sources?: Source[];
+              error?: boolean;
+            };
             if (payload.delta) {
               text += payload.delta;
               setThreads((prev) => ({
@@ -281,19 +306,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setStreaming(false);
       }
     },
-    [currentRoomId, rooms, streaming],
+    [currentRoomId, streaming],
   );
 
   const ingest = useCallback(
-    (filename: string) => {
-      const ok = isAcceptedFilename(filename);
-      const kind = kindFromFilename(filename);
+    (file: File) => {
+      const ok = isAcceptedFilename(file.name);
+      const kind = kindFromFilename(file.name);
       const rec: LibraryFile = {
         id: newId("up"),
-        name: filename,
+        name: file.name,
         kind,
         status: ok ? "queued" : "failed",
-        progress: ok ? 15 : 0,
+        progress: ok ? 20 : 0,
         error: ok ? undefined : REJECT_COPY,
         roomId: currentRoomId,
       };
@@ -302,56 +327,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           room.id === currentRoomId ? { ...room, files: [rec, ...room.files] } : room,
         ),
       );
-      void fetch("/api/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, roomId: currentRoomId }),
-      }).catch(() => undefined);
       if (!ok) return;
-      window.setTimeout(() => {
-        setRooms((prev) =>
-          prev.map((room) => ({
-            ...room,
-            files: room.files.map((f) =>
-              f.id === rec.id ? { ...f, status: "extracting", progress: 55 } : f,
+
+      const form = new FormData();
+      form.append("file", file);
+      form.append("roomId", currentRoomId);
+      void fetch("/api/ingest", { method: "POST", body: form })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => null)) as
+            | { file?: LibraryFile; error?: string }
+            | null;
+          const saved = data?.file;
+          setRooms((prev) =>
+            prev.map((room) =>
+              room.id === currentRoomId
+                ? {
+                    ...room,
+                    files: room.files.map((f) =>
+                      f.id === rec.id
+                        ? saved || {
+                            ...f,
+                            status: "failed",
+                            error: data?.error || "Upload failed.",
+                          }
+                        : f,
+                    ),
+                  }
+                : room,
             ),
-          })),
-        );
-      }, 700);
-      window.setTimeout(() => {
-        setRooms((prev) =>
-          prev.map((room) => ({
-            ...room,
-            files: room.files.map((f) =>
-              f.id === rec.id ? { ...f, status: "indexed", progress: 90 } : f,
-            ),
-          })),
-        );
-      }, 1400);
-      window.setTimeout(() => {
-        setRooms((prev) =>
-          prev.map((room) => ({
-            ...room,
-            files: room.files.map((f) =>
-              f.id === rec.id ? { ...f, status: "ready", progress: 100 } : f,
-            ),
-          })),
-        );
-      }, 2000);
+          );
+        })
+        .catch(() => {
+          setRooms((prev) =>
+            prev.map((room) => ({
+              ...room,
+              files: room.files.map((f) =>
+                f.id === rec.id
+                  ? { ...f, status: "failed", error: "Could not persist this file on the box." }
+                  : f,
+              ),
+            })),
+          );
+        });
     },
     [currentRoomId],
   );
 
-  const deleteFile = useCallback((fileId: string) => {
-    setRooms((prev) =>
-      prev.map((room) =>
-        room.id === currentRoomId
-          ? { ...room, files: room.files.filter((f) => f.id !== fileId) }
-          : room,
-      ),
-    );
-    setToast("File and chunks removed from this room.");
-  }, [currentRoomId]);
+  const deleteFile = useCallback(
+    (fileId: string) => {
+      setRooms((prev) =>
+        prev.map((room) =>
+          room.id === currentRoomId
+            ? { ...room, files: room.files.filter((f) => f.id !== fileId) }
+            : room,
+        ),
+      );
+      void fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", fileId, roomId: currentRoomId }),
+      }).catch(() => undefined);
+      setToast("File and chunks removed from this room.");
+    },
+    [currentRoomId],
+  );
 
   const mintInvite = useCallback(() => {
     setInviteSeq((n) => n + 1);
@@ -385,13 +424,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const createRoom = useCallback(() => {
-    const id = newId("matter");
+    const id = newId("room");
     setRooms((prev) => [
       ...prev,
       {
         id,
-        name: "New matter",
-        isolation: "This room is empty and isolated. It does not search Matter Alpha or Matter Beta.",
+        name: "New room",
+        isolation: "This room is empty and isolated. It does not search Little Elm, Prosper, or HQ / Ops.",
         files: [],
       },
     ]);
@@ -413,7 +452,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const startBackup = useCallback(() => {
-    setToast("Backup started (stub). Last success stays 14 Sep 2026 until a real box exists.");
+    setToast("Backup is a stub. No appliance is connected — do not treat this as a live backup.");
   }, []);
 
   const importUpdate = useCallback(() => {

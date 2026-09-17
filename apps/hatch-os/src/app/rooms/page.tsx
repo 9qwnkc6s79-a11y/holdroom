@@ -23,11 +23,11 @@ export default function RoomsPage() {
           <p className="screen-kicker">Rooms</p>
           <h1>No rooms.</h1>
           <p className="lede">
-            Admin creates Matter Alpha / Matter Beta (or the first matter). There is no cross-room
-            “search everything” in this beta.
+            Admin creates Little Elm / Prosper / HQ / Ops (or the first room). There is no
+            cross-room “search everything” in this dry-run.
           </p>
           <button className="btn btn-outline" type="button" onClick={() => setEmptyRoomsDemo(false)}>
-            Show Matter Alpha / Matter Beta
+            Show store rooms
           </button>
         </div>
       </Shell>
@@ -38,10 +38,10 @@ export default function RoomsPage() {
     <Shell>
       <div className="panel">
         <p className="screen-kicker">Rooms</p>
-        <h1>Matter spaces.</h1>
+        <h1>Store rooms.</h1>
         <p className="lede">
-          Isolation first. A partner may see both matters; an associate may see one. Permission is
-          checked before retrieve. There is no cross-matter search.
+          Little Elm, Prosper, and HQ / Ops stay isolated. Permission is checked before retrieve.
+          There is no cross-store search.
         </p>
         <div className="room-list">
           {visibleRooms.map((room) => {
@@ -64,7 +64,7 @@ export default function RoomsPage() {
                 <p className="fine">
                   {empty
                     ? "This room has no files and no threads. Upload in Library or ask a question that does not need the library."
-                    : `${room.files.length} files · isolated from the other matter`}
+                    : `${room.files.length} files · isolated from the other stores`}
                 </p>
               </button>
             );
