@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },
+  async redirects() {
+    return [
+      { source: "/ask", destination: "/chat", permanent: false },
+      { source: "/rooms", destination: "/departments", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
