@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
 import { ACCEPT_ATTR, ingestStatusLabel } from "@/lib/files";
@@ -25,8 +26,10 @@ export default function LibraryPage() {
     ingest,
     deleteFile,
     setInLibrary,
+    openArtifact,
     toast,
   } = useHatch();
+  const router = useRouter();
   const [over, setOver] = useState(false);
   const [writeDept, setWriteDept] = useState(LITTLE_ELM);
   const notInLibrary = currentFiles.filter((f) => !f.inLibrary);
@@ -111,9 +114,21 @@ export default function LibraryPage() {
                     {file.origin === "draft" ? " · Draft" : ""}
                   </p>
                 </div>
-                <button className="btn btn-outline btn-tiny" type="button" onClick={() => setInLibrary(file.id, true)}>
-                  Add to Library
-                </button>
+                <div className="grant-row">
+                  <button
+                    className="linkish"
+                    type="button"
+                    onClick={() => {
+                      openArtifact(file.id);
+                      router.push("/chat");
+                    }}
+                  >
+                    Open in panel
+                  </button>
+                  <button className="btn btn-outline btn-tiny" type="button" onClick={() => setInLibrary(file.id, true)}>
+                    Add to Library
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -147,6 +162,16 @@ export default function LibraryPage() {
                     </p>
                   ) : null}
                   <div className="grant-row" style={{ gridColumn: "1 / -1" }}>
+                    <button
+                      className="linkish"
+                      type="button"
+                      onClick={() => {
+                        openArtifact(file.id);
+                        router.push("/chat");
+                      }}
+                    >
+                      Open in panel
+                    </button>
                     <button className="linkish" type="button" onClick={() => setInLibrary(file.id, false)}>
                       Remove from Library
                     </button>

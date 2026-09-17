@@ -131,6 +131,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         ok: true,
         detail: `Read ${hit.file.name} (${workspaceLabel(hit.file.departmentId)})`,
         departmentId: hit.file.departmentId,
+        fileId: hit.file.id,
       },
       extra: hit.text.slice(0, 4000),
     };
@@ -158,7 +159,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
     if (!result.event.ok) {
       result.event.detail = `${result.event.detail} ${writeDeniedHandoffHint(departmentId)}`;
     }
-    return { event: result.event };
+    return { event: result.event, extra: result.file ? `fileId=${result.file.id}` : undefined };
   }
 
   if (name === "handoff_to_department") {
@@ -194,6 +195,7 @@ export function mentionedReads(query: string): { event: ToolEvent; extra: string
         ok: Boolean(rec),
         detail: rec ? `Opened ${file.name} (${workspaceLabel(file.departmentId)})` : `Missing ${file.name}`,
         departmentId: file.departmentId,
+        fileId: file.id,
       },
       extra: rec?.text.slice(0, 2500) || "",
     };

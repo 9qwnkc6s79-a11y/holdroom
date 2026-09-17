@@ -65,6 +65,13 @@ export interface ToolEvent {
   ok: boolean;
   detail: string;
   departmentId?: DepartmentId;
+  fileId?: string;
+}
+
+export interface ChatAttachment {
+  fileId: string;
+  name: string;
+  kind: FileKind;
 }
 
 export interface ChatMessage {
@@ -74,6 +81,7 @@ export interface ChatMessage {
   done: boolean;
   sources: Source[];
   tools?: ToolEvent[];
+  attachments?: ChatAttachment[];
 }
 
 export interface ChatThread {
@@ -84,6 +92,8 @@ export interface ChatThread {
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
+  /** Last artifact opened in this thread — Files id, not a second store. */
+  lastArtifactId?: string | null;
 }
 
 export interface Handoff {

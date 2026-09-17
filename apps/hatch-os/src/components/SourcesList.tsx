@@ -1,6 +1,12 @@
 import type { Source } from "@/lib/types";
 
-export function SourcesList({ sources }: { sources: Source[] }) {
+export function SourcesList({
+  sources,
+  onOpen,
+}: {
+  sources: Source[];
+  onOpen?: (source: Source) => void;
+}) {
   if (!sources.length) {
     return (
       <p className="fine source-empty">
@@ -22,6 +28,11 @@ export function SourcesList({ sources }: { sources: Source[] }) {
             </span>
           </summary>
           <p className="snippet">“{source.snippet}”</p>
+          {onOpen ? (
+            <button className="linkish" type="button" onClick={() => onOpen(source)}>
+              Open in panel
+            </button>
+          ) : null}
         </details>
       ))}
     </div>

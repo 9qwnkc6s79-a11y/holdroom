@@ -31,6 +31,7 @@ import {
 } from "@/lib/storage";
 import type {
   AuthMethod,
+  ChatAttachment,
   ChatMessage,
   ChatThread,
   Department,
@@ -61,6 +62,8 @@ interface HatchContextValue {
   currentThreadId: string | null;
   currentThread: ChatThread | null;
   streaming: boolean;
+  artifactOpen: boolean;
+  activeArtifactId: string | null;
   lastSources: Source[] | null;
   lastUsedLibrary: boolean | null;
   handoffs: Handoff[];
@@ -79,8 +82,14 @@ interface HatchContextValue {
   archiveThread: (id: string) => void;
   pair: (input: { invite: string; totp?: string; device?: string; method: AuthMethod }) => Promise<boolean>;
   signOut: () => void;
-  ask: (query: string) => Promise<void>;
-  ingest: (file: File, opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId }) => void;
+  ask: (query: string, opts?: { attachments?: HatchFile[] }) => Promise<void>;
+  ingest: (
+    file: File,
+    opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId },
+  ) => Promise<HatchFile | null>;
+  openArtifact: (fileId: string, threadId?: string) => void;
+  closeArtifact: () => void;
+  openArtifactBySource: (source: Source) => boolean;
   deleteFile: (fileId: string) => void;
   setInLibrary: (fileId: string, inLibrary: boolean) => void;
   importDrive: (departmentId?: DepartmentId) => Promise<void>;
@@ -157,6 +166,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emptyDepartmentsDemo, setEmptyDepartmentsDemo] = useState(false);
   const [emptySeatsDemo, setEmptySeatsDemo] = useState(false);
   const [inviteSeq, setInviteSeq] = useState(0);
+  const [artifactOpen, setArtifactOpen] = useState(false);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -241,6 +252,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [visibleThreads, currentThreadId],
   );
 
+  useEffect(() => {
+    if (!ready || !currentThread?.lastArtifactId) return;
+    setActiveArtifactId((prev) => prev || currentThread.lastArtifactId || null);
+    setArtifactOpen(true);
+  }, [ready, currentThread?.id, currentThread?.lastArtifactId]);
+
   const inboundHandoffs = useMemo(() => {
     if (isEnterpriseView) return handoffs;
     return handoffs.filter((h) => h.toDepartmentId === currentWorkspaceId);
@@ -254,12 +271,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentThreadId(last);
   }, []);
 
+  const persistArtifact = useCallback((threadId: string | null | undefined, fileId: string | null) => {
+    if (!threadId) return;
+    setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, lastArtifactId: fileId } : t)));
+    void fetch("/api/threads", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: threadId, lastArtifactId: fileId }),
+    }).catch(() => undefined);
+  }, []);
+
+  const openArtifact = useCallback(
+    (fileId: string, threadId?: string) => {
+      setActiveArtifactId(fileId);
+      setArtifactOpen(true);
+      persistArtifact(threadId || currentThread?.id || currentThreadId, fileId);
+    },
+    [currentThread?.id, currentThreadId, persistArtifact],
+  );
+
+  const closeArtifact = useCallback(() => {
+    setArtifactOpen(false);
+  }, []);
+
+  const openArtifactBySource = useCallback(
+    (source: Source) => {
+      const all = departments.flatMap((d) => d.files);
+      const hit =
+        all.find((f) => f.name === source.file && (!source.departmentId || f.departmentId === source.departmentId)) ||
+        all.find((f) => f.name === source.file);
+      if (!hit) {
+        setToast("That source isn’t in Files yet.");
+        return false;
+      }
+      openArtifact(hit.id);
+      return true;
+    },
+    [departments, openArtifact],
+  );
+
   const selectThread = useCallback(
     (id: string) => {
       setCurrentThreadId(id);
       writeThreadForWorkspace(currentWorkspaceId, id);
+      const thread = threads.find((t) => t.id === id);
+      if (thread?.lastArtifactId) {
+        setActiveArtifactId(thread.lastArtifactId);
+        setArtifactOpen(true);
+      } else {
+        setArtifactOpen(false);
+      }
     },
-    [currentWorkspaceId],
+    [currentWorkspaceId, threads],
   );
 
   const newThread = useCallback(async () => {
@@ -274,6 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setThreads((prev) => [data.thread!, ...prev.filter((t) => t.id !== data.thread!.id)]);
         setCurrentThreadId(data.thread.id);
         writeThreadForWorkspace(currentWorkspaceId, data.thread.id);
+        setArtifactOpen(false);
         return data.thread;
       }
     } catch {
@@ -350,7 +414,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const ask = useCallback(
-    async (query: string) => {
+    async (query: string, opts?: { attachments?: HatchFile[] }) => {
       if (streaming || !session) return;
       let threadId: string | undefined = currentThread?.id;
       if (!threadId) {
@@ -359,7 +423,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (!threadId) return;
 
-      const user: ChatMessage = { id: newId("u"), role: "user", text: query, done: true, sources: [] };
+      const attachments: ChatAttachment[] | undefined = opts?.attachments?.map((f) => ({
+        fileId: f.id,
+        name: f.name,
+        kind: f.kind,
+      }));
+      const user: ChatMessage = {
+        id: newId("u"),
+        role: "user",
+        text: query,
+        done: true,
+        sources: [],
+        attachments,
+      };
       const assistant: ChatMessage = { id: newId("a"), role: "assistant", text: "", done: false, sources: [] };
       setThreads((prev) =>
         prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, user, assistant] } : t)),
@@ -378,6 +454,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             query,
             accessibleDepartments: session.departments,
             enterprise: session.enterprise,
+            attachments,
           }),
         });
         if (!res.ok || !res.body) throw new Error("offline");
@@ -434,9 +511,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         setLastSources(sources);
         setLastUsedLibrary(sources.length > 0);
+        const created = tools.find(
+          (t) => t.ok && t.fileId && (t.name === "write_draft" || t.name === "drive_import"),
+        );
         if (tools.some((t) => t.name === "write_draft" || t.name === "handoff_to_department" || t.name === "drive_import")) {
-          void refresh();
+          await refresh();
         }
+        if (created?.fileId) openArtifact(created.fileId, threadId);
       } catch {
         setThreads((prev) =>
           prev.map((t) =>
@@ -463,7 +544,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setStreaming(false);
       }
     },
-    [streaming, session, currentThread, newThread, currentWorkspaceId, refresh],
+    [streaming, session, currentThread, newThread, currentWorkspaceId, refresh, openArtifact],
   );
 
   const writeTarget = useCallback(
@@ -476,7 +557,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const ingest = useCallback(
-    (file: File, opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId }) => {
+    async (file: File, opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId }) => {
       const departmentId = writeTarget(opts?.departmentId);
       const ok = isAcceptedFilename(file.name);
       const rec: HatchFile = {
@@ -495,39 +576,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDepartments((prev) =>
         prev.map((dept) => (dept.id === departmentId ? { ...dept, files: [rec, ...dept.files] } : dept)),
       );
-      if (!ok) return;
+      if (!ok) return null;
       const form = new FormData();
       form.append("file", file);
       form.append("departmentId", departmentId);
       form.append("inLibrary", rec.inLibrary ? "1" : "0");
       if (opts?.folderId) form.append("folderId", opts.folderId);
       form.append("accessibleDepartments", (session?.departments || []).join(","));
-      void fetch("/api/ingest", { method: "POST", body: form })
-        .then(async (res) => {
-          const data = (await res.json().catch(() => null)) as { file?: HatchFile; error?: string } | null;
-          setDepartments((prev) =>
-            prev.map((dept) =>
-              dept.id === departmentId
-                ? {
-                    ...dept,
-                    files: dept.files.map((f) =>
-                      f.id === rec.id ? data?.file || { ...f, status: "failed", error: data?.error || "Upload failed." } : f,
-                    ),
-                  }
-                : dept,
+      try {
+        const res = await fetch("/api/ingest", { method: "POST", body: form });
+        const data = (await res.json().catch(() => null)) as { file?: HatchFile; error?: string } | null;
+        const next = data?.file || { ...rec, status: "failed" as const, error: data?.error || "Upload failed." };
+        setDepartments((prev) =>
+          prev.map((dept) =>
+            dept.id === departmentId
+              ? { ...dept, files: dept.files.map((f) => (f.id === rec.id ? next : f)) }
+              : dept,
+          ),
+        );
+        return data?.file || null;
+      } catch {
+        setDepartments((prev) =>
+          prev.map((dept) => ({
+            ...dept,
+            files: dept.files.map((f) =>
+              f.id === rec.id ? { ...f, status: "failed", error: "Could not persist this file on the box." } : f,
             ),
-          );
-        })
-        .catch(() => {
-          setDepartments((prev) =>
-            prev.map((dept) => ({
-              ...dept,
-              files: dept.files.map((f) =>
-                f.id === rec.id ? { ...f, status: "failed", error: "Could not persist this file on the box." } : f,
-              ),
-            })),
-          );
-        });
+          })),
+        );
+        return null;
+      }
     },
     [writeTarget, session],
   );
@@ -739,6 +817,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentThreadId: currentThread?.id || currentThreadId,
       currentThread,
       streaming,
+      artifactOpen,
+      activeArtifactId,
       lastSources,
       lastUsedLibrary,
       handoffs,
@@ -759,6 +839,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       ask,
       ingest,
+      openArtifact,
+      closeArtifact,
+      openArtifactBySource,
       deleteFile,
       setInLibrary,
       importDrive,
@@ -794,6 +877,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentThreadId,
       currentThread,
       streaming,
+      artifactOpen,
+      activeArtifactId,
       lastSources,
       lastUsedLibrary,
       handoffs,
@@ -814,6 +899,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       ask,
       ingest,
+      openArtifact,
+      closeArtifact,
+      openArtifactBySource,
       deleteFile,
       setInLibrary,
       importDrive,
