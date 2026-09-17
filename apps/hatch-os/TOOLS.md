@@ -29,7 +29,7 @@ TOOL {"name":"handoff_to_department","arguments":{"toDepartmentId":"hq-ops","sum
 
 The orchestrator executes that line after the model streams, then shows a tool chip. UI also exposes Handoff on Chat and Drive import on Files.
 
-`GET` / `POST` `/api/tools` — schemas, audit, and explicit execution.
+`GET` / `POST` `/api/tools` — schemas, audit, and explicit execution. `POST` with `{ query }` (no `name`) runs the Hermes agent loop. Plain Ask / non-tool chat stays on Qwen (`HATCH_LLM_*`). Set `HATCH_AGENT_LLM_*` for Hermes; if unset, the agent lane falls back to Qwen. See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
 
 ## Dogfood workspaces
 

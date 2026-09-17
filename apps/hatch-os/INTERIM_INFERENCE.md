@@ -39,3 +39,16 @@ Same four vars → box vLLM OpenAI-compatible `/v1`. Preferred local-box model r
 
 Keep `HATCH_LLM_BASE_URL`, `HATCH_LLM_MODEL`, `HATCH_LLM_API_KEY`, `HATCH_LLM_PROVIDER`.
 
+## Agent / tools — Hermes (paste endpoint id)
+
+Chat tool loops (`/api/tools`, `write_draft`, tool-calling turns) use a second OpenAI-compatible client. Ask stays on Qwen (`HATCH_LLM_*`).
+
+```
+HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/<HERMES_ENDPOINT>/openai/v1
+HATCH_AGENT_LLM_MODEL=NousResearch/Hermes-4.3-36B
+HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>
+HATCH_AGENT_LLM_PROVIDER=openai-compatible
+```
+
+Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id when Hermes is up. Prefer vLLM `--tool-call-parser hermes`. If these vars are unset, agent turns fall back to `HATCH_LLM_*`.
+

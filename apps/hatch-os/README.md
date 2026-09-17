@@ -33,6 +33,19 @@ HATCH_LLM_PROVIDER=openai-compatible
 
 A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint.
 
+### Agentic (Hermes) — paste endpoint id
+
+Ask stays on Qwen (`HATCH_LLM_*`). Chat tool loops use Hermes when these are set:
+
+```
+HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/<HERMES_ENDPOINT>/openai/v1
+HATCH_AGENT_LLM_MODEL=NousResearch/Hermes-4.3-36B
+HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>
+HATCH_AGENT_LLM_PROVIDER=openai-compatible
+```
+
+Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id. If unset, agent turns fall back to `HATCH_LLM_*`.
+
 Open http://127.0.0.1:3000
 
 1. Pair **`BOUNDARIES`** + any six digits → lands in **Enterprise → Chat**.
@@ -40,7 +53,7 @@ Open http://127.0.0.1:3000
 3. Tabs Chat (threads: new / rename / archive) · Files (folders, upload, Drive stub) · Library (Add to Library).
 4. In Little Elm Chat: **How does loyalty work?** → TapMango or text **COFFEE**, source `DEMO_loyalty.md` (firm-wide read). First RunPod Ask can take **2–3 minutes** (cold start).
 5. Associate path: **`HATCH-ASSOC`** → Little Elm only, no Enterprise. Writes to HQ Ops are denied; use Handoff.
-6. Status: **RunPod / Qwen3.8** when the base URL contains `runpod.ai`. Host shown, never the key.
+6. Status: **Ask: Qwen… / Agent: Hermes…** when both endpoints are set. Host shown, never the key. Pair codes and write ACL are unchanged.
 
 Fallback: comment the RunPod lines and use `http://127.0.0.1:11434` + `qwen3:8b`. Later: same env → appliance vLLM. See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
 

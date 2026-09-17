@@ -180,6 +180,25 @@ export interface BoxStatus {
     hasKey?: boolean;
     fallback?: boolean;
     label?: string;
+    lane?: "ask" | "agent";
+    error?: string;
+  };
+  agentLlm?: {
+    connected: boolean;
+    reachable?: boolean;
+    modelPulled?: boolean;
+    model: string;
+    preferredModel?: string;
+    baseUrl: string;
+    host?: string;
+    kind?: "remote" | "ollama";
+    provider?: string;
+    hasKey?: boolean;
+    fallback?: boolean;
+    label?: string;
+    lane?: "ask" | "agent";
+    dedicated?: boolean;
+    usingAskFallback?: boolean;
     error?: string;
   };
   dryRun?: boolean;

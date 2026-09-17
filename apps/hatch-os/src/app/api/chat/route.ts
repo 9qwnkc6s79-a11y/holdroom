@@ -1,5 +1,7 @@
-import { probeLlm, streamLlm, connectHelp, llmConfig, isRunpodUrl } from "@/lib/llm";
+import { runAgentLoop } from "@/lib/agent";
+import { wantsAgentTurn } from "@/lib/agent-intent";
 import { LITTLE_ELM, migrateWorkspaceId } from "@/lib/departments";
+import { probeLlm, probeAgentLlm, streamLlm, connectHelp, llmConfig, agentLlmConfig, isRunpodUrl } from "@/lib/llm";
 import { buildAskMessages } from "@/lib/prompt";
 import {
   appendThreadMessages,
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
     accessibleDepartments?: string[];
     enterprise?: boolean;
     attachments?: ChatAttachment[];
+    agent?: boolean;
   } | null;
 
   const workspaceId = migrateWorkspaceId(body?.departmentId || body?.roomId || LITTLE_ELM);
@@ -58,9 +61,10 @@ export async function POST(req: Request) {
   const assistantMsg = newMsg("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
 
-  const probe = await probeLlm();
+  const agentic = wantsAgentTurn(query, body?.agent);
+  const probe = agentic ? await probeAgentLlm() : await probeLlm();
   const encoder = new TextEncoder();
-  const { primary } = llmConfig();
+  const { primary } = agentic ? agentLlmConfig() : llmConfig();
   const runpodReady = isRunpodUrl(primary.rawBase) && Boolean(primary.apiKey);
 
   const headers = {
@@ -90,7 +94,7 @@ export async function POST(req: Request) {
     return failStream(detail);
   }
 
-  const messages = buildAskMessages({
+  const promptInput = {
     workspaceId,
     query,
     sources,
@@ -98,30 +102,44 @@ export async function POST(req: Request) {
     toolResults,
     extra,
     accessibleDepartments,
-  });
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
       let text = "";
       try {
-        await streamLlm(messages, (delta) => {
-          text += delta;
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta, threadId: active.id })}\n\n`));
-        });
-        const call = parseToolTrailer(text);
-        const visible = stripToolTrailer(text);
-        if (call) {
-          const result = executeTool(call, {
-            workspaceId,
-            accessibleDepartments,
-            enterprise: body?.enterprise,
+        if (agentic) {
+          const result = await runAgentLoop(
+            { ...promptInput, enterprise: body?.enterprise },
+            (delta) => {
+              text += delta;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta, threadId: active.id })}\n\n`));
+            },
+          );
+          text = result.text || text;
+          toolResults.splice(0, toolResults.length, ...result.tools);
+          sources.splice(0, sources.length, ...result.sources);
+        } else {
+          const messages = buildAskMessages(promptInput);
+          await streamLlm(messages, (delta) => {
+            text += delta;
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta, threadId: active.id })}\n\n`));
           });
-          toolResults.push(result.event);
-          if (result.sources?.length) sources.push(...result.sources);
+          const call = parseToolTrailer(text);
+          if (call) {
+            const result = executeTool(call, {
+              workspaceId,
+              accessibleDepartments,
+              enterprise: body?.enterprise,
+            });
+            toolResults.push(result.event);
+            if (result.sources?.length) sources.push(...result.sources);
+          }
+          text = stripToolTrailer(text) || text;
         }
         const final: ChatMessage = {
           ...assistantMsg,
-          text: visible || text,
+          text,
           done: true,
           sources,
           tools: toolResults,
