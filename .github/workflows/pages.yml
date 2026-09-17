@@ -17,8 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare static marketing site
+        run: |
+          mkdir -p /tmp/hatch-site
+          rsync -a --exclude .git --exclude apps --exclude .github --exclude node_modules --exclude .next . /tmp/hatch-site/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: /tmp/hatch-site
       - id: deployment
         uses: actions/deploy-pages@v4
