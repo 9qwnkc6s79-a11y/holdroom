@@ -6,17 +6,15 @@ Firm / library content never goes to OpenAI, Anthropic, or Bedrock.
 
 ## Model tag
 
-| Intent | Ollama tag | Why |
-| --- | --- | --- |
-| Daniel: “Qwen 3.8” → Qwen3 8B-class | **`qwen3:8b`** | Official Ollama chat tag (~5.2 GB Q4). Closest match that exists today. |
+Default is **`qwen3.8`** (Qwen3.8-27B, ~18 GB). That is Daniel’s “Qwen 3.8”. Ask calls OpenAI-compatible `POST {base}/v1/chat/completions` with `model: "qwen3.8"`.
 
-Fallback if `qwen3:8b` will not pull: `qwen2.5:7b`. Set `HATCH_LLM_MODEL` to that tag.
+Small-machine fallback is documented in `README.md` only (`qwen3:8b`). Do not change the default.
 
 ## Env (same shape on the appliance)
 
 ```bash
 HATCH_LLM_BASE_URL=http://127.0.0.1:11434
-HATCH_LLM_MODEL=qwen3:8b
+HATCH_LLM_MODEL=qwen3.8
 HATCH_LLM_API_KEY=            # unused by Ollama; used later if vLLM requires a key
 ```
 
@@ -40,7 +38,7 @@ Nothing in this path calls a frontier API.
 # 1. Ollama
 #    https://ollama.com/download   or   brew install ollama
 ollama serve
-ollama pull qwen3:8b
+ollama pull qwen3.8
 
 # 2. Hatch OS
 cd apps/hatch-os
@@ -51,7 +49,7 @@ npm run dev
 
 Open http://127.0.0.1:3000 — pair with `BOUNDARIES` + any six digits.
 
-First Ask may take ~30–90s on CPU while the model loads into RAM. Keep `ollama serve` running.
+First Ask may take several minutes while `qwen3.8` (~18 GB) loads. Keep `ollama serve` running. Do not point Ask at `llama3.1:8b`.
 
 ## Appliance (later)
 

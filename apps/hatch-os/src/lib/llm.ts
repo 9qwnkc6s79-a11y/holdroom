@@ -1,4 +1,4 @@
-export const DEFAULT_MODEL = "qwen3:8b";
+export const DEFAULT_MODEL = "qwen3.8";
 
 export function llmConfig() {
   const baseUrl = (process.env.HATCH_LLM_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
@@ -44,9 +44,10 @@ export async function probeLlm(): Promise<LlmProbe> {
     }
     const json = (await res.json()) as { models?: { name?: string }[] };
     const models = (json.models || []).map((m) => m.name || "").filter(Boolean);
-    const have = models.some(
-      (n) => n === model || n.startsWith(`${model}`) || n.split(":")[0] === model.split(":")[0],
-    );
+    const have = models.some((n) => {
+      const base = n.split(":")[0];
+      return n === model || base === model || n.startsWith(`${model}:`);
+    });
     if (!have) {
       return {
         connected: false,

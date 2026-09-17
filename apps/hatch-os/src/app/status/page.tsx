@@ -166,7 +166,7 @@ export default function StatusPage() {
                 <code>ollama serve</code>
               </li>
               <li>
-                <code>ollama pull qwen3:8b</code>
+                <code>ollama pull {status?.llm?.model || "qwen3.8"}</code>
               </li>
               <li>
                 Restart Hatch OS: <code>cd apps/hatch-os && npm run dev</code>
