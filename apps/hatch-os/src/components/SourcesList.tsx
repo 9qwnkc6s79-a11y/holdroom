@@ -4,8 +4,8 @@ export function SourcesList({ sources }: { sources: Source[] }) {
   if (!sources.length) {
     return (
       <p className="fine source-empty">
-        This answer did not use the library (general model knowledge). Upload a file in this room
-        to ground the next ask.
+        This answer did not use the library (general model knowledge). Add a file to Library to
+        ground the next ask. Retrieval is firm-wide.
       </p>
     );
   }

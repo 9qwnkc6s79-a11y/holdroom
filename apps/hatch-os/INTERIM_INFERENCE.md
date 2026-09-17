@@ -30,7 +30,12 @@ Same four vars → box vLLM OpenAI-compatible `/v1`. Preferred local-box model r
 
 ## Ask path
 
-1. Room-scoped keyword RAG (seed + uploads)
-2. `POST .../openai/v1/chat/completions` with `model: Qwen/Qwen3.8-27B-FP8` (A100 FP8; `qwen/qwen3.8-27b` 500s)
-3. Cite sources
-4. If nothing is up: env / `ollama pull` commands. No invented answer
+1. Firm-wide keyword RAG over Library files (`inLibrary`) — department UX is not an LLM firewall
+2. File listing + optional `read_file` for names mentioned in the query
+3. `POST .../openai/v1/chat/completions` with `model: Qwen/Qwen3.8-27B-FP8` (A100 FP8; `qwen/qwen3.8-27b` 500s)
+4. Optional trailing `TOOL {…}` line → `write_draft` (ACL) or `handoff_to_department` (no remote write)
+5. Cite sources
+6. If nothing is up: env / `ollama pull` commands. No invented answer
+
+Keep `HATCH_LLM_BASE_URL`, `HATCH_LLM_MODEL`, `HATCH_LLM_API_KEY`, `HATCH_LLM_PROVIDER`.
+

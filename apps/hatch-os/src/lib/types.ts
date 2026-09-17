@@ -1,4 +1,9 @@
-export type RoomId = "little-elm" | "prosper" | "hq-ops" | string;
+export type DepartmentId = "little-elm" | "prosper" | "hq-ops" | "enterprise" | string;
+
+/** @deprecated use DepartmentId */
+export type RoomId = DepartmentId;
+
+export type WorkspaceKind = "department" | "enterprise";
 
 export type FileKind = "PDF" | "Office" | "Markdown" | "Image";
 
@@ -6,29 +11,60 @@ export type IngestStatus = "queued" | "extracting" | "indexed" | "ready" | "fail
 
 export type AuthMethod = "totp" | "passkey";
 
-export interface LibraryFile {
+export type FileOrigin = "upload" | "drive" | "seed" | "draft";
+
+export interface HatchFile {
   id: string;
   name: string;
   kind: FileKind;
   status: IngestStatus;
   progress: number;
   error?: string;
+  departmentId: DepartmentId;
+  /** @deprecated use departmentId */
   roomId: RoomId;
+  folderId?: string | null;
+  inLibrary: boolean;
   demo?: boolean;
+  origin?: FileOrigin;
+  folderPath?: string;
 }
 
-export interface Room {
-  id: RoomId;
+/** @deprecated use HatchFile */
+export type LibraryFile = HatchFile;
+
+export interface FileFolder {
+  id: string;
   name: string;
-  isolation: string;
-  files: LibraryFile[];
+  departmentId: DepartmentId;
+  parentId: string | null;
 }
+
+export interface Department {
+  id: DepartmentId;
+  name: string;
+  kind: WorkspaceKind;
+  isolation: string;
+  files: HatchFile[];
+  folders?: FileFolder[];
+}
+
+/** @deprecated use Department */
+export type Room = Department;
 
 export interface Source {
   file: string;
   room: string;
   page?: string;
   snippet: string;
+  departmentId?: DepartmentId;
+}
+
+export interface ToolEvent {
+  name: string;
+  ok: boolean;
+  detail: string;
+  departmentId?: DepartmentId;
 }
 
 export interface ChatMessage {
@@ -37,13 +73,47 @@ export interface ChatMessage {
   text: string;
   done: boolean;
   sources: Source[];
+  tools?: ToolEvent[];
+}
+
+export interface ChatThread {
+  id: string;
+  departmentId: DepartmentId;
+  title: string;
+  archived?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+}
+
+export interface Handoff {
+  id: string;
+  fromDepartmentId: DepartmentId;
+  toDepartmentId: DepartmentId;
+  summary: string;
+  facts: string;
+  status: "queued" | "notified" | "learned";
+  createdAt: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  tool: string;
+  ok: boolean;
+  detail: string;
+  departmentId?: DepartmentId;
+  at: string;
 }
 
 export interface Seat {
   id: string;
   name: string;
   role: "Partner" | "Associate" | "Admin" | "Seat reserved";
+  departments: DepartmentId[];
+  /** @deprecated use departments */
   rooms: RoomId[];
+  enterprise: boolean;
+  homeDepartment: DepartmentId;
   device: string;
   pending?: boolean;
 }
@@ -59,7 +129,11 @@ export interface Session {
   deviceName: string;
   method: AuthMethod;
   role: "Partner" | "Associate";
+  departments: DepartmentId[];
+  /** @deprecated use departments */
   rooms: RoomId[];
+  enterprise: boolean;
+  homeDepartment: DepartmentId;
   pairedAt: string;
 }
 

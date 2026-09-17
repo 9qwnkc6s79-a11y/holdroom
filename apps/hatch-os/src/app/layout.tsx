@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Boundaries Coffee · Hatch OS",
-  description: "Boundaries Coffee dry-run — login, files, chat. Interim local Qwen on this machine.",
+  description: "Boundaries Coffee dry-run — departments, chat, files, library. Interim local Qwen on this machine.",
   robots: { index: false, follow: false },
   manifest: "/manifest.webmanifest",
   appleWebApp: {

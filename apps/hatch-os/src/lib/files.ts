@@ -25,7 +25,7 @@ export function kindFromFilename(name: string): FileKind {
 }
 
 export function imageAssetPassage(filename: string): string {
-  return `Image asset: ${filename}. OCR is stubbed in this beta — the file is indexed by filename in this room only.`;
+  return `Image asset: ${filename}. OCR is stubbed in this beta — the file is indexed by filename. Ask may still use firm-wide library text.`;
 }
 
 export function ingestStatusLabel(status: string, kind?: FileKind) {

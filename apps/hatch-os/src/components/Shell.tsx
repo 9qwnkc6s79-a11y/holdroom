@@ -2,14 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { AskIcon, LibraryIcon, MoreIcon, RoomsIcon } from "./Icons";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { ChatIcon, FilesIcon, LibraryIcon, MoreIcon } from "./Icons";
 import { useHatch } from "./AppProvider";
 
 const DESKTOP = [
-  { href: "/ask", label: "Ask" },
-  { href: "/rooms", label: "Rooms" },
+  { href: "/chat", label: "Chat" },
+  { href: "/files", label: "Files" },
   { href: "/library", label: "Library" },
   { href: "/status", label: "Status", sep: true },
   { href: "/admin", label: "Admin" },
@@ -17,15 +17,15 @@ const DESKTOP = [
 ];
 
 const PHONE = [
-  { href: "/ask", label: "Ask", icon: <AskIcon />, routes: ["/ask", "/sources"] },
-  { href: "/rooms", label: "Rooms", icon: <RoomsIcon />, routes: ["/rooms"] },
+  { href: "/chat", label: "Chat", icon: <ChatIcon />, routes: ["/chat", "/ask", "/sources"] },
+  { href: "/files", label: "Files", icon: <FilesIcon />, routes: ["/files"] },
   { href: "/library", label: "Library", icon: <LibraryIcon />, routes: ["/library"] },
-  { href: "/more", label: "More", icon: <MoreIcon />, routes: ["/more", "/status", "/admin", "/settings"] },
+  { href: "/more", label: "More", icon: <MoreIcon />, routes: ["/more", "/status", "/admin", "/settings", "/departments"] },
 ];
 
 function BrandMark({ large }: { large?: boolean }) {
   return (
-    <Link className="brand" href="/ask">
+    <Link className="brand" href="/chat">
       <Image
         className={`brand-logo${large ? " is-large" : ""}`}
         src="/brand/boundaries-logo.svg"
@@ -47,8 +47,11 @@ export function Shell({
   stageClass?: string;
 }) {
   const pathname = usePathname();
-  const { currentRoom } = useHatch();
+  const router = useRouter();
+  const { currentWorkspace, visibleWorkspaces, setWorkspace, isEnterpriseView } = useHatch();
   const [llmOk, setLlmOk] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/status", { cache: "no-store" })
@@ -58,6 +61,14 @@ export function Shell({
       )
       .catch(() => setLlmOk(false));
   }, [pathname]);
+
+  useEffect(() => {
+    function onDoc(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   return (
     <div className="app-shell">
@@ -83,9 +94,61 @@ export function Shell({
       <header className="topbar">
         <BrandMark />
         <div className="topbar-meta">
-          <Link className="room-chip" href="/rooms" title="Current room">
-            {currentRoom.name}
-          </Link>
+          <div className="workspace-switch" ref={menuRef}>
+            <button
+              className={`room-chip${isEnterpriseView ? " is-enterprise" : ""}`}
+              type="button"
+              title="Switch workspace"
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+            >
+              {currentWorkspace.name}
+            </button>
+            {open ? (
+              <div className="workspace-menu" role="listbox" aria-label="Enterprise and departments">
+                <p className="workspace-kicker">Enterprise</p>
+                {visibleWorkspaces
+                  .filter((w) => w.kind === "enterprise")
+                  .map((space) => (
+                    <button
+                      key={space.id}
+                      type="button"
+                      className={`workspace-item${space.id === currentWorkspace.id ? " is-on" : ""}`}
+                      onClick={() => {
+                        setWorkspace(space.id);
+                        setOpen(false);
+                        if (pathname === "/departments") router.push("/chat");
+                      }}
+                    >
+                      {space.name}
+                      <span className="fine">Firm-wide view</span>
+                    </button>
+                  ))}
+                <p className="workspace-kicker">Departments</p>
+                {visibleWorkspaces
+                  .filter((w) => w.kind !== "enterprise")
+                  .map((space) => (
+                    <button
+                      key={space.id}
+                      type="button"
+                      className={`workspace-item${space.id === currentWorkspace.id ? " is-on" : ""}`}
+                      onClick={() => {
+                        setWorkspace(space.id);
+                        setOpen(false);
+                        if (pathname === "/departments") router.push("/chat");
+                      }}
+                    >
+                      {space.name}
+                      <span className="fine">{space.files.length} files</span>
+                    </button>
+                  ))}
+                <Link className="workspace-more" href="/departments" onClick={() => setOpen(false)}>
+                  All workspaces
+                </Link>
+              </div>
+            ) : null}
+          </div>
           <Link
             className={`health-dot${llmOk === false ? " is-bad" : ""}`}
             href="/status"

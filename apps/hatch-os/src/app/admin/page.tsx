@@ -2,9 +2,8 @@
 
 import { useHatch, seatLine } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
-import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/mock-data";
-import { roomLabel } from "@/lib/rooms";
-import type { RoomId } from "@/lib/types";
+import { HQ_OPS, LITTLE_ELM, PROSPER, workspaceLabel } from "@/lib/departments";
+import type { DepartmentId } from "@/lib/types";
 
 export default function AdminPage() {
   const {
@@ -15,8 +14,8 @@ export default function AdminPage() {
     setEmptySeatsDemo,
     mintInvite,
     revokeSeat,
-    grantRooms,
-    createRoom,
+    grantDepartments,
+    createDepartment,
     startBackup,
     importUpdate,
   } = useHatch();
@@ -65,8 +64,8 @@ export default function AdminPage() {
         <p className="screen-kicker">Admin</p>
         <h1>Seats and the box.</h1>
         <p className="lede">
-          Invite, revoke, room grants for Boundaries Coffee. Support works from Status — not from
-          a copy of client files.
+          Invite, revoke, and grant departments plus Enterprise. UX membership is not an LLM
+          firewall — writes still follow the seats you check.
         </p>
         <div className="stat-pills">
           <span className="pill pill-ink">
@@ -80,54 +79,48 @@ export default function AdminPage() {
               <div>
                 <div className="file-name">{seat.name}</div>
                 <p className="fine">
-                  {seat.role} · {seat.rooms.length ? seat.rooms.map((id) => roomLabel(id)).join(" · ") : "—"}
+                  {seat.role} ·{" "}
+                  {seat.departments.length
+                    ? seat.departments.map((id) => workspaceLabel(id)).join(" · ")
+                    : "—"}
+                  {seat.enterprise ? " · Enterprise" : ""}
                 </p>
               </div>
               <span className={`pill ${seat.pending ? "pill-warn" : "pill-ok"}`}>
                 {seat.pending ? "Invite" : "Active"}
               </span>
               <p className="fine" style={{ gridColumn: "1 / -1" }}>
-                {seat.device}
+                {seat.device} · home {workspaceLabel(seat.homeDepartment)}
               </p>
               <div className="grant-row" style={{ gridColumn: "1 / -1" }}>
+                {(
+                  [
+                    [LITTLE_ELM, "Little Elm"],
+                    [PROSPER, "Prosper"],
+                    [HQ_OPS, "HQ Ops"],
+                  ] as [DepartmentId, string][]
+                ).map(([id, label]) => (
+                  <label key={id}>
+                    <input
+                      type="checkbox"
+                      checked={seat.departments.includes(id)}
+                      onChange={(e) => {
+                        const next: DepartmentId[] = e.target.checked
+                          ? [...seat.departments, id]
+                          : seat.departments.filter((r) => r !== id);
+                        grantDepartments(seat.id, next, seat.enterprise);
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
                 <label>
                   <input
                     type="checkbox"
-                    checked={seat.rooms.includes(LITTLE_ELM)}
-                    onChange={(e) => {
-                      const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, LITTLE_ELM]
-                        : seat.rooms.filter((r) => r !== LITTLE_ELM);
-                      grantRooms(seat.id, next);
-                    }}
+                    checked={seat.enterprise}
+                    onChange={(e) => grantDepartments(seat.id, seat.departments, e.target.checked)}
                   />
-                  Little Elm
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={seat.rooms.includes(PROSPER)}
-                    onChange={(e) => {
-                      const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, PROSPER]
-                        : seat.rooms.filter((r) => r !== PROSPER);
-                      grantRooms(seat.id, next);
-                    }}
-                  />
-                  Prosper
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={seat.rooms.includes(HQ_OPS)}
-                    onChange={(e) => {
-                      const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, HQ_OPS]
-                        : seat.rooms.filter((r) => r !== HQ_OPS);
-                      grantRooms(seat.id, next);
-                    }}
-                  />
-                  HQ / Ops
+                  Enterprise
                 </label>
                 <button className="linkish" type="button" onClick={() => revokeSeat(seat.id)}>
                   Revoke
@@ -140,8 +133,8 @@ export default function AdminPage() {
           <button className="btn btn-dark" type="button" onClick={mintInvite}>
             Create invite
           </button>
-          <button className="btn btn-outline" type="button" onClick={createRoom}>
-            Create empty room
+          <button className="btn btn-outline" type="button" onClick={createDepartment}>
+            Create empty department
           </button>
           <button className="linkish" type="button" onClick={() => setEmptySeatsDemo(true)}>
             Show empty seats

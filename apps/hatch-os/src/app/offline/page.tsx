@@ -23,7 +23,7 @@ export default function OfflinePage() {
           <button
             className="btn btn-dark"
             type="button"
-            onClick={() => router.push(session ? "/ask" : "/signin")}
+            onClick={() => router.push(session ? "/chat" : "/signin")}
           >
             Retry
           </button>

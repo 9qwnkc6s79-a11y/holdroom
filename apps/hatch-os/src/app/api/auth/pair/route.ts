@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { VALID_INVITES } from "@/lib/mock-data";
-import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/rooms";
+import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/departments";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,8 @@ export async function POST(req: Request) {
   if (method === "totp" && !/^\d{6}$/.test(totp)) {
     return NextResponse.json(
       { error: "Enter the six-digit authenticator code from the box." },
-      { status: 400 });
+      { status: 400 },
+    );
   }
 
   const associate = VALID_INVITES.associate.includes(invite);
@@ -49,12 +50,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const departments = associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS];
+  const enterprise = !associate;
+  const homeDepartment = associate ? LITTLE_ELM : HQ_OPS;
+
   return NextResponse.json({
     ok: true,
     method,
     deviceName: device,
     role: associate ? "Associate" : "Partner",
-    rooms: associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS],
+    departments,
+    rooms: departments,
+    enterprise,
+    homeDepartment,
     note: "Session lives on this box. The device stores a pointer, not the corpus.",
   });
 }
