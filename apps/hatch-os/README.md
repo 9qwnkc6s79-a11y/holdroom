@@ -25,8 +25,8 @@ npm start
 
 | Invite | Result |
 | --- | --- |
-| `HATCH-BETA` | Partner. Fund A + Fund B. TOTP = any six digits. |
-| `HATCH-ASSOC` | Associate. Fund A only. |
+| `HATCH-BETA` | Partner. Matter Alpha + Matter Beta. TOTP = any six digits. |
+| `HATCH-ASSOC` | Associate. Matter Alpha only. |
 | `HATCH-NOSEAT` | “No seat for this invite — admin can add one.” |
 | Passkey button | Registers a passkey on this box when the browser supports it; otherwise a demo pair. |
 
@@ -37,8 +37,8 @@ SSO is later. No SMS. No “sign in with Google.”
 Ask · Rooms · Library · Status · Admin · Settings. Phone tabs: Ask · Rooms · Library · More.
 
 - **Ask** — composer, streaming from `/api/chat`, room chip, Sources under answers.
-- **Rooms** — Fund A / Fund B isolation. No cross-room search.
-- **Library** — upload to the current room, queued → extracting → indexed → ready, designed empty/error copy.
+- **Rooms** — Matter Alpha / Matter Beta isolation. No cross-matter search.
+- **Library** — upload to the current room (PDF, Office, markdown, **PNG / JPEG / WebP / GIF**), queued → extracting / OCR stub → indexed → ready. Unsupported types get a clear reject.
 - **Status** — box health. **FAIL=blocked** is good. **PASS=reachable** is an error. Unchecked is not live.
 - **Admin** — seats/invites, room grants, backup and signed-update placeholders.
 - **Settings** — devices, sign out, remote how-to (firm tunnel; never Hatch cloud).
@@ -47,7 +47,9 @@ PWA: add to home screen. Offline page: “Can’t reach Hatch…”. The service
 
 ## Mock API + optional adapters
 
-Synthetic Fund A (Northshore CIM / QoE) and Fund B (Harbor CIM) live in `src/lib/mock-data.ts`.
+Demo rooms are **Matter Alpha** and **Matter Beta** (not “Fund”). Isolation is the same: retrieve, uploads, and chat stay in one matter. Synthetic Matter Alpha (Northshore CIM / QoE / site photo) and Matter Beta (Harbor CIM) live in `src/lib/mock-data.ts`.
+
+**Images:** PNG, JPEG, WebP, and GIF upload into the current room. Ingest is stubbed (filename + “image asset” passage; no real OCR). Reject copy names the supported types.
 
 | Route | Role |
 | --- | --- |

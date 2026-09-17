@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FUND_A, FUND_B, VALID_INVITES } from "@/lib/mock-data";
+import { MATTER_ALPHA, MATTER_BETA, VALID_INVITES } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     method,
     deviceName: device,
     role: associate ? "Associate" : "Partner",
-    rooms: associate ? [FUND_A] : [FUND_A, FUND_B],
+    rooms: associate ? [MATTER_ALPHA] : [MATTER_ALPHA, MATTER_BETA],
     note: "Session lives on this box. The device stores a pointer, not the corpus.",
   });
 }

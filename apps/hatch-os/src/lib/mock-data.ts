@@ -1,13 +1,14 @@
+import { MATTER_ALPHA, MATTER_BETA } from "./rooms";
+import { imageAssetPassage } from "./files";
 import type { BoxStatus, Device, Room, Seat, Source } from "./types";
 
-export const FUND_A = "fund-a";
-export const FUND_B = "fund-b";
+export { MATTER_ALPHA, MATTER_BETA };
 
 export const INITIAL_ROOMS: Room[] = [
   {
-    id: FUND_A,
-    name: "Fund A",
-    isolation: "Retrieval stays in Fund A. Fund B files are not visible here.",
+    id: MATTER_ALPHA,
+    name: "Matter Alpha",
+    isolation: "Retrieval stays in Matter Alpha. Matter Beta files are not visible here.",
     files: [
       {
         id: "f1",
@@ -15,7 +16,7 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "PDF",
         status: "ready",
         progress: 100,
-        roomId: FUND_A,
+        roomId: MATTER_ALPHA,
       },
       {
         id: "f2",
@@ -23,7 +24,7 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "Office",
         status: "indexed",
         progress: 100,
-        roomId: FUND_A,
+        roomId: MATTER_ALPHA,
       },
       {
         id: "f3",
@@ -31,7 +32,7 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "PDF",
         status: "ready",
         progress: 100,
-        roomId: FUND_A,
+        roomId: MATTER_ALPHA,
       },
       {
         id: "f4",
@@ -39,14 +40,22 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "Markdown",
         status: "ready",
         progress: 100,
-        roomId: FUND_A,
+        roomId: MATTER_ALPHA,
+      },
+      {
+        id: "f7",
+        name: "Northshore_site_photo.jpg",
+        kind: "Image",
+        status: "ready",
+        progress: 100,
+        roomId: MATTER_ALPHA,
       },
     ],
   },
   {
-    id: FUND_B,
-    name: "Fund B",
-    isolation: "Retrieval stays in Fund B. Fund A files are not visible here.",
+    id: MATTER_BETA,
+    name: "Matter Beta",
+    isolation: "Retrieval stays in Matter Beta. Matter Alpha files are not visible here.",
     files: [
       {
         id: "f5",
@@ -54,7 +63,7 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "PDF",
         status: "ready",
         progress: 100,
-        roomId: FUND_B,
+        roomId: MATTER_BETA,
       },
       {
         id: "f6",
@@ -62,8 +71,8 @@ export const INITIAL_ROOMS: Room[] = [
         kind: "Office",
         status: "failed",
         progress: 0,
-        error: "Could not read this file — try PDF or ask Admin.",
-        roomId: FUND_B,
+        error: "Could not read this file — try PDF, Office, markdown, or an image (PNG, JPEG, WebP, GIF), or ask Admin.",
+        roomId: MATTER_BETA,
       },
     ],
   },
@@ -74,14 +83,14 @@ export const INITIAL_SEATS: Seat[] = [
     id: "s1",
     name: "Jane Ortiz",
     role: "Partner",
-    rooms: [FUND_A, FUND_B],
+    rooms: [MATTER_ALPHA, MATTER_BETA],
     device: "Jane iPhone",
   },
   {
     id: "s2",
     name: "Alex Chen",
     role: "Associate",
-    rooms: [FUND_A],
+    rooms: [MATTER_ALPHA],
     device: "Alex laptop",
   },
   {
@@ -137,7 +146,7 @@ export interface CorpusChunk {
 
 export const CORPUS: CorpusChunk[] = [
   {
-    roomId: FUND_A,
+    roomId: MATTER_ALPHA,
     file: "Northshore_CIM_v3.pdf",
     page: "14",
     snippet:
@@ -145,7 +154,7 @@ export const CORPUS: CorpusChunk[] = [
     terms: ["concentration", "customer", "northshore", "ltm", "revenue"],
   },
   {
-    roomId: FUND_A,
+    roomId: MATTER_ALPHA,
     file: "Northshore_CIM_v3.pdf",
     page: "8",
     snippet:
@@ -153,7 +162,7 @@ export const CORPUS: CorpusChunk[] = [
     terms: ["ebitda", "earnings", "northshore", "working", "capital"],
   },
   {
-    roomId: FUND_A,
+    roomId: MATTER_ALPHA,
     file: "Quality_of_Earnings_memo.docx",
     page: "6",
     snippet:
@@ -161,7 +170,7 @@ export const CORPUS: CorpusChunk[] = [
     terms: ["concentration", "customer", "qoe", "earnings", "northshore"],
   },
   {
-    roomId: FUND_A,
+    roomId: MATTER_ALPHA,
     file: "Quality_of_Earnings_memo.docx",
     page: "3",
     snippet:
@@ -169,12 +178,18 @@ export const CORPUS: CorpusChunk[] = [
     terms: ["earning", "qoe", "ebitda", "add-back", "addback", "add backs"],
   },
   {
-    roomId: FUND_B,
+    roomId: MATTER_ALPHA,
+    file: "Northshore_site_photo.jpg",
+    snippet: imageAssetPassage("Northshore_site_photo.jpg"),
+    terms: ["image", "photo", "site", "northshore", "ocr", "jpg"],
+  },
+  {
+    roomId: MATTER_BETA,
     file: "Harbor_CIM_confidential.pdf",
     page: "2",
     snippet:
-      "Harbor Partners Fund B — confidential information memorandum. LTM revenue $64m across 11 platform investments.",
-    terms: ["harbor", "platform", "fund b", "ltm", "revenue"],
+      "Harbor Partners — confidential information memorandum. LTM revenue $64m across 11 platform investments.",
+    terms: ["harbor", "platform", "ltm", "revenue"],
   },
 ];
 
@@ -188,11 +203,11 @@ export const CANNED = {
     files: ["Quality_of_Earnings_memo.docx", "Northshore_CIM_v3.pdf"],
   },
   harbor: {
-    text: "Harbor’s CIM (this room only) states LTM revenue of $64m and a book of 11 platform names. There is no Northshore material in Fund B, and this answer does not search Fund A.",
+    text: "Harbor’s CIM (this room only) states LTM revenue of $64m and a book of 11 platform names. There is no Northshore material in Matter Beta, and this answer does not search Matter Alpha.",
     files: ["Harbor_CIM_confidential.pdf"],
   },
   isolated: {
-    text: "That name is not in this room’s library. Fund A and Fund B are isolated — this ask will not retrieve the other fund. Switch rooms if you meant the other space, or upload a file here.",
+    text: "That name is not in this room’s library. Matter Alpha and Matter Beta are isolated — this ask will not retrieve the other matter. Switch rooms if you meant the other space, or upload a file here.",
     files: [] as string[],
   },
   failedBridge: {

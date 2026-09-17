@@ -8,7 +8,9 @@ import {
   useMemo,
   useState,
 } from "react";
-import { FUND_A, FUND_B, INITIAL_DEVICES, INITIAL_ROOMS, INITIAL_SEATS, SEAT_LINE } from "@/lib/mock-data";
+import { isAcceptedFilename, kindFromFilename, REJECT_COPY } from "@/lib/files";
+import { INITIAL_DEVICES, INITIAL_ROOMS, INITIAL_SEATS, MATTER_ALPHA, MATTER_BETA, SEAT_LINE } from "@/lib/mock-data";
+import { migrateRoomId } from "@/lib/rooms";
 import { clearSession, readRoom, readSession, writeRoom, writeSession } from "@/lib/storage";
 import type {
   AuthMethod,
@@ -75,11 +77,11 @@ function newId(prefix: string) {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [currentRoomId, setCurrentRoomId] = useState<RoomId>(FUND_A);
+  const [currentRoomId, setCurrentRoomId] = useState<RoomId>(MATTER_ALPHA);
   const [rooms, setRooms] = useState<Room[]>(cloneRooms);
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({
-    [FUND_A]: [],
-    [FUND_B]: [],
+    [MATTER_ALPHA]: [],
+    [MATTER_BETA]: [],
   });
   const [streaming, setStreaming] = useState(false);
   const [lastSources, setLastSources] = useState<Source[] | null>(null);
@@ -109,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           d.current ? { ...d, name: stored.deviceName, lastSeen: "This session" } : d,
         ),
       );
-      const allowed = stored.rooms.includes(room) ? room : stored.rooms[0] || FUND_A;
+      const allowed = stored.rooms.includes(room) ? room : stored.rooms[0] || MATTER_ALPHA;
       setCurrentRoomId(allowed);
     }
     setReady(true);
@@ -128,8 +130,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const thread = useMemo(() => threads[currentRoomId] || [], [threads, currentRoomId]);
 
   const setRoom = useCallback((id: RoomId) => {
-    setCurrentRoomId(id);
-    writeRoom(id);
+    const next = migrateRoomId(id);
+    setCurrentRoomId(next);
+    writeRoom(next);
   }, []);
 
   const pair = useCallback(
@@ -156,7 +159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           deviceName: data.deviceName || input.device || "This browser",
           method: data.method || input.method,
           role: data.role || "Partner",
-          rooms: data.rooms || [FUND_A, "fund-b"],
+          rooms: (data.rooms || [MATTER_ALPHA, MATTER_BETA]).map(migrateRoomId),
           pairedAt: new Date().toISOString(),
         };
         writeSession(next);
@@ -166,7 +169,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             d.current ? { ...d, name: next.deviceName, lastSeen: "This session" } : d,
           ),
         );
-        const first = next.rooms[0] || FUND_A;
+        const first = next.rooms[0] || MATTER_ALPHA;
         setCurrentRoomId(first);
         writeRoom(first);
         return true;
@@ -210,10 +213,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setStreaming(true);
 
       try {
+        const library = (rooms.find((r) => r.id === roomId)?.files || [])
+          .filter((f) => f.status === "ready" || f.status === "indexed")
+          .map((f) => ({ name: f.name, kind: f.kind }));
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, query }),
+          body: JSON.stringify({ roomId, query, files: library }),
         });
         if (!res.ok || !res.body) {
           throw new Error("offline");
@@ -275,24 +281,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setStreaming(false);
       }
     },
-    [currentRoomId, streaming],
+    [currentRoomId, rooms, streaming],
   );
 
   const ingest = useCallback(
     (filename: string) => {
-      const ok = /\.(pdf|docx?|xlsx?|md|txt)$/i.test(filename);
-      const kind: LibraryFile["kind"] = /\.pdf$/i.test(filename)
-        ? "PDF"
-        : /\.md$/i.test(filename)
-          ? "Markdown"
-          : "Office";
+      const ok = isAcceptedFilename(filename);
+      const kind = kindFromFilename(filename);
       const rec: LibraryFile = {
         id: newId("up"),
         name: filename,
         kind,
         status: ok ? "queued" : "failed",
         progress: ok ? 15 : 0,
-        error: ok ? undefined : "Could not read this file — try PDF or ask Admin.",
+        error: ok ? undefined : REJECT_COPY,
         roomId: currentRoomId,
       };
       setRooms((prev) =>
@@ -389,7 +391,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       {
         id,
         name: "New matter",
-        isolation: "This room is empty and isolated. It does not search Fund A or Fund B.",
+        isolation: "This room is empty and isolated. It does not search Matter Alpha or Matter Beta.",
         files: [],
       },
     ]);

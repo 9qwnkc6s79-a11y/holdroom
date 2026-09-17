@@ -3,16 +3,8 @@
 import { DragEvent, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
+import { ACCEPT_ATTR, ingestStatusLabel } from "@/lib/files";
 import type { IngestStatus } from "@/lib/types";
-
-function statusLabel(status: IngestStatus) {
-  if (status === "ready") return "Ready";
-  if (status === "indexed") return "Indexed";
-  if (status === "extracting") return "Extracting";
-  if (status === "queued") return "Queued";
-  if (status === "failed") return "Failed";
-  return status;
-}
 
 function pillFor(status: IngestStatus) {
   if (status === "ready" || status === "indexed") return "pill-ok";
@@ -42,8 +34,9 @@ export default function LibraryPage() {
         <p className="screen-kicker">Library</p>
         <h1>Files in {currentRoom.name}.</h1>
         <p className="lede">
-          Add to this room only. Extract, chunk, and embed stay on the box. This is not training,
-          and the phone does not sync the corpus.
+          Add to this room only. PDF, Office, markdown, and images (PNG, JPEG, WebP, GIF). Extract,
+          chunk, and embed stay on the box. Image OCR is stubbed in this beta. This is not
+          training, and the phone does not sync the corpus.
         </p>
         <label
           className={`drop${over ? " is-over" : ""}`}
@@ -62,13 +55,14 @@ export default function LibraryPage() {
           }}
           onDrop={onDrop}
         >
-          <strong>Drop a PDF, Office file, or markdown</strong>
+          <strong>Drop a PDF, Office file, markdown, or image</strong>
           <span className="fine">Click to choose · stays in {currentRoom.name}</span>
         </label>
         <input
           className="hidden-file"
           id="file-input"
           type="file"
+          accept={ACCEPT_ATTR}
           onChange={(e) => {
             takeFile(e.currentTarget.files?.[0]);
             e.currentTarget.value = "";
@@ -79,8 +73,8 @@ export default function LibraryPage() {
             <div className="card">
               <h2>Nothing indexed in {currentRoom.name}.</h2>
               <p className="muted" style={{ margin: 0 }}>
-                Drop a PDF into this room. Files stay on the firm’s box. Hatch support does not
-                receive a copy.
+                Drop a PDF or image into this room. Files stay on the firm’s box. Hatch support
+                does not receive a copy.
               </p>
             </div>
           ) : (
@@ -93,7 +87,9 @@ export default function LibraryPage() {
                       {file.kind} · {currentRoom.name}
                     </p>
                   </div>
-                  <span className={`pill ${pillFor(file.status)}`}>{statusLabel(file.status)}</span>
+                  <span className={`pill ${pillFor(file.status)}`}>
+                    {ingestStatusLabel(file.status, file.kind)}
+                  </span>
                   {file.status === "queued" || file.status === "extracting" ? (
                     <div className="progress">
                       <span style={{ width: `${file.progress || 20}%` }} />

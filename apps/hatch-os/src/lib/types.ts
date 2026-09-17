@@ -1,6 +1,6 @@
-export type RoomId = "fund-a" | "fund-b" | string;
+export type RoomId = "matter-alpha" | "matter-beta" | string;
 
-export type FileKind = "PDF" | "Office" | "Markdown";
+export type FileKind = "PDF" | "Office" | "Markdown" | "Image";
 
 export type IngestStatus = "queued" | "extracting" | "indexed" | "ready" | "failed";
 

@@ -73,7 +73,7 @@ export async function ragSearch(query: string): Promise<Source[] | null> {
     const rows = Array.isArray(json) ? json : json.results ?? [];
     return rows.map((row) => ({
       file: String(row.file || row.filename || row.title || "retrieved.txt"),
-      room: String(row.room || "Fund A"),
+      room: String(row.room || "Matter Alpha"),
       page: row.page != null ? String(row.page) : undefined,
       snippet: String(row.snippet || row.text || ""),
     }));

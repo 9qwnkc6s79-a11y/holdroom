@@ -2,7 +2,8 @@
 
 import { useHatch, seatLine } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
-import { FUND_A, FUND_B } from "@/lib/mock-data";
+import { MATTER_ALPHA, MATTER_BETA } from "@/lib/mock-data";
+import { roomLabel } from "@/lib/rooms";
 import type { RoomId } from "@/lib/types";
 
 export default function AdminPage() {
@@ -79,7 +80,7 @@ export default function AdminPage() {
               <div>
                 <div className="file-name">{seat.name}</div>
                 <p className="fine">
-                  {seat.role} · {seat.rooms.length ? seat.rooms.map((id) => (id === FUND_A ? "Fund A" : id === FUND_B ? "Fund B" : id)).join(" · ") : "—"}
+                  {seat.role} · {seat.rooms.length ? seat.rooms.map((id) => roomLabel(id)).join(" · ") : "—"}
                 </p>
               </div>
               <span className={`pill ${seat.pending ? "pill-warn" : "pill-ok"}`}>
@@ -92,28 +93,28 @@ export default function AdminPage() {
                 <label>
                   <input
                     type="checkbox"
-                    checked={seat.rooms.includes(FUND_A)}
+                    checked={seat.rooms.includes(MATTER_ALPHA)}
                     onChange={(e) => {
                       const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, FUND_A]
-                        : seat.rooms.filter((r) => r !== FUND_A);
+                        ? [...seat.rooms, MATTER_ALPHA]
+                        : seat.rooms.filter((r) => r !== MATTER_ALPHA);
                       grantRooms(seat.id, next);
                     }}
                   />
-                  Fund A
+                  Matter Alpha
                 </label>
                 <label>
                   <input
                     type="checkbox"
-                    checked={seat.rooms.includes(FUND_B)}
+                    checked={seat.rooms.includes(MATTER_BETA)}
                     onChange={(e) => {
                       const next: RoomId[] = e.target.checked
-                        ? [...seat.rooms, FUND_B]
-                        : seat.rooms.filter((r) => r !== FUND_B);
+                        ? [...seat.rooms, MATTER_BETA]
+                        : seat.rooms.filter((r) => r !== MATTER_BETA);
                       grantRooms(seat.id, next);
                     }}
                   />
-                  Fund B
+                  Matter Beta
                 </label>
                 <button className="linkish" type="button" onClick={() => revokeSeat(seat.id)}>
                   Revoke

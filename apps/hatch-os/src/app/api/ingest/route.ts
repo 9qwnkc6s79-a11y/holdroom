@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ragIngest } from "@/lib/adapters";
+import { isAcceptedFilename, isImageFilename, REJECT_COPY } from "@/lib/files";
+import { MATTER_ALPHA } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
@@ -9,18 +11,18 @@ export async function POST(req: Request) {
     roomId?: string;
   } | null;
   const filename = body?.filename || "";
-  const roomId = body?.roomId || "fund-a";
+  const roomId = body?.roomId || MATTER_ALPHA;
   if (!filename) {
     return NextResponse.json({ error: "Missing filename" }, { status: 400 });
   }
 
-  const ok = /\.(pdf|docx?|xlsx?|md|txt)$/i.test(filename);
+  const ok = isAcceptedFilename(filename);
   if (!ok) {
     return NextResponse.json({
       roomId,
       filename,
       status: "failed",
-      error: "Could not read this file — try PDF or ask Admin.",
+      error: REJECT_COPY,
       rag: false,
     });
   }
@@ -30,7 +32,10 @@ export async function POST(req: Request) {
     roomId,
     filename,
     status: "queued",
-    rag,
-    note: "Extract, chunk, and embed stay on this box. Hatch support does not receive a copy.",
+    kind: isImageFilename(filename) ? "Image" : "document",
+    rag: isImageFilename(filename) ? false : rag,
+    note: isImageFilename(filename)
+      ? "Image indexed in this room. OCR is stubbed in this beta (filename + image-asset passage)."
+      : "Extract, chunk, and embed stay on this box. Hatch support does not receive a copy.",
   });
 }

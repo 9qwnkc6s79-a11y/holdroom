@@ -5,7 +5,7 @@ import { useHatch } from "@/components/AppProvider";
 import { MicIcon, SendIcon } from "@/components/Icons";
 import { Shell } from "@/components/Shell";
 import { SourcesList } from "@/components/SourcesList";
-import { FUND_A, FUND_B } from "@/lib/mock-data";
+import { MATTER_ALPHA, MATTER_BETA } from "@/lib/mock-data";
 
 export default function AskPage() {
   const { currentRoom, currentRoomId, thread, streaming, ask } = useHatch();
@@ -33,16 +33,17 @@ export default function AskPage() {
   }
 
   const prompts =
-    currentRoomId === FUND_A
+    currentRoomId === MATTER_ALPHA
       ? [
           ["What is the customer concentration in the Northshore CIM?", "Customer concentration"],
           ["Summarize the quality of earnings findings.", "Quality of earnings"],
-          ["What is in the other fund?", "Other fund (isolation)"],
+          ["What is in the other matter?", "Other matter (isolation)"],
+          ["What does the site photo show?", "Site photo"],
         ]
-      : currentRoomId === FUND_B
+      : currentRoomId === MATTER_BETA
         ? [
             ["What does the Harbor CIM say about LTM revenue?", "Harbor CIM"],
-            ["What does the Northshore CIM say?", "Other fund (isolation)"],
+            ["What does the Northshore CIM say?", "Other matter (isolation)"],
           ]
         : [["What is in this room?", "Ask without the library"]];
 

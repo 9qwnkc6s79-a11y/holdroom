@@ -107,8 +107,8 @@ export default function SignInPage() {
             required
           />
           <p className="field-hint">
-            Beta stub. Try HATCH-BETA, HATCH-ASSOC (Fund A only), or HATCH-NOSEAT for the empty-seat
-            path.
+            Beta stub. Try HATCH-BETA, HATCH-ASSOC (Matter Alpha only), or HATCH-NOSEAT for the
+            empty-seat path.
           </p>
           <label htmlFor="totp">Authenticator code</label>
           <input

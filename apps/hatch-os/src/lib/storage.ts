@@ -1,3 +1,4 @@
+import { MATTER_ALPHA, MATTER_BETA, migrateRoomId } from "./rooms";
 import type { AuthMethod, RoomId } from "./types";
 
 const PREFIX = "hatch_os_";
@@ -11,15 +12,19 @@ export const KEYS = {
   room: `${PREFIX}room`,
 } as const;
 
+function migrateRooms(ids: RoomId[]): RoomId[] {
+  return ids.map(migrateRoomId);
+}
+
 export function readSession() {
   if (typeof window === "undefined") return null;
   if (localStorage.getItem(KEYS.paired) !== "1") return null;
   const roomsRaw = localStorage.getItem(KEYS.rooms);
-  let rooms: RoomId[] = ["fund-a", "fund-b"];
+  let rooms: RoomId[] = [MATTER_ALPHA, MATTER_BETA];
   try {
-    if (roomsRaw) rooms = JSON.parse(roomsRaw) as RoomId[];
+    if (roomsRaw) rooms = migrateRooms(JSON.parse(roomsRaw) as RoomId[]);
   } catch {
-    rooms = ["fund-a", "fund-b"];
+    rooms = [MATTER_ALPHA, MATTER_BETA];
   }
   return {
     deviceName: localStorage.getItem(KEYS.device) || "This browser",
@@ -39,7 +44,7 @@ export function writeSession(input: {
   localStorage.setItem(KEYS.device, input.deviceName);
   localStorage.setItem(KEYS.method, input.method);
   localStorage.setItem(KEYS.role, input.role);
-  localStorage.setItem(KEYS.rooms, JSON.stringify(input.rooms));
+  localStorage.setItem(KEYS.rooms, JSON.stringify(migrateRooms(input.rooms)));
 }
 
 export function clearSession() {
@@ -51,10 +56,10 @@ export function clearSession() {
 }
 
 export function readRoom(): RoomId {
-  if (typeof window === "undefined") return "fund-a";
-  return localStorage.getItem(KEYS.room) || "fund-a";
+  if (typeof window === "undefined") return MATTER_ALPHA;
+  return migrateRoomId(localStorage.getItem(KEYS.room) || MATTER_ALPHA);
 }
 
 export function writeRoom(id: RoomId) {
-  localStorage.setItem(KEYS.room, id);
+  localStorage.setItem(KEYS.room, migrateRoomId(id));
 }
