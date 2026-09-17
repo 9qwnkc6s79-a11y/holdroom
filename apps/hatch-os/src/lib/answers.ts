@@ -12,6 +12,22 @@ export interface AnswerPack {
   sources: Source[];
 }
 
+const STOP = new Set([
+  "the",
+  "and",
+  "for",
+  "what",
+  "does",
+  "this",
+  "that",
+  "with",
+  "from",
+  "into",
+  "about",
+  "other",
+  "room",
+]);
+
 function roomName(roomId: string): string {
   if (roomId === FUND_A) return "Fund A";
   if (roomId === FUND_B) return "Fund B";
@@ -20,7 +36,7 @@ function roomName(roomId: string): string {
 
 export function searchRoom(roomId: string, query: string): Source[] {
   const q = query.toLowerCase();
-  const terms = q.split(/[^a-z0-9]+/).filter((t) => t.length > 2);
+  const terms = q.split(/[^a-z0-9]+/).filter((t) => t.length > 2 && !STOP.has(t));
   return CORPUS.filter((chunk) => chunk.roomId === roomId)
     .map((chunk) => {
       const hay = `${chunk.file} ${chunk.snippet} ${chunk.terms.join(" ")}`.toLowerCase();
@@ -44,10 +60,10 @@ export function pickAnswer(roomId: string, query: string): AnswerPack {
   const inB = roomId === FUND_B;
   const name = roomName(roomId);
 
-  if (/(harbor|fund b)/.test(t) && inA) {
+  if (/(harbor|fund b|other fund|other room)/.test(t) && inA) {
     return { text: CANNED.isolated.text, sources: [] };
   }
-  if (/(northshore|fund a)/.test(t) && inB) {
+  if (/(northshore|fund a|other fund|other room)/.test(t) && inB) {
     return { text: CANNED.isolated.text, sources: [] };
   }
   if (inB && /(bridge|working capital)/.test(t)) {
