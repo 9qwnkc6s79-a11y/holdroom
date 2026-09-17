@@ -92,6 +92,14 @@ export default function ChatPage() {
             New thread
           </button>
         </div>
+        <button
+          className="btn btn-ghost btn-tiny"
+          type="button"
+          style={{ marginBottom: 12 }}
+          onClick={() => setHandoffOpen((v) => !v)}
+        >
+          Handoff
+        </button>
         {!visibleThreads.length ? (
           <p className="fine">No threads yet. Send a message to start one.</p>
         ) : (

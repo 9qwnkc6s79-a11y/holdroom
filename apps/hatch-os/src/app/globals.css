@@ -900,7 +900,6 @@ summary:focus-visible {
     padding: 4px 0 24px;
   }
   .chat-panel { min-width: 0; }
-  .chat-toolbar { display: none; }
 }
 
 @media (max-width: 859px) {
