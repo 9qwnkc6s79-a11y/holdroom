@@ -1,0 +1,8 @@
+node_modules
+.next
+.DS_Store
+*.log
+.vercel
+apps/**/node_modules
+apps/**/.next
+apps/**/out

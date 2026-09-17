@@ -1,0 +1,151 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Shell } from "@/components/Shell";
+import type { BoxStatus, EgressResult } from "@/lib/types";
+
+function egressClass(value: EgressResult, checked: boolean) {
+  if (!checked || value == null) return "egress-warn";
+  if (value === "FAIL=blocked") return "egress-ok";
+  return "egress-bad";
+}
+
+function egressMeaning(value: EgressResult, checked: boolean) {
+  if (!checked || value == null) return "Not checked";
+  if (value === "FAIL=blocked") return "FAIL=blocked";
+  return "PASS=reachable";
+}
+
+export default function StatusPage() {
+  const [status, setStatus] = useState<BoxStatus | null>(null);
+  const [mode, setMode] = useState<"live" | "pass" | "unknown">("live");
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (next: "live" | "pass" | "unknown") => {
+    setMode(next);
+    setError("");
+    const qs = next === "live" ? "" : `?egress=${next}`;
+    try {
+      const res = await fetch(`/api/status${qs}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("status");
+      setStatus((await res.json()) as BoxStatus);
+    } catch {
+      setError("Egress not checked — run the proof before anyone treats this as live.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void load("live");
+  }, [load]);
+
+  const check = status?.egress_check;
+  const checked = check?.status === "checked";
+  const passIsError =
+    check?.openai === "PASS=reachable" || check?.anthropic === "PASS=reachable";
+
+  return (
+    <Shell>
+      <div className="panel">
+        <p className="screen-kicker">Status</p>
+        <h1>This box.</h1>
+        <p className="lede">
+          Health of this box. Egress FAIL=blocked is the good outcome. PASS=reachable is an error
+          in production.
+        </p>
+        {error ? (
+          <div className="banner banner-warn" role="alert">
+            <p>{error}</p>
+          </div>
+        ) : null}
+        {!checked && status ? (
+          <div className="banner banner-warn" role="alert">
+            <p>Egress not checked — run the proof before anyone treats this as live.</p>
+          </div>
+        ) : null}
+        {passIsError ? (
+          <div className="banner banner-bad" role="alert">
+            <p>
+              PASS=reachable means OpenAI or Anthropic can be reached. That is a production error —
+              lock egress before anyone treats this as live.
+            </p>
+          </div>
+        ) : null}
+        <div className="card">
+          <div className="status-row">
+            <span>Health</span>
+            <b className={status?.ok ? "egress-ok" : "egress-bad"}>{status?.ok ? "ok" : "not ok"}</b>
+          </div>
+          <div className="status-row">
+            <span>Image</span>
+            <b>{status?.version || "…"}</b>
+          </div>
+          <div className="status-row">
+            <span>Model loaded</span>
+            <b>{status?.model || "local instruct (box)"}</b>
+          </div>
+          <div className="status-row">
+            <span>Disk free</span>
+            <b>{status?.disk_free || "—"}</b>
+          </div>
+          <div className="status-row">
+            <span>Last backup</span>
+            <b>{status?.last_backup || "No backup recorded — do not put real files on this box."}</b>
+          </div>
+          <div className="status-row">
+            <span>Last egress check</span>
+            <b>{status?.last_egress_check || "never"}</b>
+          </div>
+          <div className="status-row">
+            <span>Status source</span>
+            <b>{status?.source === "adapter" ? "dry-run :8090" : "mock (adapter optional)"}</b>
+          </div>
+        </div>
+        <div className="card" style={{ marginTop: 10 }}>
+          <h2>Egress</h2>
+          <p className="fine" style={{ marginBottom: 8 }}>
+            Green means the public APIs were blocked. PASS=reachable is not a green light.
+          </p>
+          <div className="status-row">
+            <span>OpenAI</span>
+            <span className={egressClass(check?.openai ?? null, Boolean(checked))}>
+              {egressMeaning(check?.openai ?? null, Boolean(checked))}
+            </span>
+          </div>
+          <div className="status-row">
+            <span>Anthropic</span>
+            <span className={egressClass(check?.anthropic ?? null, Boolean(checked))}>
+              {egressMeaning(check?.anthropic ?? null, Boolean(checked))}
+            </span>
+          </div>
+        </div>
+        <div className="btn-row">
+          <button
+            className={`btn ${mode === "live" ? "btn-dark" : "btn-ghost"}`}
+            type="button"
+            onClick={() => void load("live")}
+          >
+            Live / mock
+          </button>
+          <button
+            className={`btn ${mode === "pass" ? "btn-dark" : "btn-ghost"}`}
+            type="button"
+            onClick={() => void load("pass")}
+          >
+            Demo PASS=reachable
+          </button>
+          <button
+            className={`btn ${mode === "unknown" ? "btn-dark" : "btn-ghost"}`}
+            type="button"
+            onClick={() => void load("unknown")}
+          >
+            Demo unchecked
+          </button>
+        </div>
+        <p className="fine" style={{ marginTop: 14 }}>
+          This page does not prove model quality, RAG correctness, or that a real corpus is
+          absent. Operators keep files synthetic until accept.
+        </p>
+      </div>
+    </Shell>
+  );
+}
