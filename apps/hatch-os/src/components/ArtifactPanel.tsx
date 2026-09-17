@@ -87,20 +87,25 @@ export function ArtifactPanel() {
       <button className="artifact-backdrop" type="button" aria-label="Close artifact" onClick={closeArtifact} />
       <aside className="artifact-panel" role="complementary" aria-label="Artifact">
         <header className="artifact-bar">
-          <div className="artifact-bar-title">
-            <span className="pill pill-mute">{badge}</span>
-            <div className="artifact-name-wrap">
-              <h2 className="artifact-title" title={shown?.name}>
-                {title}
-              </h2>
-              {shown ? (
-                <p className="fine">
-                  {workspaceLabel(shown.departmentId)}
-                  {shown.origin === "draft" ? " · Draft" : ""}
-                  {shown.inLibrary ? " · Library" : " · Files"}
-                </p>
-              ) : null}
+          <div className="artifact-bar-top">
+            <div className="artifact-bar-title">
+              <span className="pill pill-mute">{badge}</span>
+              <div className="artifact-name-wrap">
+                <h2 className="artifact-title" title={shown?.name}>
+                  {shown?.name || title}
+                </h2>
+                {shown ? (
+                  <p className="fine">
+                    {workspaceLabel(shown.departmentId)}
+                    {shown.origin === "draft" ? " · Draft" : ""}
+                    {shown.inLibrary ? " · Library" : " · Files"}
+                  </p>
+                ) : null}
+              </div>
             </div>
+            <button className="icon-btn artifact-close" type="button" onClick={closeArtifact} aria-label="Close artifact">
+              <CloseIcon />
+            </button>
           </div>
           <div className="artifact-actions">
             <a className="btn btn-dark btn-tiny artifact-download" href={downloadHref} download={shown?.name}>
@@ -122,12 +127,9 @@ export function ArtifactPanel() {
                 type="button"
                 onClick={() => setInLibrary(shown.id, !shown.inLibrary)}
               >
-                {shown.inLibrary ? "In Library" : "Add to Library"}
+                {shown.inLibrary ? "Remove from Library" : "Add to Library"}
               </button>
             ) : null}
-            <button className="icon-btn artifact-close" type="button" onClick={closeArtifact} aria-label="Close artifact">
-              <CloseIcon />
-            </button>
           </div>
         </header>
         <div className="artifact-body">
