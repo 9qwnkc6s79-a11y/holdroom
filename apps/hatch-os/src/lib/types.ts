@@ -90,6 +90,11 @@ export interface BoxStatus {
     model: string;
     preferredModel?: string;
     baseUrl: string;
+    host?: string;
+    kind?: "remote" | "ollama";
+    provider?: string;
+    hasKey?: boolean;
+    fallback?: boolean;
     error?: string;
   };
   dryRun?: boolean;

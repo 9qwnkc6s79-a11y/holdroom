@@ -1,80 +1,39 @@
-# Interim inference (no appliance yet)
+# Interim inference
 
-Hatch OS Ask talks to a **local** OpenAI-compatible chat endpoint. Today that is **Ollama on this Mac**. Tomorrow the same env vars point at the appliance (vLLM / OpenAI-compatible).
+Ask always uses an **OpenAI-compatible** `POST {base}/chat/completions` client. The vendor is not hardcoded.
 
-Firm / library content never goes to OpenAI, Anthropic, or Bedrock.
+## Three targets (same env)
 
-## Model tags
-
-| When | Ollama tag | Why |
-| --- | --- | --- |
-| **Tomorrow on Daniel’s 16 GB Mac** | **`qwen3:8b`** | Fits 16 GB RAM. Default in `.env.local.example`. |
-| **Appliance / Spark (enough VRAM)** | **`qwen3.8`** | Qwen3.8-27B (~18 GB). Preferred target. Do not default this on the 16 GB laptop. |
-
-Do not point Ask at `llama3.1:8b` even if it is already pulled.
-
-Ask calls `POST {base}/v1/chat/completions` with the configured `HATCH_LLM_MODEL`.
-
-## Env (same shape on the appliance)
+| When | `HATCH_LLM_BASE_URL` | Model | Key |
+| --- | --- | --- | --- |
+| Temporary remote (overnight) | `https://<host>/v1` | `qwen3.8` or the provider id | **Required** (`Authorization: Bearer`) |
+| 16 GB Mac fallback | `http://127.0.0.1:11434` | `qwen3:8b` | Not required |
+| Appliance / Spark later | `http://<box>:8000/v1` (example) | `qwen3.8` | If the box requires it |
 
 ```bash
-HATCH_LLM_BASE_URL=http://127.0.0.1:11434
-HATCH_LLM_MODEL=qwen3:8b
-HATCH_LLM_API_KEY=            # unused by Ollama; used later if vLLM requires a key
-```
-
-Copy `.env.local.example` → `.env.local`.
-
-When Sparks arrive, change only the model (or the base URL):
-
-```bash
+HATCH_LLM_BASE_URL=https://<host>/v1
 HATCH_LLM_MODEL=qwen3.8
-# or
-HATCH_LLM_BASE_URL=http://<appliance>:8000
+HATCH_LLM_API_KEY=...
+HATCH_LLM_PROVIDER=openai-compatible
 ```
+
+- HTTPS remote: Bearer key required. URL may already include `/v1` — do not double it.
+- Localhost Ollama: no key. Client tries `/v1/chat/completions`, then native `/api/chat`.
+- If remote is set and down, Ask falls back to local Ollama `qwen3:8b` when that is pulled.
+- `HATCH_LLM_PROVIDER` defaults to `openai-compatible`. A Bedrock adapter is later — not in this ship.
+
+Status shows **host only** (not the key) and reachability.
 
 ## How Ask works
 
-1. Client `POST /api/chat` with `{ roomId, query }`.
-2. Server retrieves **this room only** from the Library store (seed + uploads). v0 scoring is keyword overlap on ~700-char chunks.
-3. Probe Ollama `GET /api/tags`. Status shows **configured model** and **whether Ollama is reachable**. If down or the configured model is missing, the stream is a **clear error** plus copy-paste Mac install/pull commands. No invented answer.
-4. If up: build a Boundaries-only prompt (passages + “cite filenames”) and stream:
-   - first try OpenAI-compatible `POST {base}/v1/chat/completions`
-   - else native `POST {base}/api/chat`
-5. UI streams tokens, then shows **Sources** under the answer.
+1. `POST /api/chat` `{ roomId, query }`
+2. Room-scoped keyword retrieve (seed + uploads)
+3. Probe configured endpoint (`GET /models` remote, `GET /api/tags` local)
+4. Stream completions. Cite sources.
+5. If nothing is up: error + env / `ollama pull` commands. No invented answer.
 
-Nothing in this path calls a frontier API.
-
-## Laptop (today)
-
-```bash
-# 1. Ollama (already on Daniel’s Mac)
-ollama serve
-ollama pull qwen3:8b
-
-# 2. Hatch OS
-cd apps/hatch-os
-cp .env.local.example .env.local
-npm install
-npm run dev
-```
-
-Open http://127.0.0.1:3000 — pair with `BOUNDARIES` + any six digits.
-
-Status should show configured model `qwen3:8b` and Ollama reachable. First Ask may take ~30–90s on CPU while the 8B loads.
-
-## Appliance (later)
-
-Keep the Ask route and env names. Change only:
-
-```bash
-HATCH_LLM_BASE_URL=http://<appliance>:8000   # vLLM OpenAI-compatible root
-HATCH_LLM_MODEL=qwen3.8                      # or the served id
-HATCH_LLM_API_KEY=<if-required>
-```
-
-Hatch OS already prefers `/v1/chat/completions`. No UI rewrite.
+Firm / library content is not sent to a named public-lab SDK. Temporary remote is an operator-owned OpenAI-compatible URL.
 
 ## Persistence
 
-Library seed + uploads live under `apps/hatch-os/data/` (`state.json` + `uploads/`). Restart keeps files. Delete `data/state.json` to re-seed DEMO docs.
+`apps/hatch-os/data/` — `state.json` + `uploads/`. Delete `state.json` to re-seed DEMO docs.

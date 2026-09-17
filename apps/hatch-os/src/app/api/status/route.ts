@@ -49,15 +49,20 @@ export async function GET(req: Request) {
   }
 
   const status = await fetchBoxStatus();
-  const { model, baseUrl } = llmConfig();
+  const { primary } = llmConfig();
   return NextResponse.json(
     {
       ...status,
       ok: llm.reachable,
-      model,
+      model: llm.model,
       label: "Software dry-run — appliance not connected",
       dryRun: true,
-      llm: { ...llm, model, baseUrl },
+      llm: {
+        ...llm,
+        model: llm.model,
+        baseUrl: primary.rawBase,
+        host: llm.host || primary.host,
+      },
     },
     { headers: { "Cache-Control": "no-store" } },
   );

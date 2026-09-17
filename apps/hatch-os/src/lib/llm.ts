@@ -1,29 +1,133 @@
-/** 16 GB Mac dogfood. Appliance / Spark target is PREFERRED_MODEL. */
+/** 16 GB Mac / local Ollama fallback. */
 export const DEFAULT_MODEL = "qwen3:8b";
+/** Remote overnight + appliance / Spark target. */
 export const PREFERRED_MODEL = "qwen3.8";
+export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
 
-export function llmConfig() {
-  const baseUrl = (process.env.HATCH_LLM_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+export type LlmKind = "remote" | "ollama";
+
+export interface LlmEndpoint {
+  kind: LlmKind;
+  rawBase: string;
+  openaiRoot: string;
+  nativeRoot: string;
+  model: string;
+  apiKey: string;
+  host: string;
+  provider: string;
+}
+
+function stripSlash(url: string) {
+  return url.replace(/\/$/, "");
+}
+
+function asUrl(raw: string) {
+  return raw.includes("://") ? raw : `http://${raw}`;
+}
+
+export function isLocalLlmUrl(raw: string) {
+  try {
+    const host = new URL(asUrl(raw)).hostname;
+    return host === "127.0.0.1" || host === "localhost" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+export function endpointHost(raw: string) {
+  try {
+    return new URL(asUrl(raw)).host;
+  } catch {
+    return raw;
+  }
+}
+
+function isOllamaEndpoint(base: string) {
+  try {
+    const u = new URL(asUrl(base));
+    const local = u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "::1";
+    if (!local) return false;
+    return u.port === "11434" || u.port === "";
+  } catch {
+    return false;
+  }
+}
+
+function needsApiKey(base: string) {
+  return asUrl(base).startsWith("https://");
+}
+
+function buildEndpoint(raw: string, model: string, apiKey: string, provider: string): LlmEndpoint {
+  const base = stripSlash(raw || LOCAL_OLLAMA);
+  const ollama = isOllamaEndpoint(base);
+  const openaiRoot = base.endsWith("/v1") ? base : `${base}/v1`;
+  const nativeRoot = base.replace(/\/v1$/, "");
   return {
-    baseUrl,
-    model: process.env.HATCH_LLM_MODEL || DEFAULT_MODEL,
-    apiKey: process.env.HATCH_LLM_API_KEY || "",
+    kind: ollama ? "ollama" : "remote",
+    rawBase: base,
+    openaiRoot,
+    nativeRoot,
+    model,
+    apiKey: apiKey.trim(),
+    host: endpointHost(base),
+    provider,
   };
 }
 
+export function llmConfig() {
+  const raw = stripSlash(process.env.HATCH_LLM_BASE_URL || LOCAL_OLLAMA);
+  const provider = process.env.HATCH_LLM_PROVIDER || "openai-compatible";
+  const apiKey = process.env.HATCH_LLM_API_KEY || "";
+  const ollama = isOllamaEndpoint(raw);
+  const model = process.env.HATCH_LLM_MODEL || (ollama ? DEFAULT_MODEL : PREFERRED_MODEL);
+  const primary = buildEndpoint(raw, model, apiKey, provider);
+  const fallback =
+    primary.kind === "remote"
+      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible")
+      : null;
+  return { primary, fallback, provider };
+}
+
+export function connectHelp(probe: LlmProbe) {
+  const { primary } = llmConfig();
+  const lines = [
+    "No model is ready. This dry-run does not call a named public lab and will not invent an answer.",
+    "",
+    "Temporary remote (OpenAI-compatible):",
+    "  HATCH_LLM_BASE_URL=https://<host>/v1",
+    `  HATCH_LLM_MODEL=${PREFERRED_MODEL}`,
+    "  HATCH_LLM_API_KEY=<required for https>",
+    "  HATCH_LLM_PROVIDER=openai-compatible",
+    "",
+    "Local fallback (16 GB Mac / Ollama):",
+    "  1. ollama serve",
+    `  2. ollama pull ${DEFAULT_MODEL}`,
+    "  3. HATCH_LLM_BASE_URL=http://127.0.0.1:11434",
+    `  4. HATCH_LLM_MODEL=${DEFAULT_MODEL}`,
+    "",
+    `Configured now: ${primary.kind} · ${primary.host} · model ${primary.model}.`,
+    probe.error ? `Last error: ${probe.error}` : "",
+    "Later: same env on the appliance vLLM endpoint. Do not paste the API key into chat.",
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+
+/** @deprecated use connectHelp */
 export function ollamaInstallHelp(model: string) {
-  return [
-    "Local model is not connected. This dry-run talks to Ollama on this machine — not OpenAI, Anthropic, or a Hatch cloud.",
-    "",
-    "On a Mac:",
-    "  1. Install: https://ollama.com/download  (or `brew install ollama`)",
-    "  2. In a terminal: ollama serve",
-    `  3. ollama pull ${model}`,
-    "  4. Restart Hatch OS: cd apps/hatch-os && npm run dev",
-    "",
-    `Expected: Ollama at ${llmConfig().baseUrl} with model ${model}.`,
-    "Later: point HATCH_LLM_BASE_URL at the appliance vLLM OpenAI-compatible endpoint. Same Ask API.",
-  ].join("\n");
+  return connectHelp({
+    connected: false,
+    reachable: false,
+    modelPulled: false,
+    model,
+    preferredModel: PREFERRED_MODEL,
+    baseUrl: llmConfig().primary.rawBase,
+    host: llmConfig().primary.host,
+    kind: llmConfig().primary.kind,
+    provider: llmConfig().provider,
+    hasKey: Boolean(llmConfig().primary.apiKey),
+    fallback: false,
+    models: [],
+  });
 }
 
 export interface LlmProbe {
@@ -33,15 +137,117 @@ export interface LlmProbe {
   model: string;
   preferredModel: string;
   baseUrl: string;
+  host: string;
+  kind: LlmKind;
+  provider: string;
+  hasKey: boolean;
+  fallback: boolean;
   models: string[];
   error?: string;
 }
 
-export async function probeLlm(): Promise<LlmProbe> {
-  const { baseUrl, model } = llmConfig();
-  const base = { model, preferredModel: PREFERRED_MODEL, baseUrl, models: [] as string[] };
+function headersFor(endpoint: LlmEndpoint) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (endpoint.kind === "remote" || endpoint.apiKey) {
+    if (endpoint.apiKey) headers.Authorization = `Bearer ${endpoint.apiKey}`;
+  }
+  return headers;
+}
+
+function modelListed(models: string[], model: string) {
+  if (!models.length) return true;
+  return models.some((n) => n === model || n.startsWith(`${model}:`) || n.split(":")[0] === model);
+}
+
+async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
+  const base = {
+    model: endpoint.model,
+    preferredModel: PREFERRED_MODEL,
+    baseUrl: endpoint.rawBase,
+    host: endpoint.host,
+    kind: endpoint.kind,
+    provider: endpoint.provider,
+    hasKey: Boolean(endpoint.apiKey),
+    fallback: false,
+    models: [] as string[],
+  };
+  if (needsApiKey(endpoint.rawBase) && !endpoint.apiKey) {
+    return {
+      ...base,
+      connected: false,
+      reachable: false,
+      modelPulled: false,
+      error: `HATCH_LLM_API_KEY is required for ${endpoint.host}`,
+    };
+  }
   try {
-    const res = await fetch(`${baseUrl}/api/tags`, {
+    const res = await fetch(`${endpoint.openaiRoot}/models`, {
+      cache: "no-store",
+      headers: headersFor(endpoint),
+      signal: AbortSignal.timeout(5000),
+    });
+    const reachable = res.status !== 0;
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ...base,
+        connected: false,
+        reachable: true,
+        modelPulled: false,
+        error: `Endpoint ${endpoint.host} reachable — auth failed (HTTP ${res.status})`,
+      };
+    }
+    if (!res.ok && res.status !== 404) {
+      return {
+        ...base,
+        connected: false,
+        reachable,
+        modelPulled: false,
+        error: `Endpoint ${endpoint.host} HTTP ${res.status}`,
+      };
+    }
+    let models: string[] = [];
+    if (res.ok) {
+      const json = (await res.json().catch(() => null)) as
+        | { data?: { id?: string }[]; models?: { name?: string; id?: string }[] }
+        | null;
+      models = [
+        ...(json?.data || []).map((m) => m.id || ""),
+        ...(json?.models || []).map((m) => m.name || m.id || ""),
+      ].filter(Boolean);
+    }
+    const modelPulled = modelListed(models, endpoint.model);
+    return {
+      ...base,
+      models,
+      connected: true,
+      reachable: true,
+      modelPulled,
+    };
+  } catch {
+    return {
+      ...base,
+      connected: false,
+      reachable: false,
+      modelPulled: false,
+      error: `Cannot reach ${endpoint.host}`,
+    };
+  }
+}
+
+async function probeOllama(endpoint: LlmEndpoint, fallback = false): Promise<LlmProbe> {
+  const base = {
+    model: endpoint.model,
+    preferredModel: PREFERRED_MODEL,
+    baseUrl: endpoint.rawBase,
+    host: endpoint.host,
+    kind: endpoint.kind,
+    provider: endpoint.provider,
+    hasKey: Boolean(endpoint.apiKey),
+    fallback,
+    models: [] as string[],
+  };
+  try {
+    const res = await fetch(`${endpoint.nativeRoot}/api/tags`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2500),
     });
@@ -51,14 +257,14 @@ export async function probeLlm(): Promise<LlmProbe> {
         connected: false,
         reachable: false,
         modelPulled: false,
-        error: `Ollama HTTP ${res.status}`,
+        error: `Ollama HTTP ${res.status} at ${endpoint.host}`,
       };
     }
     const json = (await res.json()) as { models?: { name?: string }[] };
     const models = (json.models || []).map((m) => m.name || "").filter(Boolean);
     const modelPulled = models.some((n) => {
       const tag = n.split(":")[0];
-      return n === model || tag === model || n.startsWith(`${model}:`);
+      return n === endpoint.model || tag === endpoint.model || n.startsWith(`${endpoint.model}:`);
     });
     if (!modelPulled) {
       return {
@@ -67,7 +273,7 @@ export async function probeLlm(): Promise<LlmProbe> {
         connected: false,
         reachable: true,
         modelPulled: false,
-        error: `Ollama is reachable but ${model} is not pulled. Run: ollama pull ${model}`,
+        error: `Ollama at ${endpoint.host} is reachable but ${endpoint.model} is not pulled. Run: ollama pull ${endpoint.model}`,
       };
     }
     return { ...base, models, connected: true, reachable: true, modelPulled: true };
@@ -77,9 +283,44 @@ export async function probeLlm(): Promise<LlmProbe> {
       connected: false,
       reachable: false,
       modelPulled: false,
-      error: `Cannot reach Ollama at ${baseUrl}`,
+      error: `Cannot reach Ollama at ${endpoint.host}`,
     };
   }
+}
+
+async function probeEndpoint(endpoint: LlmEndpoint, fallback = false): Promise<LlmProbe> {
+  return endpoint.kind === "remote" ? probeRemote(endpoint) : probeOllama(endpoint, fallback);
+}
+
+let resolved: LlmEndpoint | null = null;
+
+export async function probeLlm(): Promise<LlmProbe> {
+  const { primary, fallback } = llmConfig();
+  const first = await probeEndpoint(primary);
+  if (first.connected) {
+    resolved = primary;
+    return first;
+  }
+  if (fallback) {
+    const second = await probeEndpoint(fallback, true);
+    if (second.connected) {
+      resolved = fallback;
+      return {
+        ...second,
+        fallback: true,
+        error: first.error
+          ? `${first.error} — using local Ollama fallback ${fallback.host} / ${fallback.model}`
+          : `Using local Ollama fallback ${fallback.host} / ${fallback.model}`,
+      };
+    }
+    resolved = null;
+    return {
+      ...first,
+      error: [first.error, second.error].filter(Boolean).join(" · "),
+    };
+  }
+  resolved = null;
+  return first;
 }
 
 export interface ChatMessage {
@@ -91,19 +332,43 @@ export async function streamLlm(
   messages: ChatMessage[],
   onDelta: (text: string) => void,
 ): Promise<void> {
-  const { baseUrl, model, apiKey } = llmConfig();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const { primary, fallback } = llmConfig();
+  const order = resolved
+    ? [resolved]
+    : fallback
+      ? [primary, fallback]
+      : [primary];
 
-  const openai = await fetch(`${baseUrl}/v1/chat/completions`, {
+  let last = "LLM unreachable";
+  for (const endpoint of order) {
+    if (needsApiKey(endpoint.rawBase) && !endpoint.apiKey) {
+      last = `HATCH_LLM_API_KEY is required for ${endpoint.host}`;
+      continue;
+    }
+    try {
+      await streamEndpoint(endpoint, messages, onDelta);
+      return;
+    } catch (err) {
+      last = err instanceof Error ? err.message : "LLM failed";
+    }
+  }
+  throw new Error(last);
+}
+
+async function streamEndpoint(
+  endpoint: LlmEndpoint,
+  messages: ChatMessage[],
+  onDelta: (text: string) => void,
+) {
+  const headers = headersFor(endpoint);
+  const openai = await fetch(`${endpoint.openaiRoot}/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model,
+      model: endpoint.model,
       messages,
       stream: true,
       temperature: 0.2,
-      // Qwen3 thinking off — GM answers should be short and grounded.
       think: false,
     }),
   }).catch(() => null);
@@ -113,25 +378,33 @@ export async function streamLlm(
     return;
   }
 
-  const native = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      think: false,
-      options: { temperature: 0.2 },
-    }),
-  }).catch(() => null);
-
-  if (native?.ok && native.body) {
-    await readOllamaStream(native.body, onDelta);
-    return;
+  if (endpoint.kind === "ollama") {
+    const native = await fetch(`${endpoint.nativeRoot}/api/chat`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: endpoint.model,
+        messages,
+        stream: true,
+        think: false,
+        options: { temperature: 0.2 },
+      }),
+    }).catch(() => null);
+    if (native?.ok && native.body) {
+      await readOllamaStream(native.body, onDelta);
+      return;
+    }
+    const status = native?.status || openai?.status || 0;
+    throw new Error(status ? `Ollama HTTP ${status} at ${endpoint.host}` : `Ollama unreachable at ${endpoint.host}`);
   }
 
-  const status = native?.status || openai?.status || 0;
-  throw new Error(status ? `LLM HTTP ${status}` : "LLM unreachable");
+  const status = openai?.status || 0;
+  let detail = status ? `HTTP ${status}` : "unreachable";
+  if (openai && !openai.ok) {
+    const body = await openai.text().catch(() => "");
+    if (body) detail = `${detail} ${body.slice(0, 180)}`;
+  }
+  throw new Error(`Remote ${endpoint.host} ${detail}`);
 }
 
 function stripThink(text: string) {

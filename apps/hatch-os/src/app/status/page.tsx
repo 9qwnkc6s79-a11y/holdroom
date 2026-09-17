@@ -49,8 +49,9 @@ export default function StatusPage() {
         <p className="screen-kicker">Status</p>
         <h1>This box.</h1>
         <p className="lede">
-          Software dry-run — appliance not connected. Local LLM is Ollama on this Mac. Egress
-          FAIL=blocked is the good production outcome. PASS=reachable is an error.
+          Software dry-run — appliance not connected. Ask uses a temporary OpenAI-compatible
+          endpoint, then local Ollama if that is down. Egress FAIL=blocked is the good production
+          outcome. PASS=reachable is an error.
         </p>
         {error ? (
           <div className="banner banner-warn" role="alert">
@@ -81,12 +82,20 @@ export default function StatusPage() {
             <b>{status?.llm?.model || "qwen3:8b"}</b>
           </div>
           <div className="status-row">
-            <span>Ollama</span>
+            <span>Endpoint</span>
+            <b>
+              {status?.llm?.host || "…"}
+              {status?.llm?.kind ? ` · ${status.llm.kind}` : ""}
+              {status?.llm?.fallback ? " · local fallback" : ""}
+            </b>
+          </div>
+          <div className="status-row">
+            <span>Reachable</span>
             <b className={status?.llm?.reachable ? "egress-ok" : "egress-bad"}>
               {status?.llm
                 ? status.llm.reachable
-                  ? `reachable · ${status.llm.baseUrl}`
-                  : `not reachable · ${status.llm.error || status.llm.baseUrl}`
+                  ? "reachable"
+                  : `not reachable${status.llm.error ? ` · ${status.llm.error}` : ""}`
                 : "…"}
             </b>
           </div>
@@ -94,13 +103,13 @@ export default function StatusPage() {
             <span>Ask ready</span>
             <b className={status?.llm?.connected ? "egress-ok" : "egress-bad"}>
               {status?.llm?.connected
-                ? `${status.llm.model} pulled`
+                ? `${status.llm.model}${status.llm.fallback ? " (fallback)" : ""}`
                 : status?.llm?.error || "not ready"}
             </b>
           </div>
           <div className="status-row">
-            <span>Preferred later</span>
-            <b>{status?.llm?.preferredModel || "qwen3.8"} · appliance / Spark (needs more than 16 GB RAM)</b>
+            <span>API key</span>
+            <b>{status?.llm?.hasKey ? "set" : "not set"}</b>
           </div>
           <div className="status-row">
             <span>Health</span>
@@ -174,22 +183,18 @@ export default function StatusPage() {
         </div>
         {!status?.llm?.reachable || !status?.llm?.connected ? (
           <div className="card howto" style={{ marginTop: 10 }}>
-            <h2>Connect local Qwen</h2>
+            <h2>Connect a model</h2>
             <ol>
               <li>
-                Install Ollama: <code>https://ollama.com/download</code> or{" "}
-                <code>brew install ollama</code>
+                Remote: <code>HATCH_LLM_BASE_URL=https://&lt;host&gt;/v1</code>,{" "}
+                <code>HATCH_LLM_MODEL=qwen3.8</code>, <code>HATCH_LLM_API_KEY</code>
               </li>
               <li>
-                <code>ollama serve</code>
+                Local fallback: <code>ollama serve</code> then{" "}
+                <code>ollama pull qwen3:8b</code>
               </li>
               <li>
-                <code>ollama pull {status?.llm?.model || "qwen3:8b"}</code>
-                {" "}
-                (16 GB Mac dogfood. Later on Spark: <code>qwen3.8</code>)
-              </li>
-              <li>
-                Restart Hatch OS: <code>cd apps/hatch-os && npm run dev</code>
+                Restart: <code>cd apps/hatch-os && npm run dev</code>
               </li>
             </ol>
           </div>

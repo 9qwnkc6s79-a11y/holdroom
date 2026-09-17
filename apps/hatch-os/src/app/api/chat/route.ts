@@ -1,4 +1,4 @@
-import { probeLlm, streamLlm, ollamaInstallHelp, llmConfig } from "@/lib/llm";
+import { probeLlm, streamLlm, connectHelp } from "@/lib/llm";
 import { buildAskMessages } from "@/lib/prompt";
 import { retrieve } from "@/lib/store";
 import { LITTLE_ELM, migrateRoomId } from "@/lib/rooms";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
 
   if (!probe.connected) {
-    const help = ollamaInstallHelp(llmConfig().model);
+    const help = connectHelp(probe);
     const detail = probe.error ? `${probe.error}\n\n${help}` : help;
     const stream = new ReadableStream({
       start(controller) {
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sources })}\n\n`));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "LLM failed";
-        const help = `${msg}\n\n${ollamaInstallHelp(llmConfig().model)}`;
+        const help = `${msg}\n\n${connectHelp(probe)}`;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: true, delta: help })}\n\n`));
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sources: [], error: true })}\n\n`));
       }
