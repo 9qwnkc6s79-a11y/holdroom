@@ -1,10 +1,10 @@
-import { probeLlm, streamLlm, connectHelp } from "@/lib/llm";
+import { probeLlm, streamLlm, connectHelp, llmConfig, isRunpodUrl } from "@/lib/llm";
 import { buildAskMessages } from "@/lib/prompt";
 import { retrieve } from "@/lib/store";
 import { LITTLE_ELM, migrateRoomId } from "@/lib/rooms";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
@@ -21,8 +21,10 @@ export async function POST(req: Request) {
   const sources = retrieve(roomId, query);
   const probe = await probeLlm();
   const encoder = new TextEncoder();
+  const { primary } = llmConfig();
+  const runpodReady = isRunpodUrl(primary.rawBase) && Boolean(primary.apiKey);
 
-  if (!probe.connected) {
+  if (!probe.connected && !runpodReady) {
     const help = connectHelp(probe);
     const detail = probe.error ? `${probe.error}\n\n${help}` : help;
     const stream = new ReadableStream({

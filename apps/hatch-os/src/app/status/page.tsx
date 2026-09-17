@@ -78,6 +78,10 @@ export default function StatusPage() {
         ) : null}
         <div className="card">
           <div className="status-row">
+            <span>Inference</span>
+            <b>{status?.llm?.label || (status?.llm?.kind === "ollama" ? "Ollama (local)" : "OpenAI-compatible")}</b>
+          </div>
+          <div className="status-row">
             <span>Configured model</span>
             <b>{status?.llm?.model || "qwen3:8b"}</b>
           </div>
@@ -186,8 +190,8 @@ export default function StatusPage() {
             <h2>Connect a model</h2>
             <ol>
               <li>
-                Remote: <code>HATCH_LLM_BASE_URL=https://&lt;host&gt;/v1</code>,{" "}
-                <code>HATCH_LLM_MODEL=qwen3.8</code>, <code>HATCH_LLM_API_KEY</code>
+                RunPod: <code>https://api.runpod.ai/v2/&lt;ENDPOINT_ID&gt;/openai/v1</code>,{" "}
+                <code>qwen/qwen3.8-27b</code>, <code>HATCH_LLM_API_KEY</code>
               </li>
               <li>
                 Local fallback: <code>ollama serve</code> then{" "}

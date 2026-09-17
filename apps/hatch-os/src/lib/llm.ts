@@ -1,8 +1,15 @@
 /** 16 GB Mac / local Ollama fallback. */
 export const DEFAULT_MODEL = "qwen3:8b";
-/** Remote overnight + appliance / Spark target. */
+/** RunPod Serverless Qwen3.8-27B (OpenAI chat.completions). */
+export const RUNPOD_MODEL = "qwen/qwen3.8-27b";
+/** Appliance / Spark target name. */
 export const PREFERRED_MODEL = "qwen3.8";
 export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
+export const REMOTE_CHAT_TIMEOUT_MS = 180_000;
+
+export function isRunpodUrl(raw: string) {
+  return /runpod\.ai/i.test(raw);
+}
 
 export type LlmKind = "remote" | "ollama";
 
@@ -15,6 +22,7 @@ export interface LlmEndpoint {
   apiKey: string;
   host: string;
   provider: string;
+  label: string;
 }
 
 function stripSlash(url: string) {
@@ -62,6 +70,7 @@ function buildEndpoint(raw: string, model: string, apiKey: string, provider: str
   const ollama = isOllamaEndpoint(base);
   const openaiRoot = base.endsWith("/v1") ? base : `${base}/v1`;
   const nativeRoot = base.replace(/\/v1$/, "");
+  const runpod = isRunpodUrl(base);
   return {
     kind: ollama ? "ollama" : "remote",
     rawBase: base,
@@ -71,6 +80,7 @@ function buildEndpoint(raw: string, model: string, apiKey: string, provider: str
     apiKey: apiKey.trim(),
     host: endpointHost(base),
     provider,
+    label: runpod ? "RunPod / Qwen3.8" : ollama ? "Ollama (local)" : "OpenAI-compatible",
   };
 }
 
@@ -79,7 +89,9 @@ export function llmConfig() {
   const provider = process.env.HATCH_LLM_PROVIDER || "openai-compatible";
   const apiKey = process.env.HATCH_LLM_API_KEY || "";
   const ollama = isOllamaEndpoint(raw);
-  const model = process.env.HATCH_LLM_MODEL || (ollama ? DEFAULT_MODEL : PREFERRED_MODEL);
+  const model =
+    process.env.HATCH_LLM_MODEL ||
+    (isRunpodUrl(raw) ? RUNPOD_MODEL : ollama ? DEFAULT_MODEL : PREFERRED_MODEL);
   const primary = buildEndpoint(raw, model, apiKey, provider);
   const fallback =
     primary.kind === "remote"
@@ -93,10 +105,10 @@ export function connectHelp(probe: LlmProbe) {
   const lines = [
     "No model is ready. This dry-run does not call a named public lab and will not invent an answer.",
     "",
-    "Temporary remote (OpenAI-compatible):",
-    "  HATCH_LLM_BASE_URL=https://<host>/v1",
-    `  HATCH_LLM_MODEL=${PREFERRED_MODEL}`,
-    "  HATCH_LLM_API_KEY=<required for https>",
+    "Temporary remote — RunPod Serverless Qwen3.8-27B:",
+    "  HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/<ENDPOINT_ID>/openai/v1",
+    `  HATCH_LLM_MODEL=${RUNPOD_MODEL}`,
+    "  HATCH_LLM_API_KEY=<RunPod API key>",
     "  HATCH_LLM_PROVIDER=openai-compatible",
     "",
     "Local fallback (16 GB Mac / Ollama):",
@@ -126,6 +138,7 @@ export function ollamaInstallHelp(model: string) {
     provider: llmConfig().provider,
     hasKey: Boolean(llmConfig().primary.apiKey),
     fallback: false,
+    label: llmConfig().primary.label,
     models: [],
   });
 }
@@ -142,6 +155,7 @@ export interface LlmProbe {
   provider: string;
   hasKey: boolean;
   fallback: boolean;
+  label?: string;
   models: string[];
   error?: string;
 }
@@ -169,6 +183,7 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
     provider: endpoint.provider,
     hasKey: Boolean(endpoint.apiKey),
     fallback: false,
+    label: endpoint.label,
     models: [] as string[],
   };
   if (needsApiKey(endpoint.rawBase) && !endpoint.apiKey) {
@@ -184,7 +199,7 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
     const res = await fetch(`${endpoint.openaiRoot}/models`, {
       cache: "no-store",
       headers: headersFor(endpoint),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(isRunpodUrl(endpoint.rawBase) ? 20_000 : 8_000),
     });
     const reachable = res.status !== 0;
     if (res.status === 401 || res.status === 403) {
@@ -224,6 +239,16 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
       modelPulled,
     };
   } catch {
+    /* RunPod cold start can stall /models. Key + host is enough to try Ask. */
+    if (isRunpodUrl(endpoint.rawBase) && endpoint.apiKey) {
+      return {
+        ...base,
+        connected: true,
+        reachable: true,
+        modelPulled: true,
+        error: "RunPod /models timed out — Ask will still try chat.completions (cold start up to 3 min).",
+      };
+    }
     return {
       ...base,
       connected: false,
@@ -244,6 +269,7 @@ async function probeOllama(endpoint: LlmEndpoint, fallback = false): Promise<Llm
     provider: endpoint.provider,
     hasKey: Boolean(endpoint.apiKey),
     fallback,
+    label: endpoint.label,
     models: [] as string[],
   };
   try {
@@ -301,6 +327,11 @@ export async function probeLlm(): Promise<LlmProbe> {
     resolved = primary;
     return first;
   }
+  /* RunPod with a key: do not steal Ask onto Ollama just because /models is slow. */
+  if (isRunpodUrl(primary.rawBase) && primary.apiKey) {
+    resolved = primary;
+    return { ...first, connected: true, reachable: first.reachable || true, label: primary.label };
+  }
   if (fallback) {
     const second = await probeEndpoint(fallback, true);
     if (second.connected) {
@@ -333,11 +364,16 @@ export async function streamLlm(
   onDelta: (text: string) => void,
 ): Promise<void> {
   const { primary, fallback } = llmConfig();
-  const order = resolved
-    ? [resolved]
-    : fallback
-      ? [primary, fallback]
-      : [primary];
+  const order =
+    isRunpodUrl(primary.rawBase) && primary.apiKey
+      ? fallback
+        ? [primary, fallback]
+        : [primary]
+      : resolved
+        ? [resolved]
+        : fallback
+          ? [primary, fallback]
+          : [primary];
 
   let last = "LLM unreachable";
   for (const endpoint of order) {
@@ -361,6 +397,7 @@ async function streamEndpoint(
   onDelta: (text: string) => void,
 ) {
   const headers = headersFor(endpoint);
+  const remote = endpoint.kind === "remote";
   const openai = await fetch(`${endpoint.openaiRoot}/chat/completions`, {
     method: "POST",
     headers,
@@ -369,9 +406,15 @@ async function streamEndpoint(
       messages,
       stream: true,
       temperature: 0.2,
-      think: false,
+      ...(remote ? { max_tokens: 1024 } : { think: false }),
     }),
-  }).catch(() => null);
+    signal: remote ? AbortSignal.timeout(REMOTE_CHAT_TIMEOUT_MS) : undefined,
+  }).catch((err) => {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`Remote ${endpoint.host} timed out after ${REMOTE_CHAT_TIMEOUT_MS / 1000}s (cold start).`);
+    }
+    return null;
+  });
 
   if (openai?.ok && openai.body) {
     await readOpenAiStream(openai.body, onDelta);

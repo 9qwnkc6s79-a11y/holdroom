@@ -62,6 +62,7 @@ export async function GET(req: Request) {
         model: llm.model,
         baseUrl: primary.rawBase,
         host: llm.host || primary.host,
+        label: llm.label || primary.label,
       },
     },
     { headers: { "Cache-Control": "no-store" } },

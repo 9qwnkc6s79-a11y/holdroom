@@ -1,39 +1,34 @@
 # Interim inference
 
-Ask always uses an **OpenAI-compatible** `POST {base}/chat/completions` client. The vendor is not hardcoded.
+Ask uses OpenAI **`chat.completions`** (`POST {base}/chat/completions`, streaming). Not `/completions`.
 
-## Three targets (same env)
+## Tonight: RunPod Serverless Qwen3.8-27B
 
-| When | `HATCH_LLM_BASE_URL` | Model | Key |
-| --- | --- | --- | --- |
-| Temporary remote (overnight) | `https://<host>/v1` | `qwen3.8` or the provider id | **Required** (`Authorization: Bearer`) |
-| 16 GB Mac fallback | `http://127.0.0.1:11434` | `qwen3:8b` | Not required |
-| Appliance / Spark later | `http://<box>:8000/v1` (example) | `qwen3.8` | If the box requires it |
-
-```bash
-HATCH_LLM_BASE_URL=https://<host>/v1
-HATCH_LLM_MODEL=qwen3.8
-HATCH_LLM_API_KEY=...
+```
+HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/<ENDPOINT_ID>/openai/v1
+HATCH_LLM_MODEL=qwen/qwen3.8-27b
+HATCH_LLM_API_KEY=<RunPod API key>
 HATCH_LLM_PROVIDER=openai-compatible
 ```
 
-- HTTPS remote: Bearer key required. URL may already include `/v1` — do not double it.
-- Localhost Ollama: no key. Client tries `/v1/chat/completions`, then native `/api/chat`.
-- If remote is set and down, Ask falls back to local Ollama `qwen3:8b` when that is pulled.
-- `HATCH_LLM_PROVIDER` defaults to `openai-compatible`. A Bedrock adapter is later — not in this ship.
+Bearer on HTTPS. Cold start: Ask waits up to **180s**. Status shows **RunPod / Qwen3.8** when the URL contains `runpod.ai` (host only, no key).
 
-Status shows **host only** (not the key) and reachability.
+## Fallback (16 GB Mac)
 
-## How Ask works
+```
+HATCH_LLM_BASE_URL=http://127.0.0.1:11434
+HATCH_LLM_MODEL=qwen3:8b
+```
 
-1. `POST /api/chat` `{ roomId, query }`
-2. Room-scoped keyword retrieve (seed + uploads)
-3. Probe configured endpoint (`GET /models` remote, `GET /api/tags` local)
-4. Stream completions. Cite sources.
-5. If nothing is up: error + env / `ollama pull` commands. No invented answer.
+`ollama serve` + `ollama pull qwen3:8b`. No key. Used when RunPod is unset or the chat call hard-fails.
 
-Firm / library content is not sent to a named public-lab SDK. Temporary remote is an operator-owned OpenAI-compatible URL.
+## Later: appliance / Spark
 
-## Persistence
+Same four vars → box vLLM OpenAI-compatible `/v1`. Preferred local-box model remains `qwen3.8` when VRAM allows.
 
-`apps/hatch-os/data/` — `state.json` + `uploads/`. Delete `state.json` to re-seed DEMO docs.
+## Ask path
+
+1. Room-scoped keyword RAG (seed + uploads)
+2. `POST .../openai/v1/chat/completions` with `model: qwen/qwen3.8-27b`
+3. Cite sources
+4. If nothing is up: env / `ollama pull` commands. No invented answer

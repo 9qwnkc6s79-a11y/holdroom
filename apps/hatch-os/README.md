@@ -1,52 +1,40 @@
 # Hatch OS — Boundaries Coffee dry-run
 
-Software dry-run. Appliance not connected. Ask uses a **temporary OpenAI-compatible** endpoint if configured, then **local Ollama** on this Mac. No named public-lab SDK. Firm files stay in Hatch OS.
+Software dry-run. Appliance not connected.
+
+**Temp inference: RunPod Serverless Qwen3.8-27B** via OpenAI `chat.completions` (not completions-only). Local Ollama `qwen3:8b` is the documented fallback.
 
 ## Morning retest (Daniel)
 
 ```bash
 cd apps/hatch-os
 cp .env.local.example .env.local
-# If overnight remote is up, set in .env.local:
-#   HATCH_LLM_BASE_URL=https://<host>/v1
-#   HATCH_LLM_MODEL=qwen3.8
-#   HATCH_LLM_API_KEY=...
-#   HATCH_LLM_PROVIDER=openai-compatible
-# Otherwise leave localhost + qwen3:8b.
+# Fill ENDPOINT_ID + HATCH_LLM_API_KEY (RunPod). Never commit the key.
 
-# Local fallback (always useful):
+# Fallback if RunPod is cold/down:
 ollama serve
 ollama pull qwen3:8b
 
 npm i && npm run dev
 ```
 
-Open http://127.0.0.1:3000
-
-1. Pair **`BOUNDARIES`** + any six digits.
-2. Navy/red shell, Little Elm / Prosper / HQ / Ops, banner **Software dry-run — appliance not connected**.
-3. Library: DEMO files + upload a `.md` / PDF / image (persists).
-4. Ask in Little Elm: **How does loyalty work?** → TapMango **or** text **COFFEE**, source `DEMO_loyalty.md`.
-5. Status: **endpoint host** (never the API key) + **reachable**. Remote down → local Ollama fallback.
-
-If nothing is reachable, Ask prints copy-paste env / `ollama pull` commands. It will not invent an answer.
+`.env.local`:
 
 ```
-HATCH_LLM_BASE_URL=https://<host>/v1    # or http://127.0.0.1:11434
-HATCH_LLM_MODEL=qwen3.8                 # remote; local default qwen3:8b
-HATCH_LLM_API_KEY=                      # required for https
+HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/<ENDPOINT_ID>/openai/v1
+HATCH_LLM_MODEL=qwen/qwen3.8-27b
+HATCH_LLM_API_KEY=
 HATCH_LLM_PROVIDER=openai-compatible
 ```
 
-**Swap later:** same four vars → appliance vLLM (`http://<box>:8000/v1`). No Ask rewrite. `qwen3.8` is the Spark target. Do not commit `.env.local`.
+Open http://127.0.0.1:3000
 
-See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
+1. Pair **`BOUNDARIES`** + any six digits.
+2. Navy/red, Little Elm / Prosper / HQ / Ops, banner **Software dry-run — appliance not connected**.
+3. Library: DEMO files + upload persists.
+4. Ask in Little Elm: **How does loyalty work?** → TapMango or text **COFFEE**, source `DEMO_loyalty.md`. First RunPod Ask can take **2–3 minutes** (cold start).
+5. Status: **RunPod / Qwen3.8** when the base URL contains `runpod.ai`. Host shown, never the key.
 
-## What’s in the box
+Fallback: comment the RunPod lines and use `http://127.0.0.1:11434` + `qwen3:8b`. Later: same env → appliance vLLM. See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
 
-- Invite: `BOUNDARIES` / `HATCH-BETA` / `COFFEE` = all rooms. `HATCH-ASSOC` = Little Elm only.
-- Seed (DEMO): catering, loyalty, open/close, GM stubs Rafael / Heath.
-- Ask = room-scoped keyword RAG + stream. Uploads persist under `data/`.
-- Marketing site at repo root is untouched.
-
-Non-goals: no Toast, no invented $, no hardware-ships claim, no hardcoded cloud vendor.
+Invite: `BOUNDARIES` / `HATCH-BETA` = all rooms. `HATCH-ASSOC` = Little Elm only. Marketing site untouched. No Toast. No invented $.

@@ -95,6 +95,7 @@ export interface BoxStatus {
     provider?: string;
     hasKey?: boolean;
     fallback?: boolean;
+    label?: string;
     error?: string;
   };
   dryRun?: boolean;
