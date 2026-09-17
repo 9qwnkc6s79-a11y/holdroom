@@ -17,7 +17,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace("/signin");
     }
     if (session && pathname === "/signin") {
-      router.replace("/ask");
+      router.replace("/chat");
     }
   }, [ready, session, pathname, router]);
 

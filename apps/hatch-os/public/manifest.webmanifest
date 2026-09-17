@@ -1,8 +1,8 @@
 {
   "name": "Boundaries Coffee",
   "short_name": "Boundaries",
-  "description": "Boundaries Coffee on Hatch OS — same rooms, same library, on this box.",
-  "start_url": "/ask",
+  "description": "Boundaries Coffee on Hatch OS — departments, chat, files, library on this box.",
+  "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

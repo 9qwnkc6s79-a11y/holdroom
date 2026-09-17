@@ -13,7 +13,8 @@ export default function MorePage() {
           <Link href="/status">Status</Link>
           <Link href="/admin">Admin</Link>
           <Link href="/settings">Settings</Link>
-          <Link href="/offline">Can’t reach the room (demo)</Link>
+          <Link href="/departments">Enterprise / Departments</Link>
+          <Link href="/offline">Can’t reach Hatch (demo)</Link>
         </div>
       </div>
     </Shell>

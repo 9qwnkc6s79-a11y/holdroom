@@ -46,7 +46,7 @@ export default function SettingsPage() {
               <code>https://ai.firm.local</code>).
             </li>
             <li>
-              If the tunnel is down, you will see “can’t reach the room.” There is no on-device
+              If the tunnel is down, you will see “can’t reach Hatch.” There is no on-device
               model.
             </li>
           </ol>
@@ -64,7 +64,7 @@ export default function SettingsPage() {
         </div>
         <div className="btn-row">
           <button className="btn btn-outline" type="button" onClick={() => router.push("/offline")}>
-            Demo: can’t reach the room
+            Demo: can’t reach Hatch
           </button>
           <button className="btn btn-ghost" type="button" onClick={resetTotp}>
             Reset TOTP (stub)

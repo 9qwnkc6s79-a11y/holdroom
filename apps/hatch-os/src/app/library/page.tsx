@@ -4,6 +4,7 @@ import { DragEvent, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
 import { Shell } from "@/components/Shell";
 import { ACCEPT_ATTR, ingestStatusLabel } from "@/lib/files";
+import { HQ_OPS, LITTLE_ELM, workspaceLabel } from "@/lib/departments";
 import type { IngestStatus } from "@/lib/types";
 
 function pillFor(status: IngestStatus) {
@@ -14,12 +15,29 @@ function pillFor(status: IngestStatus) {
 }
 
 export default function LibraryPage() {
-  const { currentRoom, ingest, deleteFile } = useHatch();
+  const {
+    currentWorkspace,
+    currentWorkspaceId,
+    isEnterpriseView,
+    currentLibrary,
+    currentFiles,
+    session,
+    ingest,
+    deleteFile,
+    setInLibrary,
+    toast,
+  } = useHatch();
   const [over, setOver] = useState(false);
-  const files = currentRoom.files;
+  const [writeDept, setWriteDept] = useState(LITTLE_ELM);
+  const notInLibrary = currentFiles.filter((f) => !f.inLibrary);
 
   function takeFile(file?: File | null) {
-    if (file) ingest(file);
+    if (file) {
+      ingest(file, {
+        toLibrary: true,
+        departmentId: isEnterpriseView ? writeDept : currentWorkspaceId,
+      });
+    }
   }
 
   function onDrop(event: DragEvent<HTMLLabelElement>) {
@@ -31,16 +49,27 @@ export default function LibraryPage() {
   return (
     <Shell>
       <div className="panel">
-        <p className="screen-kicker">Library</p>
-        <h1>Files in {currentRoom.name}.</h1>
+        <p className="screen-kicker">Library · {currentWorkspace.name}</p>
+        <h1>{isEnterpriseView ? "Firm library." : `Ask corpus for ${currentWorkspace.name}.`}</h1>
         <p className="lede">
-          Add to this room only. PDF, Office, markdown, and images (PNG, JPEG, WebP, GIF). Files
-          persist on this machine under <code>data/uploads</code>. DEMO seed files are labeled
-          DEMO. Image OCR is stubbed. This is not training.
+          What Ask can cite. Distinct from Files (the shared drive). Promote a file with Add to
+          Library. Retrieval is firm-capable even when you are sitting in one department.
         </p>
+        {isEnterpriseView ? (
+          <label htmlFor="lib-dept">
+            Upload into department
+            <select id="lib-dept" value={writeDept} onChange={(e) => setWriteDept(e.target.value)}>
+              {(session?.departments || [LITTLE_ELM, HQ_OPS]).map((id) => (
+                <option key={id} value={id}>
+                  {workspaceLabel(id)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label
           className={`drop${over ? " is-over" : ""}`}
-          htmlFor="file-input"
+          htmlFor="lib-file-input"
           onDragEnter={(e) => {
             e.preventDefault();
             setOver(true);
@@ -55,12 +84,12 @@ export default function LibraryPage() {
           }}
           onDrop={onDrop}
         >
-          <strong>Drop a PDF, Office file, markdown, or image</strong>
-          <span className="fine">Click to choose · stays in {currentRoom.name}</span>
+          <strong>Drop a file to ingest into Library</strong>
+          <span className="fine">Also lands in Files · PDF, Office, markdown, images</span>
         </label>
         <input
           className="hidden-file"
-          id="file-input"
+          id="lib-file-input"
           type="file"
           accept={ACCEPT_ATTR}
           onChange={(e) => {
@@ -68,52 +97,73 @@ export default function LibraryPage() {
             e.currentTarget.value = "";
           }}
         />
+        {notInLibrary.length ? (
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>In Files, not Library</h2>
+            <p className="fine">Promote when you want Ask to cite these.</p>
+            {notInLibrary.map((file) => (
+              <div className="file-row" key={file.id} style={{ marginTop: 10 }}>
+                <div>
+                  <div className="file-name">{file.name}</div>
+                  <p className="fine">
+                    {workspaceLabel(file.departmentId)}
+                    {file.origin === "drive" ? " · Drive stub" : ""}
+                    {file.origin === "draft" ? " · Draft" : ""}
+                  </p>
+                </div>
+                <button className="btn btn-outline btn-tiny" type="button" onClick={() => setInLibrary(file.id, true)}>
+                  Add to Library
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div style={{ marginTop: 14 }}>
-          {!files.length ? (
+          {!currentLibrary.length ? (
             <div className="card">
-              <h2>Nothing indexed in {currentRoom.name}.</h2>
+              <h2>Nothing indexed in this view.</h2>
               <p className="muted" style={{ margin: 0 }}>
-                Drop a PDF or image into this room. Files stay on the firm’s box. Hatch support
-                does not receive a copy.
+                Upload here or add a file from Files. DEMO seed files are labeled DEMO.
               </p>
             </div>
           ) : (
-            files.map((file) => (
+            currentLibrary.map((file) => (
               <div className="card" key={file.id}>
                 <div className="file-row">
                   <div>
                     <div className="file-name">{file.name}</div>
                     <p className="fine">
-                      {file.kind} · {currentRoom.name}
+                      {file.kind} · {workspaceLabel(file.departmentId)}
+                      {file.folderPath ? ` · ${file.folderPath}` : ""}
                       {file.demo ? " · DEMO" : ""}
                     </p>
                   </div>
                   <span className={`pill ${pillFor(file.status)}`}>
                     {ingestStatusLabel(file.status, file.kind)}
                   </span>
-                  {file.status === "queued" || file.status === "extracting" ? (
-                    <div className="progress">
-                      <span style={{ width: `${file.progress || 20}%` }} />
-                    </div>
-                  ) : null}
                   {file.error ? (
                     <p className="fine" style={{ gridColumn: "1 / -1", color: "var(--bad)" }}>
                       {file.error}
                     </p>
                   ) : null}
-                  <button
-                    className="linkish"
-                    type="button"
-                    style={{ gridColumn: "1 / -1", justifySelf: "start" }}
-                    onClick={() => deleteFile(file.id)}
-                  >
-                    Delete file and chunks
-                  </button>
+                  <div className="grant-row" style={{ gridColumn: "1 / -1" }}>
+                    <button className="linkish" type="button" onClick={() => setInLibrary(file.id, false)}>
+                      Remove from Library
+                    </button>
+                    <button className="linkish" type="button" onClick={() => deleteFile(file.id)}>
+                      Delete file and chunks
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
           )}
         </div>
+        {toast ? (
+          <div className="banner banner-ok" style={{ marginTop: 14 }}>
+            <p>{toast}</p>
+          </div>
+        ) : null}
       </div>
     </Shell>
   );

@@ -15,17 +15,17 @@ export default function SourcesPage() {
         {lastUsedLibrary === null ? (
           <>
             <h1>No answer yet.</h1>
-            <p className="lede">Ask in this room, then open Sources from the reply.</p>
-            <Link className="btn btn-dark" href="/ask">
-              Back to Ask
+            <p className="lede">Ask in Chat, then open Sources from the reply.</p>
+            <Link className="btn btn-dark" href="/chat">
+              Back to Chat
             </Link>
           </>
         ) : !lastSources?.length ? (
           <>
             <h1>No retrieved passage.</h1>
             <p className="lede">
-              This answer did not use the library (general model knowledge). Upload a file in this
-              room to ground the next ask.
+              This answer did not use the library (general model knowledge). Upload a file or Add
+              to Library to ground the next ask. Retrieval is firm-wide.
             </p>
             <Link className="btn btn-outline" href="/library">
               Open Library
@@ -35,8 +35,7 @@ export default function SourcesPage() {
           <>
             <h1>Passages used.</h1>
             <p className="lede">
-              Phase 1: filename + snippet. The file stays on the box; this view is not a portable
-              archive.
+              Firm-wide citations. The file stays on the box; this view is not a portable archive.
             </p>
             {lastSources.map((c) => (
               <div className="card cite" key={`${c.file}-${c.page}`}>

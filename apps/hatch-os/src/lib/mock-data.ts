@@ -1,51 +1,79 @@
-import { HQ_OPS, LITTLE_ELM, PROSPER } from "./rooms";
-import type { BoxStatus, Device, Room, Seat } from "./types";
+import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, uxIsolation } from "./departments";
+import type { BoxStatus, Department, Device, Seat } from "./types";
 
-export { HQ_OPS, LITTLE_ELM, PROSPER };
+export { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER };
 
-export const INITIAL_ROOMS: Room[] = [
+export const INITIAL_DEPARTMENTS: Department[] = [
   {
     id: LITTLE_ELM,
     name: "Little Elm",
-    isolation: "Retrieval stays in Little Elm. Prosper and HQ files are not visible here.",
+    kind: "department",
+    isolation: uxIsolation(LITTLE_ELM),
     files: [],
   },
   {
     id: PROSPER,
     name: "Prosper",
-    isolation: "Retrieval stays in Prosper. Little Elm and HQ files are not visible here.",
+    kind: "department",
+    isolation: uxIsolation(PROSPER),
     files: [],
   },
   {
     id: HQ_OPS,
-    name: "HQ / Ops",
-    isolation: "Retrieval stays in HQ / Ops. Store rooms are not searched from here.",
+    name: "HQ Ops",
+    kind: "department",
+    isolation: uxIsolation(HQ_OPS),
     files: [],
   },
 ];
 
+/** @deprecated use INITIAL_DEPARTMENTS */
+export const INITIAL_ROOMS = INITIAL_DEPARTMENTS;
+
+export const ENTERPRISE_WORKSPACE: Department = {
+  id: ENTERPRISE,
+  name: "Enterprise",
+  kind: "enterprise",
+  isolation: uxIsolation(ENTERPRISE),
+  files: [],
+};
+
+function seat(
+  id: string,
+  name: string,
+  role: Seat["role"],
+  departments: Seat["departments"],
+  extra: Partial<Seat>,
+): Seat {
+  return {
+    id,
+    name,
+    role,
+    departments,
+    rooms: departments,
+    enterprise: Boolean(extra.enterprise),
+    homeDepartment: extra.homeDepartment || departments[0] || LITTLE_ELM,
+    device: extra.device || "",
+    pending: extra.pending,
+  };
+}
+
 export const INITIAL_SEATS: Seat[] = [
-  {
-    id: "s-daniel",
-    name: "Daniel",
-    role: "Partner",
-    rooms: [LITTLE_ELM, PROSPER, HQ_OPS],
+  seat("s-daniel", "Daniel", "Partner", [LITTLE_ELM, PROSPER, HQ_OPS], {
+    enterprise: true,
+    homeDepartment: HQ_OPS,
     device: "Daniel Mac",
-  },
-  {
-    id: "s-rafael",
-    name: "Rafael",
-    role: "Admin",
-    rooms: [LITTLE_ELM],
+  }),
+  seat("s-rafael", "Rafael", "Admin", [LITTLE_ELM], {
+    enterprise: false,
+    homeDepartment: LITTLE_ELM,
     device: "Little Elm iPad",
-  },
-  {
-    id: "s-heath",
-    name: "Heath",
-    role: "Admin",
-    rooms: [PROSPER],
+  }),
+  seat("s-heath", "Heath", "Admin", [PROSPER], {
+    enterprise: false,
+    homeDepartment: PROSPER,
     device: "Prosper iPad",
-  },
+  }),
 ];
 
 export const INITIAL_DEVICES: Device[] = [
@@ -55,7 +83,7 @@ export const INITIAL_DEVICES: Device[] = [
 
 export const MOCK_STATUS: BoxStatus = {
   ok: true,
-  version: "0.2.0-boundaries-dryrun",
+  version: "0.3.0-departments",
   egress_check: {
     status: "checked",
     detail:

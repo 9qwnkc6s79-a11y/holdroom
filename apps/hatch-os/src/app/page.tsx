@@ -10,7 +10,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!ready) return;
-    router.replace(session ? "/ask" : "/signin");
+    router.replace(session ? "/chat" : "/signin");
   }, [ready, session, router]);
 
   return <p className="boot-note">Opening Hatch OS…</p>;

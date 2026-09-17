@@ -54,7 +54,7 @@ export default function SignInPage() {
     setBusy(true);
     const ok = await pair({ invite, totp, device, method: "totp" });
     setBusy(false);
-    if (ok) router.push("/ask");
+    if (ok) router.push("/chat");
   }
 
   async function onPasskey(event: FormEvent<HTMLFormElement>) {
@@ -72,7 +72,7 @@ export default function SignInPage() {
           ? "Passkey registered on this box."
           : "Passkey registered on this box (demo).",
       );
-      router.push("/ask");
+      router.push("/chat");
     }
   }
 
@@ -108,8 +108,8 @@ export default function SignInPage() {
             required
           />
           <p className="field-hint">
-            Dry-run stub. Try BOUNDARIES or HATCH-BETA (all rooms), HATCH-ASSOC (Little Elm only),
-            or HATCH-NOSEAT for the empty-seat path.
+            Dry-run stub. Try BOUNDARIES or HATCH-BETA (all departments + Enterprise), HATCH-ASSOC
+            (Little Elm only), or HATCH-NOSEAT for the empty-seat path.
           </p>
           <label htmlFor="totp">Authenticator code</label>
           <input

@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
-import { listRooms } from "@/lib/store";
+import { listDepartments } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
+/** Alias of /api/departments for older clients. */
 export async function GET() {
-  const rooms = listRooms();
+  const departments = listDepartments();
   return NextResponse.json(
     {
-      rooms: rooms.map((room) => ({
+      rooms: departments.map((room) => ({
         id: room.id,
         name: room.name,
+        kind: room.kind,
         isolation: room.isolation,
         fileCount: room.files.length,
         files: room.files,
       })),
-      crossRoomSearch: false,
+      departments,
+      crossRoomSearch: true,
+      firmWideRead: true,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

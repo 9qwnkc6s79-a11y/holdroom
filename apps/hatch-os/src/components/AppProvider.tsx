@@ -9,81 +9,143 @@ import {
   useState,
 } from "react";
 import { isAcceptedFilename, kindFromFilename, REJECT_COPY } from "@/lib/files";
-import { HQ_OPS, INITIAL_DEVICES, INITIAL_ROOMS, INITIAL_SEATS, LITTLE_ELM, PROSPER, SEAT_LINE } from "@/lib/mock-data";
-import { migrateRoomId } from "@/lib/rooms";
-import { clearSession, readRoom, readSession, writeRoom, writeSession } from "@/lib/storage";
+import {
+  ENTERPRISE,
+  ENTERPRISE_WORKSPACE,
+  HQ_OPS,
+  INITIAL_DEPARTMENTS,
+  INITIAL_DEVICES,
+  INITIAL_SEATS,
+  LITTLE_ELM,
+  SEAT_LINE,
+} from "@/lib/mock-data";
+import { isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "@/lib/departments";
+import {
+  clearSession,
+  landingWorkspace,
+  readSession,
+  readThreadForWorkspace,
+  writeSession,
+  writeThreadForWorkspace,
+  writeWorkspace,
+} from "@/lib/storage";
 import type {
   AuthMethod,
   ChatMessage,
+  ChatThread,
+  Department,
+  DepartmentId,
   Device,
-  LibraryFile,
-  Room,
-  RoomId,
+  FileFolder,
+  Handoff,
+  HatchFile,
   Seat,
   Session,
   Source,
+  ToolEvent,
 } from "@/lib/types";
 
 interface HatchContextValue {
   ready: boolean;
   session: Session | null;
-  currentRoomId: RoomId;
-  rooms: Room[];
-  visibleRooms: Room[];
-  currentRoom: Room;
-  threads: Record<string, ChatMessage[]>;
-  thread: ChatMessage[];
+  currentWorkspaceId: DepartmentId;
+  currentWorkspace: Department;
+  isEnterpriseView: boolean;
+  departments: Department[];
+  visibleWorkspaces: Department[];
+  folders: FileFolder[];
+  currentFiles: HatchFile[];
+  currentLibrary: HatchFile[];
+  threads: ChatThread[];
+  visibleThreads: ChatThread[];
+  currentThreadId: string | null;
+  currentThread: ChatThread | null;
   streaming: boolean;
   lastSources: Source[] | null;
   lastUsedLibrary: boolean | null;
+  handoffs: Handoff[];
+  inboundHandoffs: Handoff[];
   seats: Seat[];
   devices: Device[];
   toast: string;
   pairError: string;
   generatedInvite: string;
-  emptyRoomsDemo: boolean;
+  emptyDepartmentsDemo: boolean;
   emptySeatsDemo: boolean;
-  setRoom: (id: RoomId) => void;
+  setWorkspace: (id: DepartmentId) => void;
+  newThread: () => Promise<ChatThread | null>;
+  selectThread: (id: string) => void;
+  renameThread: (id: string, title: string) => void;
+  archiveThread: (id: string) => void;
   pair: (input: { invite: string; totp?: string; device?: string; method: AuthMethod }) => Promise<boolean>;
   signOut: () => void;
   ask: (query: string) => Promise<void>;
-  ingest: (file: File) => void;
+  ingest: (file: File, opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId }) => void;
   deleteFile: (fileId: string) => void;
+  setInLibrary: (fileId: string, inLibrary: boolean) => void;
+  importDrive: (departmentId?: DepartmentId) => Promise<void>;
+  handoffToDepartment: (toDepartmentId: DepartmentId, summary: string, facts?: string) => Promise<void>;
+  createFolder: (name: string) => void;
   mintInvite: () => void;
   revokeSeat: (id: string) => void;
-  grantRooms: (seatId: string, rooms: RoomId[]) => void;
-  createRoom: () => void;
+  grantDepartments: (seatId: string, departments: DepartmentId[], enterprise?: boolean) => void;
+  createDepartment: () => void;
   startBackup: () => void;
   importUpdate: () => void;
   resetTotp: () => void;
-  setEmptyRoomsDemo: (v: boolean) => void;
+  setEmptyDepartmentsDemo: (v: boolean) => void;
   setEmptySeatsDemo: (v: boolean) => void;
   clearToast: () => void;
+  /** @deprecated */
+  currentRoomId: DepartmentId;
+  /** @deprecated */
+  currentRoom: Department;
+  /** @deprecated */
+  setRoom: (id: DepartmentId) => void;
 }
 
 const HatchContext = createContext<HatchContextValue | null>(null);
 
-function cloneRooms(): Room[] {
-  return INITIAL_ROOMS.map((room) => ({
-    ...room,
-    files: room.files.map((file) => ({ ...file })),
-  }));
+function cloneDepartments(): Department[] {
+  return INITIAL_DEPARTMENTS.map((dept) => ({ ...dept, files: dept.files.map((f) => ({ ...f })) }));
 }
 
 function newId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function asSession(data: {
+  deviceName?: string;
+  method?: AuthMethod;
+  role?: "Partner" | "Associate";
+  departments?: DepartmentId[];
+  rooms?: DepartmentId[];
+  enterprise?: boolean;
+  homeDepartment?: DepartmentId;
+}): Session {
+  const departments = (data.departments || data.rooms || [LITTLE_ELM]).map(migrateWorkspaceId).filter((id) => !isEnterprise(id));
+  const role = data.role || "Partner";
+  return {
+    deviceName: data.deviceName || "This browser",
+    method: data.method || "totp",
+    role,
+    departments,
+    rooms: departments,
+    enterprise: data.enterprise ?? role === "Partner",
+    homeDepartment: migrateWorkspaceId(data.homeDepartment || (role === "Partner" ? HQ_OPS : departments[0] || LITTLE_ELM)),
+    pairedAt: new Date().toISOString(),
+  };
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [currentRoomId, setCurrentRoomId] = useState<RoomId>(LITTLE_ELM);
-  const [rooms, setRooms] = useState<Room[]>(cloneRooms);
-  const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({
-    [LITTLE_ELM]: [],
-    [PROSPER]: [],
-    [HQ_OPS]: [],
-  });
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<DepartmentId>(LITTLE_ELM);
+  const [departments, setDepartments] = useState<Department[]>(cloneDepartments);
+  const [folders, setFolders] = useState<FileFolder[]>([]);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [lastSources, setLastSources] = useState<Source[] | null>(null);
   const [lastUsedLibrary, setLastUsedLibrary] = useState<boolean | null>(null);
@@ -92,71 +154,152 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState("");
   const [pairError, setPairError] = useState("");
   const [generatedInvite, setGeneratedInvite] = useState("");
-  const [emptyRoomsDemo, setEmptyRoomsDemo] = useState(false);
+  const [emptyDepartmentsDemo, setEmptyDepartmentsDemo] = useState(false);
   const [emptySeatsDemo, setEmptySeatsDemo] = useState(false);
   const [inviteSeq, setInviteSeq] = useState(0);
 
-  const refreshRooms = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/rooms", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { rooms?: Room[] };
-      if (!data.rooms?.length) return;
-      setRooms(data.rooms);
-      setThreads((prev) => {
-        const next = { ...prev };
-        for (const room of data.rooms || []) {
-          if (!next[room.id]) next[room.id] = [];
-        }
-        return next;
-      });
+      const [deptRes, threadRes] = await Promise.all([
+        fetch("/api/departments", { cache: "no-store" }),
+        fetch("/api/threads", { cache: "no-store" }),
+      ]);
+      if (deptRes.ok) {
+        const data = (await deptRes.json()) as {
+          departments?: Department[];
+          enterprise?: Department;
+          handoffs?: Handoff[];
+        };
+        if (data.departments?.length) setDepartments(data.departments);
+        setFolders((data.departments || []).flatMap((d) => d.folders || []));
+        if (data.handoffs) setHandoffs(data.handoffs);
+      }
+      if (threadRes.ok) {
+        const data = (await threadRes.json()) as { threads?: ChatThread[] };
+        if (data.threads) setThreads(data.threads);
+      }
     } catch {
-      /* keep seed stubs */
+      /* keep stubs */
     }
   }, []);
 
   useEffect(() => {
     const stored = readSession();
-    const room = readRoom();
     if (stored) {
-      setSession({
-        deviceName: stored.deviceName,
-        method: stored.method,
-        role: stored.role,
-        rooms: stored.rooms.map(migrateRoomId),
-        pairedAt: new Date().toISOString(),
-      });
+      const next = asSession(stored);
+      setSession(next);
       setDevices((prev) =>
-        prev.map((d) =>
-          d.current ? { ...d, name: stored.deviceName, lastSeen: "This session" } : d,
-        ),
+        prev.map((d) => (d.current ? { ...d, name: stored.deviceName, lastSeen: "This session" } : d)),
       );
-      const allowed = stored.rooms.map(migrateRoomId).includes(room)
-        ? room
-        : stored.rooms[0] || LITTLE_ELM;
-      setCurrentRoomId(migrateRoomId(allowed));
+      const land = landingWorkspace(next);
+      setCurrentWorkspaceId(land);
+      const lastThread = readThreadForWorkspace(land);
+      if (lastThread) setCurrentThreadId(lastThread);
     }
-    void refreshRooms();
+    void refresh();
     setReady(true);
-  }, [refreshRooms]);
+  }, [refresh]);
 
-  const visibleRooms = useMemo(() => {
-    if (!session) return rooms;
-    return rooms.filter((room) => session.rooms.includes(room.id));
-  }, [rooms, session]);
+  const visibleWorkspaces = useMemo(() => {
+    const depts = session ? departments.filter((d) => session.departments.includes(d.id)) : departments;
+    if (session?.enterprise) {
+      const union: Department = {
+        ...ENTERPRISE_WORKSPACE,
+        files: departments.flatMap((d) => d.files),
+        isolation: uxIsolation(ENTERPRISE),
+      };
+      return [union, ...depts];
+    }
+    return depts;
+  }, [departments, session]);
 
-  const currentRoom = useMemo(
-    () => rooms.find((r) => r.id === currentRoomId) || rooms[0],
-    [rooms, currentRoomId],
+  const currentWorkspace = useMemo(
+    () => visibleWorkspaces.find((w) => w.id === currentWorkspaceId) || visibleWorkspaces[0] || ENTERPRISE_WORKSPACE,
+    [visibleWorkspaces, currentWorkspaceId],
   );
 
-  const thread = useMemo(() => threads[currentRoomId] || [], [threads, currentRoomId]);
+  const isEnterpriseView = isEnterprise(currentWorkspaceId);
 
-  const setRoom = useCallback((id: RoomId) => {
-    const next = migrateRoomId(id);
-    setCurrentRoomId(next);
-    writeRoom(next);
+  const currentFiles = useMemo(() => {
+    if (isEnterpriseView) {
+      return departments.flatMap((d) =>
+        d.files.map((f) => ({ ...f, folderPath: [workspaceLabel(f.departmentId), f.folderPath].filter(Boolean).join(" / ") })),
+      );
+    }
+    return currentWorkspace.files || [];
+  }, [isEnterpriseView, departments, currentWorkspace]);
+
+  const currentLibrary = useMemo(() => currentFiles.filter((f) => f.inLibrary), [currentFiles]);
+
+  const visibleThreads = useMemo(
+    () => threads.filter((t) => t.departmentId === currentWorkspaceId && !t.archived),
+    [threads, currentWorkspaceId],
+  );
+
+  const currentThread = useMemo(
+    () => visibleThreads.find((t) => t.id === currentThreadId) || visibleThreads[0] || null,
+    [visibleThreads, currentThreadId],
+  );
+
+  const inboundHandoffs = useMemo(() => {
+    if (isEnterpriseView) return handoffs;
+    return handoffs.filter((h) => h.toDepartmentId === currentWorkspaceId);
+  }, [handoffs, isEnterpriseView, currentWorkspaceId]);
+
+  const setWorkspace = useCallback((id: DepartmentId) => {
+    const next = migrateWorkspaceId(id);
+    setCurrentWorkspaceId(next);
+    writeWorkspace(next);
+    const last = readThreadForWorkspace(next);
+    setCurrentThreadId(last);
   }, []);
+
+  const selectThread = useCallback(
+    (id: string) => {
+      setCurrentThreadId(id);
+      writeThreadForWorkspace(currentWorkspaceId, id);
+    },
+    [currentWorkspaceId],
+  );
+
+  const newThread = useCallback(async () => {
+    try {
+      const res = await fetch("/api/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ departmentId: currentWorkspaceId }),
+      });
+      const data = (await res.json()) as { thread?: ChatThread };
+      if (data.thread) {
+        setThreads((prev) => [data.thread!, ...prev.filter((t) => t.id !== data.thread!.id)]);
+        setCurrentThreadId(data.thread.id);
+        writeThreadForWorkspace(currentWorkspaceId, data.thread.id);
+        return data.thread;
+      }
+    } catch {
+      setToast("Could not create a thread.");
+    }
+    return null;
+  }, [currentWorkspaceId]);
+
+  const renameThread = useCallback((id: string, title: string) => {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+    void fetch("/api/threads", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, title }),
+    }).catch(() => undefined);
+  }, []);
+
+  const archiveThread = useCallback((id: string) => {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, archived: true } : t)));
+    if (currentThreadId === id) setCurrentThreadId(null);
+    void fetch("/api/threads", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, archived: true }),
+    }).catch(() => undefined);
+  }, [currentThreadId]);
 
   const pair = useCallback(
     async (input: { invite: string; totp?: string; device?: string; method: AuthMethod }) => {
@@ -172,29 +315,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           deviceName?: string;
           method?: AuthMethod;
           role?: "Partner" | "Associate";
-          rooms?: RoomId[];
+          departments?: DepartmentId[];
+          rooms?: DepartmentId[];
+          enterprise?: boolean;
+          homeDepartment?: DepartmentId;
         };
         if (!res.ok) {
           setPairError(data.error || "Pairing failed.");
           return false;
         }
-        const next: Session = {
-          deviceName: data.deviceName || input.device || "This browser",
-          method: data.method || input.method,
-          role: data.role || "Partner",
-          rooms: (data.rooms || [LITTLE_ELM, PROSPER, HQ_OPS]).map(migrateRoomId),
-          pairedAt: new Date().toISOString(),
-        };
+        const next = asSession({ ...data, deviceName: data.deviceName || input.device || "This browser", method: data.method || input.method });
         writeSession(next);
         setSession(next);
         setDevices((prev) =>
-          prev.map((d) =>
-            d.current ? { ...d, name: next.deviceName, lastSeen: "This session" } : d,
-          ),
+          prev.map((d) => (d.current ? { ...d, name: next.deviceName, lastSeen: "This session" } : d)),
         );
-        const first = next.rooms[0] || LITTLE_ELM;
-        setCurrentRoomId(first);
-        writeRoom(first);
+        const land = next.enterprise ? ENTERPRISE : next.homeDepartment || LITTLE_ELM;
+        setCurrentWorkspaceId(land);
+        writeWorkspace(land);
         return true;
       } catch {
         setPairError("Can’t reach Hatch. Join the office network or the firm VPN, then retry.");
@@ -213,42 +351,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const ask = useCallback(
     async (query: string) => {
-      if (streaming) return;
-      const user: ChatMessage = {
-        id: newId("u"),
-        role: "user",
-        text: query,
-        done: true,
-        sources: [],
-      };
-      const assistant: ChatMessage = {
-        id: newId("a"),
-        role: "assistant",
-        text: "",
-        done: false,
-        sources: [],
-      };
-      const roomId = currentRoomId;
-      setThreads((prev) => ({
-        ...prev,
-        [roomId]: [...(prev[roomId] || []), user, assistant],
-      }));
+      if (streaming || !session) return;
+      let threadId: string | undefined = currentThread?.id;
+      if (!threadId) {
+        const created = await newThread();
+        threadId = created?.id;
+      }
+      if (!threadId) return;
+
+      const user: ChatMessage = { id: newId("u"), role: "user", text: query, done: true, sources: [] };
+      const assistant: ChatMessage = { id: newId("a"), role: "assistant", text: "", done: false, sources: [] };
+      setThreads((prev) =>
+        prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, user, assistant] } : t)),
+      );
+      setCurrentThreadId(threadId);
+      writeThreadForWorkspace(currentWorkspaceId, threadId);
       setStreaming(true);
 
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, query }),
+          body: JSON.stringify({
+            departmentId: currentWorkspaceId,
+            threadId,
+            query,
+            accessibleDepartments: session.departments,
+            enterprise: session.enterprise,
+          }),
         });
-        if (!res.ok || !res.body) {
-          throw new Error("offline");
-        }
+        if (!res.ok || !res.body) throw new Error("offline");
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
         let text = "";
         let sources: Source[] = [];
+        let tools: ToolEvent[] = [];
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -262,134 +400,249 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               delta?: string;
               done?: boolean;
               sources?: Source[];
-              error?: boolean;
+              tools?: ToolEvent[];
+              title?: string;
             };
             if (payload.delta) {
               text += payload.delta;
-              setThreads((prev) => ({
-                ...prev,
-                [roomId]: (prev[roomId] || []).map((m) =>
-                  m.id === assistant.id ? { ...m, text } : m,
+              setThreads((prev) =>
+                prev.map((t) =>
+                  t.id === threadId
+                    ? { ...t, messages: t.messages.map((m) => (m.id === assistant.id ? { ...m, text } : m)) }
+                    : t,
                 ),
-              }));
+              );
             }
             if (payload.done) {
               sources = payload.sources || [];
+              tools = payload.tools || [];
+              if (payload.title) {
+                setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, title: payload.title || t.title } : t)));
+              }
             }
           }
         }
-        setThreads((prev) => ({
-          ...prev,
-          [roomId]: (prev[roomId] || []).map((m) =>
-            m.id === assistant.id ? { ...m, text, done: true, sources } : m,
+        setThreads((prev) =>
+          prev.map((t) =>
+            t.id === threadId
+              ? {
+                  ...t,
+                  messages: t.messages.map((m) => (m.id === assistant.id ? { ...m, text, done: true, sources, tools } : m)),
+                }
+              : t,
           ),
-        }));
+        );
         setLastSources(sources);
         setLastUsedLibrary(sources.length > 0);
+        if (tools.some((t) => t.name === "write_draft" || t.name === "handoff_to_department" || t.name === "drive_import")) {
+          void refresh();
+        }
       } catch {
-        setThreads((prev) => ({
-          ...prev,
-          [roomId]: (prev[roomId] || []).map((m) =>
-            m.id === assistant.id
+        setThreads((prev) =>
+          prev.map((t) =>
+            t.id === threadId
               ? {
-                  ...m,
-                  text: "Can’t reach Hatch. Join the office network or the firm VPN, then retry.",
-                  done: true,
-                  sources: [],
+                  ...t,
+                  messages: t.messages.map((m) =>
+                    m.id === assistant.id
+                      ? {
+                          ...m,
+                          text: "Can’t reach Hatch. Join the office network or the firm VPN, then retry.",
+                          done: true,
+                          sources: [],
+                        }
+                      : m,
+                  ),
                 }
-              : m,
+              : t,
           ),
-        }));
+        );
         setLastSources([]);
         setLastUsedLibrary(false);
       } finally {
         setStreaming(false);
       }
     },
-    [currentRoomId, streaming],
+    [streaming, session, currentThread, newThread, currentWorkspaceId, refresh],
+  );
+
+  const writeTarget = useCallback(
+    (override?: DepartmentId) => {
+      if (override && !isEnterprise(override)) return override;
+      if (!isEnterprise(currentWorkspaceId)) return currentWorkspaceId;
+      return session?.departments.includes(HQ_OPS) ? HQ_OPS : session?.departments[0] || LITTLE_ELM;
+    },
+    [currentWorkspaceId, session],
   );
 
   const ingest = useCallback(
-    (file: File) => {
+    (file: File, opts?: { toLibrary?: boolean; folderId?: string | null; departmentId?: DepartmentId }) => {
+      const departmentId = writeTarget(opts?.departmentId);
       const ok = isAcceptedFilename(file.name);
-      const kind = kindFromFilename(file.name);
-      const rec: LibraryFile = {
+      const rec: HatchFile = {
         id: newId("up"),
         name: file.name,
-        kind,
+        kind: kindFromFilename(file.name),
         status: ok ? "queued" : "failed",
         progress: ok ? 20 : 0,
         error: ok ? undefined : REJECT_COPY,
-        roomId: currentRoomId,
+        departmentId,
+        roomId: departmentId,
+        folderId: opts?.folderId ?? null,
+        inLibrary: Boolean(opts?.toLibrary),
+        origin: "upload",
       };
-      setRooms((prev) =>
-        prev.map((room) =>
-          room.id === currentRoomId ? { ...room, files: [rec, ...room.files] } : room,
-        ),
+      setDepartments((prev) =>
+        prev.map((dept) => (dept.id === departmentId ? { ...dept, files: [rec, ...dept.files] } : dept)),
       );
       if (!ok) return;
-
       const form = new FormData();
       form.append("file", file);
-      form.append("roomId", currentRoomId);
+      form.append("departmentId", departmentId);
+      form.append("inLibrary", rec.inLibrary ? "1" : "0");
+      if (opts?.folderId) form.append("folderId", opts.folderId);
+      form.append("accessibleDepartments", (session?.departments || []).join(","));
       void fetch("/api/ingest", { method: "POST", body: form })
         .then(async (res) => {
-          const data = (await res.json().catch(() => null)) as
-            | { file?: LibraryFile; error?: string }
-            | null;
-          const saved = data?.file;
-          setRooms((prev) =>
-            prev.map((room) =>
-              room.id === currentRoomId
+          const data = (await res.json().catch(() => null)) as { file?: HatchFile; error?: string } | null;
+          setDepartments((prev) =>
+            prev.map((dept) =>
+              dept.id === departmentId
                 ? {
-                    ...room,
-                    files: room.files.map((f) =>
-                      f.id === rec.id
-                        ? saved || {
-                            ...f,
-                            status: "failed",
-                            error: data?.error || "Upload failed.",
-                          }
-                        : f,
+                    ...dept,
+                    files: dept.files.map((f) =>
+                      f.id === rec.id ? data?.file || { ...f, status: "failed", error: data?.error || "Upload failed." } : f,
                     ),
                   }
-                : room,
+                : dept,
             ),
           );
         })
         .catch(() => {
-          setRooms((prev) =>
-            prev.map((room) => ({
-              ...room,
-              files: room.files.map((f) =>
-                f.id === rec.id
-                  ? { ...f, status: "failed", error: "Could not persist this file on the box." }
-                  : f,
+          setDepartments((prev) =>
+            prev.map((dept) => ({
+              ...dept,
+              files: dept.files.map((f) =>
+                f.id === rec.id ? { ...f, status: "failed", error: "Could not persist this file on the box." } : f,
               ),
             })),
           );
         });
     },
-    [currentRoomId],
+    [writeTarget, session],
   );
 
   const deleteFile = useCallback(
     (fileId: string) => {
-      setRooms((prev) =>
-        prev.map((room) =>
-          room.id === currentRoomId
-            ? { ...room, files: room.files.filter((f) => f.id !== fileId) }
-            : room,
-        ),
+      const file = currentFiles.find((f) => f.id === fileId);
+      const departmentId = file?.departmentId || writeTarget();
+      setDepartments((prev) =>
+        prev.map((dept) => ({ ...dept, files: dept.files.filter((f) => f.id !== fileId) })),
       );
       void fetch("/api/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", fileId, roomId: currentRoomId }),
+        body: JSON.stringify({ action: "delete", fileId, departmentId }),
       }).catch(() => undefined);
-      setToast("File and chunks removed from this room.");
+      setToast("File and chunks removed.");
     },
-    [currentRoomId],
+    [currentFiles, writeTarget],
+  );
+
+  const setInLibrary = useCallback(
+    (fileId: string, inLibrary: boolean) => {
+      setDepartments((prev) =>
+        prev.map((dept) => ({
+          ...dept,
+          files: dept.files.map((f) => (f.id === fileId ? { ...f, inLibrary } : f)),
+        })),
+      );
+      const file = currentFiles.find((f) => f.id === fileId);
+      void fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: inLibrary ? "promote" : "unlibrary",
+          fileId,
+          departmentId: file?.departmentId || writeTarget(),
+          inLibrary,
+        }),
+      }).catch(() => undefined);
+      setToast(inLibrary ? "Added to Library — Ask can cite this file." : "Removed from Library. File stays in Files.");
+    },
+    [currentFiles, writeTarget],
+  );
+
+  const importDrive = useCallback(
+    async (departmentId?: DepartmentId) => {
+      const target = writeTarget(departmentId);
+      try {
+        const res = await fetch("/api/drive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "import",
+            departmentId: target,
+            accessibleDepartments: session?.departments || [],
+          }),
+        });
+        const data = (await res.json()) as { error?: string; note?: string; files?: HatchFile[] };
+        if (data.files?.length) {
+          setDepartments((prev) =>
+            prev.map((dept) =>
+              dept.id === target
+                ? { ...dept, files: [...(data.files || []), ...dept.files.filter((f) => !data.files?.some((n) => n.id === f.id))] }
+                : dept,
+            ),
+          );
+        }
+        setToast(data.error || data.note || "Drive stub imported.");
+      } catch {
+        setToast("Drive import stub failed.");
+      }
+    },
+    [writeTarget, session],
+  );
+
+  const handoffToDepartment = useCallback(
+    async (toDepartmentId: DepartmentId, summary: string, facts?: string) => {
+      try {
+        const res = await fetch("/api/handoff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromDepartmentId: currentWorkspaceId,
+            toDepartmentId,
+            summary,
+            facts,
+          }),
+        });
+        const data = (await res.json()) as { handoff?: Handoff; event?: { detail?: string }; error?: string };
+        if (data.handoff) setHandoffs((prev) => [data.handoff!, ...prev]);
+        setToast(data.event?.detail || data.error || "Handoff recorded.");
+      } catch {
+        setToast("Handoff failed.");
+      }
+    },
+    [currentWorkspaceId],
+  );
+
+  const createFolder = useCallback(
+    (name: string) => {
+      const departmentId = writeTarget();
+      void fetch("/api/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "folder", departmentId, name }),
+      })
+        .then((r) => r.json())
+        .then((data: { folder?: FileFolder; error?: string }) => {
+          if (data.folder) setFolders((prev) => [...prev, data.folder!]);
+          setToast(data.error || `Folder “${name}” created in ${workspaceLabel(departmentId)}.`);
+        })
+        .catch(() => setToast("Could not create folder."));
+    },
+    [writeTarget],
   );
 
   const mintInvite = useCallback(() => {
@@ -402,7 +655,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: newId("seat"),
         name: "Pending invite",
         role: "Seat reserved",
+        departments: [],
         rooms: [],
+        enterprise: false,
+        homeDepartment: LITTLE_ELM,
         device: code,
         pending: true,
       },
@@ -416,40 +672,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setToast("Seat revoked. The next request from that device will die on this box.");
   }, []);
 
-  const grantRooms = useCallback((seatId: string, nextRooms: RoomId[]) => {
+  const grantDepartments = useCallback((seatId: string, nextDepartments: DepartmentId[], enterprise?: boolean) => {
     setSeats((prev) =>
-      prev.map((s) => (s.id === seatId ? { ...s, rooms: nextRooms } : s)),
+      prev.map((s) =>
+        s.id === seatId
+          ? {
+              ...s,
+              departments: nextDepartments,
+              rooms: nextDepartments,
+              enterprise: enterprise ?? s.enterprise,
+            }
+          : s,
+      ),
     );
-    setToast("Room grants updated. Permission is checked before retrieve.");
+    setToast("Department grants updated. UX spaces follow membership; Ask stays firm-capable.");
   }, []);
 
-  const createRoom = useCallback(() => {
-    const id = newId("room");
-    setRooms((prev) => [
+  const createDepartment = useCallback(() => {
+    const id = newId("dept");
+    setDepartments((prev) => [
       ...prev,
       {
         id,
-        name: "New room",
-        isolation: "This room is empty and isolated. It does not search Little Elm, Prosper, or HQ / Ops.",
+        name: "New department",
+        kind: "department",
+        isolation: uxIsolation(id),
         files: [],
       },
     ]);
-    setThreads((prev) => ({ ...prev, [id]: [] }));
     if (session) {
-      const nextRooms = [...session.rooms, id];
-      const next = { ...session, rooms: nextRooms };
+      const departmentsNext = [...session.departments, id];
+      const next = { ...session, departments: departmentsNext, rooms: departmentsNext };
       setSession(next);
-      writeSession({
-        deviceName: next.deviceName,
-        method: next.method,
-        role: next.role,
-        rooms: nextRooms,
-      });
+      writeSession(next);
     }
-    setCurrentRoomId(id);
-    writeRoom(id);
-    setToast("Empty room created. This room has no files and no threads.");
-  }, [session]);
+    setWorkspace(id);
+    setToast("Empty department created. Chat, Files, and Library start empty.");
+  }, [session, setWorkspace]);
 
   const startBackup = useCallback(() => {
     setToast("Backup is a stub. No appliance is connected — do not treat this as a live backup.");
@@ -467,68 +726,103 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       session,
-      currentRoomId,
-      rooms,
-      visibleRooms,
-      currentRoom,
+      currentWorkspaceId,
+      currentWorkspace,
+      isEnterpriseView,
+      departments,
+      visibleWorkspaces,
+      folders,
+      currentFiles,
+      currentLibrary,
       threads,
-      thread,
+      visibleThreads,
+      currentThreadId: currentThread?.id || currentThreadId,
+      currentThread,
       streaming,
       lastSources,
       lastUsedLibrary,
+      handoffs,
+      inboundHandoffs,
       seats,
       devices,
       toast,
       pairError,
       generatedInvite,
-      emptyRoomsDemo,
+      emptyDepartmentsDemo,
       emptySeatsDemo,
-      setRoom,
+      setWorkspace,
+      newThread,
+      selectThread,
+      renameThread,
+      archiveThread,
       pair,
       signOut,
       ask,
       ingest,
       deleteFile,
+      setInLibrary,
+      importDrive,
+      handoffToDepartment,
+      createFolder,
       mintInvite,
       revokeSeat,
-      grantRooms,
-      createRoom,
+      grantDepartments,
+      createDepartment,
       startBackup,
       importUpdate,
       resetTotp,
-      setEmptyRoomsDemo,
+      setEmptyDepartmentsDemo,
       setEmptySeatsDemo,
       clearToast: () => setToast(""),
+      currentRoomId: currentWorkspaceId,
+      currentRoom: currentWorkspace,
+      setRoom: setWorkspace,
     }),
     [
       ready,
       session,
-      currentRoomId,
-      rooms,
-      visibleRooms,
-      currentRoom,
+      currentWorkspaceId,
+      currentWorkspace,
+      isEnterpriseView,
+      departments,
+      visibleWorkspaces,
+      folders,
+      currentFiles,
+      currentLibrary,
       threads,
-      thread,
+      visibleThreads,
+      currentThreadId,
+      currentThread,
       streaming,
       lastSources,
       lastUsedLibrary,
+      handoffs,
+      inboundHandoffs,
       seats,
       devices,
       toast,
       pairError,
       generatedInvite,
-      emptyRoomsDemo,
+      emptyDepartmentsDemo,
       emptySeatsDemo,
-      setRoom,
+      setWorkspace,
+      newThread,
+      selectThread,
+      renameThread,
+      archiveThread,
       pair,
       signOut,
       ask,
       ingest,
       deleteFile,
+      setInLibrary,
+      importDrive,
+      handoffToDepartment,
+      createFolder,
       mintInvite,
       revokeSeat,
-      grantRooms,
-      createRoom,
+      grantDepartments,
+      createDepartment,
       startBackup,
       importUpdate,
       resetTotp,

@@ -1,18 +1,25 @@
-export function AskIcon() {
+export function ChatIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M5 12h9M12 6l6 6-6 6" />
+      <path d="M5 6.5h14v8.5a1.5 1.5 0 0 1-1.5 1.5H10l-4 3v-3H6.5A1.5 1.5 0 0 1 5 15V6.5z" />
+    </svg>
+  );
+}
+
+export function AskIcon() {
+  return <ChatIcon />;
+}
+
+export function FilesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 7.5h6l2 2h8v8.5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 18V8.5A1 1 0 0 1 4 7.5z" />
     </svg>
   );
 }
 
 export function RoomsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <rect x="4" y="5" width="7" height="14" rx="1.5" />
-      <rect x="13" y="5" width="7" height="8" rx="1.5" />
-    </svg>
-  );
+  return <FilesIcon />;
 }
 
 export function LibraryIcon() {
