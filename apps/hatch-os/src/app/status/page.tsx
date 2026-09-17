@@ -190,8 +190,8 @@ export default function StatusPage() {
             <h2>Connect a model</h2>
             <ol>
               <li>
-                RunPod: <code>https://api.runpod.ai/v2/&lt;ENDPOINT_ID&gt;/openai/v1</code>,{" "}
-                <code>qwen/qwen3.8-27b</code>, <code>HATCH_LLM_API_KEY</code>
+                RunPod A100 FP8: <code>https://api.runpod.ai/v2/diqb3ykkxo0i16/openai/v1</code>,{" "}
+                <code>Qwen/Qwen3.8-27B-FP8</code>, <code>HATCH_LLM_API_KEY</code>
               </li>
               <li>
                 Local fallback: <code>ollama serve</code> then{" "}

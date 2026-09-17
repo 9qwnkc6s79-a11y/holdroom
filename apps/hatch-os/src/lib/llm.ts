@@ -1,7 +1,9 @@
 /** 16 GB Mac / local Ollama fallback. */
 export const DEFAULT_MODEL = "qwen3:8b";
 /** RunPod Serverless Qwen3.8-27B (OpenAI chat.completions). */
-export const RUNPOD_MODEL = "qwen/qwen3.8-27b";
+/** RunPod A100 FP8 worker — lowercase qwen/qwen3.8-27b 500s on this endpoint. */
+export const RUNPOD_MODEL = "Qwen/Qwen3.8-27B-FP8";
+export const RUNPOD_ENDPOINT_ID = "diqb3ykkxo0i16";
 /** Appliance / Spark target name. */
 export const PREFERRED_MODEL = "qwen3.8";
 export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
@@ -106,7 +108,7 @@ export function connectHelp(probe: LlmProbe) {
     "No model is ready. This dry-run does not call a named public lab and will not invent an answer.",
     "",
     "Temporary remote — RunPod Serverless Qwen3.8-27B:",
-    "  HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/<ENDPOINT_ID>/openai/v1",
+    `  HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/openai/v1`,
     `  HATCH_LLM_MODEL=${RUNPOD_MODEL}`,
     "  HATCH_LLM_API_KEY=<RunPod API key>",
     "  HATCH_LLM_PROVIDER=openai-compatible",

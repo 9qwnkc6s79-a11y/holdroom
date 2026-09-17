@@ -9,7 +9,7 @@ Software dry-run. Appliance not connected.
 ```bash
 cd apps/hatch-os
 cp .env.local.example .env.local
-# Fill ENDPOINT_ID + HATCH_LLM_API_KEY (RunPod). Never commit the key.
+# Fill HATCH_LLM_API_KEY (RunPod). Never commit the key.
 
 # Fallback if RunPod is cold/down:
 ollama serve
@@ -21,11 +21,13 @@ npm i && npm run dev
 `.env.local`:
 
 ```
-HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/<ENDPOINT_ID>/openai/v1
-HATCH_LLM_MODEL=qwen/qwen3.8-27b
+HATCH_LLM_BASE_URL=https://api.runpod.ai/v2/diqb3ykkxo0i16/openai/v1
+HATCH_LLM_MODEL=Qwen/Qwen3.8-27B-FP8
 HATCH_LLM_API_KEY=
 HATCH_LLM_PROVIDER=openai-compatible
 ```
+
+A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint.
 
 Open http://127.0.0.1:3000
 
