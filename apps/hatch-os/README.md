@@ -27,6 +27,8 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
 If Ollama is down, Ask shows copy-paste install/pull commands and does **not** invent answers.
 
+First Ask can take a minute on CPU while `qwen3:8b` loads. Apple Silicon is usually a few seconds after that. Leave `ollama serve` running.
+
 See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md) for the later appliance swap.
 
 ## Pair (mock auth)

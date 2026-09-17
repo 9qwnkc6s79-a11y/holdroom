@@ -51,6 +51,8 @@ npm run dev
 
 Open http://127.0.0.1:3000 — pair with `BOUNDARIES` + any six digits.
 
+First Ask may take ~30–90s on CPU while the model loads into RAM. Keep `ollama serve` running.
+
 ## Appliance (later)
 
 Keep the Ask route and env names. Change only:

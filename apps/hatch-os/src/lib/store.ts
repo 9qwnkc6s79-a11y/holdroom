@@ -224,7 +224,7 @@ export function retrieve(roomId: RoomId, query: string, limit = 4): Source[] {
     .map(({ c }) => ({
       file: c.file,
       room,
-      snippet: c.text.slice(0, 280).trim(),
+      snippet: c.text.slice(0, 700).trim(),
     }));
 }
 
