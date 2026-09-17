@@ -88,18 +88,15 @@ export default function ChatPage() {
       <aside className="thread-rail" aria-label="Threads">
         <div className="thread-rail-head">
           <p className="screen-kicker">Threads</p>
-          <button className="btn btn-dark btn-tiny" type="button" onClick={() => void newThread()}>
+        </div>
+        <div className="thread-rail-actions">
+          <button className="btn btn-ghost btn-tiny" type="button" onClick={() => void newThread()}>
             New thread
           </button>
+          <button className="btn btn-ghost btn-tiny" type="button" onClick={() => setHandoffOpen((v) => !v)}>
+            Handoff
+          </button>
         </div>
-        <button
-          className="btn btn-ghost btn-tiny"
-          type="button"
-          style={{ marginBottom: 12 }}
-          onClick={() => setHandoffOpen((v) => !v)}
-        >
-          Handoff
-        </button>
         {!visibleThreads.length ? (
           <p className="fine">No threads yet. Send a message to start one.</p>
         ) : (
@@ -136,15 +133,12 @@ export default function ChatPage() {
       <div className="panel chat-panel">
         {!messages?.length ? (
           <div className="empty-ask">
-            <p className="screen-kicker">Chat · {currentWorkspace.name}</p>
-            <h1>{isEnterpriseView ? "Ask the firm." : `Ask from ${currentWorkspace.name}.`}</h1>
+            <h1>{isEnterpriseView ? "Ask the firm" : `Ask ${currentWorkspace.name}`}</h1>
             <p className="lede">
-              This workspace is UX context. Answers may use the firm-wide Library. Writes stay in
-              departments you can open{session ? ` (${session.departments.map(workspaceLabel).join(", ") || "none"})` : ""}.
+              Answers may use the firm-wide Library. Writes stay in departments you can open
+              {session ? ` (${session.departments.map(workspaceLabel).join(", ") || "none"})` : ""}.
             </p>
-            <div className="tip">
-              {currentWorkspace.isolation} Department Chat is not an LLM firewall.
-            </div>
+            <p className="fine empty-ask-note">Department Chat is not an LLM firewall.</p>
             {inboundHandoffs.length ? (
               <div className="card" style={{ marginTop: 16, textAlign: "left" }}>
                 <h2>Inbound handoffs</h2>

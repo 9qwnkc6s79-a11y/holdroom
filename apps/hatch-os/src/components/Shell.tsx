@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChatIcon, FilesIcon, LibraryIcon, MoreIcon } from "./Icons";
+import { ChatIcon, ChevronIcon, FilesIcon, LibraryIcon, MoreIcon } from "./Icons";
 import { useHatch } from "./AppProvider";
 
 const DESKTOP = [
@@ -48,7 +48,7 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentWorkspace, visibleWorkspaces, setWorkspace, isEnterpriseView } = useHatch();
+  const { currentWorkspace, visibleWorkspaces, setWorkspace } = useHatch();
   const [llmOk, setLlmOk] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,7 +96,7 @@ export function Shell({
         <div className="topbar-meta">
           <div className="workspace-switch" ref={menuRef}>
             <button
-              className={`room-chip${isEnterpriseView ? " is-enterprise" : ""}`}
+              className="workspace-trigger"
               type="button"
               title="Switch workspace"
               aria-haspopup="listbox"
@@ -104,6 +104,7 @@ export function Shell({
               onClick={() => setOpen((v) => !v)}
             >
               {currentWorkspace.name}
+              <ChevronIcon />
             </button>
             {open ? (
               <div className="workspace-menu" role="listbox" aria-label="Enterprise and departments">
