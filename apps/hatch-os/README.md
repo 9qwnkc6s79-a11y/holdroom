@@ -33,18 +33,18 @@ HATCH_LLM_PROVIDER=openai-compatible
 
 A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint.
 
-### Agentic (Hermes) — paste endpoint id
+### Agentic (Hermes)
 
 Ask stays on Qwen (`HATCH_LLM_*`). Chat tool loops use Hermes when these are set:
 
 ```
-HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/<HERMES_ENDPOINT>/openai/v1
+HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/gy5a9f9lpjz2y7/openai/v1
 HATCH_AGENT_LLM_MODEL=NousResearch/Hermes-4.3-36B
 HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>
 HATCH_AGENT_LLM_PROVIDER=openai-compatible
 ```
 
-Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id. If unset, agent turns fall back to `HATCH_LLM_*`.
+If unset, agent turns fall back to `HATCH_LLM_*`. RunPod / keyed remotes do **not** auto-hop to Ollama on timeout or HTTP errors. Point `HATCH_LLM_BASE_URL` at `http://127.0.0.1:11434` to use local as primary, or set `HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1` to opt in.
 
 Open http://127.0.0.1:3000
 
@@ -58,3 +58,25 @@ Open http://127.0.0.1:3000
 Fallback: comment the RunPod lines and use `http://127.0.0.1:11434` + `qwen3:8b`. Later: same env → appliance vLLM. See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
 
 Invite: `BOUNDARIES` / `HATCH-BETA` / `COFFEE` = all departments + Enterprise. `HATCH-ASSOC` = Little Elm only. Marketing site untouched. No Toast. No invented $.
+
+## Telegram dogfood (@Hatchboundariesbot)
+
+Phone front door while the OS UI is mid-build. Same Ask (Qwen) / agent (Hermes when tools) stack as Chat. Long-polls `getUpdates` on this Mac — no public webhook.
+
+1. In [BotFather](https://t.me/BotFather) copy the token for [@Hatchboundariesbot](https://t.me/Hatchboundariesbot).
+2. `cd apps/hatch-os` and `cp .env.local.example .env.local` if you have not already.
+3. Set `HATCH_TELEGRAM_BOT_TOKEN=` (required). Never commit it; the worker will not log it.
+4. Optional: `HATCH_TELEGRAM_ALLOWLIST=123456789` (Daniel’s Telegram user id). If empty, the first person who sends `/start` is locked and that id is stored in `data/telegram.json`.
+5. LLM env is the same as Chat (`HATCH_LLM_*` / `HATCH_AGENT_LLM_*`).
+6. Start the bridge (second terminal is fine if `npm run dev` is already up):
+
+```bash
+cd apps/hatch-os
+npm i
+npm run telegram
+# same as: npx tsx scripts/telegram-bridge.ts
+```
+
+7. On your phone: open https://t.me/Hatchboundariesbot → `/start` → ask like Chat (`How does loyalty work?`). `/help` lists commands. `/new` starts a fresh thread.
+
+The worker talks to the local store + LLM directly. `npm run dev` is optional (OS UI). First Ask can take 2–3 minutes (RunPod cold start). Typing shows while Hatch thinks. Long replies are chunked. Non-allowlisted users get a polite reject. Groups and voice notes are v0 non-goals.
