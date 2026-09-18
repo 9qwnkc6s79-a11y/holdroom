@@ -166,6 +166,13 @@ describe("chunkTelegramText", () => {
 });
 
 describe("formatTelegramReply", () => {
+  it("strips leaked think preamble from the Chat reply", () => {
+    const text = formatTelegramReply({
+      text: `Need a short greeting.\n</think>\n\nI'm here. What do you need?`,
+    });
+    assert.equal(text, "I'm here. What do you need?");
+  });
+
   it("appends sources and denied tools", () => {
     const text = formatTelegramReply({
       text: "TapMango or text COFFEE.",

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
+import { stripThinkBlocks } from "./think.ts";
 
 export const BOT_USERNAME = "Hatchboundariesbot";
 export const BOT_HANDLE = `@${BOT_USERNAME}`;
@@ -198,7 +199,7 @@ export function formatTelegramReply(result: {
   sources?: { file: string }[];
   tools?: { name: string; ok: boolean; detail: string }[];
 }): string {
-  const parts = [(result.text || "").trim() || "(empty reply)"];
+  const parts = [stripThinkBlocks(result.text || "").trim() || "(empty reply)"];
   const files = [...new Set((result.sources || []).map((s) => s.file).filter(Boolean))];
   if (files.length) parts.push(`Sources: ${files.join(", ")}`);
   const denied = (result.tools || []).filter((t) => !t.ok);

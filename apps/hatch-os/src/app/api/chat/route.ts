@@ -60,6 +60,7 @@ export async function POST(req: Request) {
           encoder.encode(
             `data: ${JSON.stringify({
               done: true,
+              text: result.text,
               sources: result.sources,
               tools: result.tools,
               threadId: result.threadId,

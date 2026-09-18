@@ -33,7 +33,7 @@ function sharedContext(input: PromptInput) {
       aclPreview(input.accessibleDepartments),
       "Do not call or pretend to call OpenAI, Anthropic, or any public lab.",
       "Do not invent prices or Toast numbers. DEMO files are labeled DEMO.",
-      "Do not use <think> tags. Answer directly in plain sentences.",
+      "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
       "Be concise. After the answer, mention the filename(s) you used in plain text if any.",
     ],
     corpus: [
@@ -61,7 +61,7 @@ export function buildAskMessages(input: PromptInput) {
 
   return [
     { role: "system" as const, content: system },
-    { role: "user" as const, content: `${input.query}\n/no_think` },
+    { role: "user" as const, content: input.query },
   ];
 }
 
@@ -83,6 +83,6 @@ export function buildAgentMessages(input: PromptInput) {
 
   return [
     { role: "system" as const, content: system },
-    { role: "user" as const, content: `${input.query}\n/no_think` },
+    { role: "user" as const, content: input.query },
   ];
 }

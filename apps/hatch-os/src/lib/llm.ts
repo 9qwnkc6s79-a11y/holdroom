@@ -1,4 +1,5 @@
 import type { ToolCall } from "./tool-parse";
+import { thinkingOffExtras, visibleStreamText } from "./think.ts";
 import type { OpenAiTool } from "./tools";
 
 /** 16 GB Mac / local Ollama fallback. */
@@ -493,6 +494,7 @@ export interface ChatMessage {
 
 export interface StreamLlmResult {
   toolCalls: ToolCall[];
+  text: string;
 }
 
 async function streamLane(
@@ -511,7 +513,8 @@ async function streamLane(
       continue;
     }
     try {
-      return await streamEndpoint(endpoint, messages, onDelta, tools);
+      const result = await streamEndpoint(endpoint, messages, onDelta, tools);
+      return { ...result, text: visibleStreamText(result.text, true) };
     } catch (err) {
       last = err instanceof Error ? err.message : "LLM failed";
     }
@@ -522,8 +525,8 @@ async function streamLane(
 export async function streamLlm(
   messages: ChatMessage[],
   onDelta: (text: string) => void,
-): Promise<void> {
-  await streamLane("ask", messages, onDelta);
+): Promise<StreamLlmResult> {
+  return streamLane("ask", messages, onDelta);
 }
 
 export async function streamAgentLlm(
@@ -550,7 +553,7 @@ async function streamEndpoint(
       messages,
       stream: true,
       temperature: 0.2,
-      ...(remote ? { max_tokens: 1024 } : { think: false }),
+      ...thinkingOffExtras(remote),
       ...(remote && tools?.length ? { tools, tool_choice: "auto" } : {}),
     }),
     signal: remote ? AbortSignal.timeout(REMOTE_CHAT_TIMEOUT_MS) : undefined,
@@ -562,8 +565,7 @@ async function streamEndpoint(
   });
 
   if (openai?.ok && openai.body) {
-    const toolCalls = await readOpenAiStream(openai.body, onDelta);
-    return { toolCalls };
+    return readOpenAiStream(openai.body, onDelta);
   }
 
   if (endpoint.kind === "ollama") {
@@ -579,8 +581,8 @@ async function streamEndpoint(
       }),
     }).catch(() => null);
     if (native?.ok && native.body) {
-      await readOllamaStream(native.body, onDelta);
-      return { toolCalls: [] };
+      const text = await readOllamaStream(native.body, onDelta);
+      return { toolCalls: [], text };
     }
     const status = native?.status || openai?.status || 0;
     throw new Error(status ? `Ollama HTTP ${status} at ${endpoint.host}` : `Ollama unreachable at ${endpoint.host}`);
@@ -595,10 +597,6 @@ async function streamEndpoint(
   throw new Error(`Remote ${endpoint.host} ${detail}`);
 }
 
-function stripThink(text: string) {
-  return text.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "");
-}
-
 function parseArgsObject(raw?: string): Record<string, unknown> {
   if (!raw) return {};
   try {
@@ -611,10 +609,16 @@ function parseArgsObject(raw?: string): Record<string, unknown> {
   }
 }
 
+function finishCalls(acc: { id?: string; name?: string; arguments?: string }[]): ToolCall[] {
+  return acc
+    .filter((a) => a.name)
+    .map((a) => ({ name: a.name as string, arguments: parseArgsObject(a.arguments) }));
+}
+
 async function readOpenAiStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (text: string) => void,
-): Promise<ToolCall[]> {
+): Promise<StreamLlmResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -632,17 +636,16 @@ async function readOpenAiStream(
       if (!trimmed.startsWith("data:")) continue;
       const data = trimmed.slice(5).trim();
       if (data === "[DONE]") {
-        const clean = stripThink(raw).slice(emitted);
-        if (clean) onDelta(clean);
-        return acc
-          .filter((a) => a.name)
-          .map((a) => ({ name: a.name as string, arguments: parseArgsObject(a.arguments) }));
+        const clean = visibleStreamText(raw, true);
+        if (clean.length > emitted) onDelta(clean.slice(emitted));
+        return { toolCalls: finishCalls(acc), text: clean };
       }
       try {
         const json = JSON.parse(data) as {
           choices?: {
             delta?: {
               content?: string;
+              reasoning_content?: string;
               tool_calls?: {
                 index?: number;
                 id?: string;
@@ -654,7 +657,7 @@ async function readOpenAiStream(
         const delta = json.choices?.[0]?.delta;
         if (delta?.content) {
           raw += delta.content;
-          const clean = stripThink(raw);
+          const clean = visibleStreamText(raw);
           if (clean.length > emitted) {
             onDelta(clean.slice(emitted));
             emitted = clean.length;
@@ -676,12 +679,12 @@ async function readOpenAiStream(
       }
     }
   }
-  return acc
-    .filter((a) => a.name)
-    .map((a) => ({ name: a.name as string, arguments: parseArgsObject(a.arguments) }));
+  const leftover = visibleStreamText(raw, true);
+  if (leftover.length > emitted) onDelta(leftover.slice(emitted));
+  return { toolCalls: finishCalls(acc), text: leftover };
 }
 
-async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void) {
+async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -699,7 +702,7 @@ async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text
         const json = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
         if (json.message?.content) {
           raw += json.message.content;
-          const clean = stripThink(raw);
+          const clean = visibleStreamText(raw);
           if (clean.length > emitted) {
             onDelta(clean.slice(emitted));
             emitted = clean.length;
@@ -710,4 +713,7 @@ async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text
       }
     }
   }
+  const leftover = visibleStreamText(raw, true);
+  if (leftover.length > emitted) onDelta(leftover.slice(emitted));
+  return leftover;
 }

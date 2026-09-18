@@ -4,6 +4,7 @@ import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
 import { buildAskMessages } from "./prompt";
 import { appendThreadMessages, createThread, fileListing, getThread, retrieveFirm } from "./store";
+import { stripThinkBlocks } from "./think.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
 import type { ChatAttachment, ChatMessage, Source, ToolEvent } from "./types";
 
@@ -104,15 +105,16 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         text += delta;
         hooks.onDelta?.(delta);
       });
-      text = result.text || text;
+      text = stripThinkBlocks(result.text || text);
       toolResults.splice(0, toolResults.length, ...result.tools);
       sources.splice(0, sources.length, ...result.sources);
     } else {
       const messages = buildAskMessages(promptInput);
-      await streamLlm(messages, (delta) => {
+      const streamed = await streamLlm(messages, (delta) => {
         text += delta;
         hooks.onDelta?.(delta);
       });
+      text = stripThinkBlocks(streamed.text || text);
       const call = parseToolTrailer(text);
       if (call) {
         const result = executeTool(call, {
@@ -123,7 +125,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         toolResults.push(result.event);
         if (result.sources?.length) sources.push(...result.sources);
       }
-      text = stripToolTrailer(text) || text;
+      text = stripThinkBlocks(stripToolTrailer(text) || text);
     }
     const final: ChatMessage = {
       ...assistantMsg,

@@ -1,5 +1,6 @@
 import { streamAgentLlm, type ChatMessage } from "./llm";
 import { buildAgentMessages, type PromptInput } from "./prompt";
+import { stripThinkBlocks } from "./think.ts";
 import {
   executeTool,
   openaiToolSchemas,
@@ -59,8 +60,9 @@ export async function runAgentLoop(
       },
       tools,
     );
-    const calls = mergeCalls(streamed.toolCalls, parseToolCalls(turnText));
-    const clean = stripToolMarkup(turnText);
+    const visibleTurn = stripThinkBlocks(streamed.text || turnText);
+    const calls = mergeCalls(streamed.toolCalls, parseToolCalls(visibleTurn));
+    const clean = stripThinkBlocks(stripToolMarkup(visibleTurn));
     if (clean) visible = visible ? `${visible}\n${clean}` : clean;
     if (!calls.length) break;
 
@@ -72,7 +74,7 @@ export async function runAgentLoop(
       if (result.extra) extras.push(`${call.name}: ${result.extra}`);
     }
 
-    messages.push({ role: "assistant", content: turnText });
+    messages.push({ role: "assistant", content: visibleTurn || turnText });
     messages.push({
       role: "user",
       content: [
@@ -85,7 +87,7 @@ export async function runAgentLoop(
   }
 
   return {
-    text: stripToolMarkup(visible) || visible,
+    text: stripThinkBlocks(stripToolMarkup(visible) || visible),
     tools: toolResults,
     sources,
   };
