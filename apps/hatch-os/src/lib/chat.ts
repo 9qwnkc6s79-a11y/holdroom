@@ -3,6 +3,7 @@ import { wantsAgentTurn } from "./agent-intent";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
 import { buildAskMessages } from "./prompt";
+import { windowThreadHistory } from "./thread-history.ts";
 import { appendThreadMessages, createThread, fileListing, getThread, retrieveFirm } from "./store";
 import { stripThinkBlocks } from "./think.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
@@ -68,6 +69,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
+  const history = windowThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
 
   const agentic = wantsAgentTurn(query, input.agent);
   const probe = agentic ? await probeAgentLlm() : await probeLlm();
@@ -96,6 +98,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     toolResults,
     extra,
     accessibleDepartments,
+    history,
   };
 
   let text = "";

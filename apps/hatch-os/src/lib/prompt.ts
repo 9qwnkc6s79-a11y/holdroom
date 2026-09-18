@@ -1,6 +1,15 @@
 import { workspaceLabel } from "./departments";
+import { interleaveHistory, type ThreadHistoryTurn } from "./thread-history.ts";
 import { aclPreview, TOOL_SCHEMAS } from "./tools";
 import type { Source, ToolEvent } from "./types";
+
+export {
+  HISTORY_MAX_CHARS,
+  HISTORY_MAX_MESSAGES,
+  interleaveHistory,
+  windowThreadHistory,
+  type ThreadHistoryTurn,
+} from "./thread-history.ts";
 
 export interface PromptInput {
   workspaceId: string;
@@ -10,6 +19,7 @@ export interface PromptInput {
   toolResults?: ToolEvent[];
   extra?: string[];
   accessibleDepartments: string[];
+  history?: ThreadHistoryTurn[];
 }
 
 function sharedContext(input: PromptInput) {
@@ -34,7 +44,8 @@ function sharedContext(input: PromptInput) {
       "Do not call or pretend to call OpenAI, Anthropic, or any public lab.",
       "Do not invent prices or Toast numbers. DEMO files are labeled DEMO.",
       "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
-      "Be concise. After the answer, mention the filename(s) you used in plain text if any.",
+      "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are café facts, not a substitute for thread memory.",
+      "Be concise. After the answer, mention the filename(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
     ],
     corpus: [
       "",
@@ -59,10 +70,7 @@ export function buildAskMessages(input: PromptInput) {
     .filter(Boolean)
     .join("\n");
 
-  return [
-    { role: "system" as const, content: system },
-    { role: "user" as const, content: input.query },
-  ];
+  return interleaveHistory(system, input.history, input.query);
 }
 
 export function buildAgentMessages(input: PromptInput) {
@@ -81,8 +89,5 @@ export function buildAgentMessages(input: PromptInput) {
     .filter(Boolean)
     .join("\n");
 
-  return [
-    { role: "system" as const, content: system },
-    { role: "user" as const, content: input.query },
-  ];
+  return interleaveHistory(system, input.history, input.query);
 }
