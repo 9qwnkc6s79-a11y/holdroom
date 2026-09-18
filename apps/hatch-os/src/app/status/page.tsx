@@ -225,8 +225,8 @@ export default function StatusPage() {
                 <code>Qwen/Qwen3.8-27B-FP8</code>, <code>HATCH_LLM_API_KEY</code>
               </li>
               <li>
-                Agent (Hermes): paste the RunPod id into{" "}
-                <code>HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/&lt;HERMES_ENDPOINT&gt;/openai/v1</code>,{" "}
+                Agent (Hermes):{" "}
+                <code>HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/gy5a9f9lpjz2y7/openai/v1</code>,{" "}
                 <code>NousResearch/Hermes-4.3-36B</code>
               </li>
               <li>

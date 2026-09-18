@@ -39,18 +39,18 @@ Same four vars → box vLLM OpenAI-compatible `/v1`. Preferred local-box model r
 
 Keep `HATCH_LLM_BASE_URL`, `HATCH_LLM_MODEL`, `HATCH_LLM_API_KEY`, `HATCH_LLM_PROVIDER`.
 
-## Agent / tools — Hermes (paste endpoint id)
+## Agent / tools — Hermes
 
 Chat tool loops (`/api/tools`, `write_draft`, tool-calling turns) use a second OpenAI-compatible client. Ask stays on Qwen (`HATCH_LLM_*`).
 
 ```
-HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/<HERMES_ENDPOINT>/openai/v1
+HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/gy5a9f9lpjz2y7/openai/v1
 HATCH_AGENT_LLM_MODEL=NousResearch/Hermes-4.3-36B
 HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>
 HATCH_AGENT_LLM_PROVIDER=openai-compatible
 ```
 
-Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id when Hermes is up. Prefer vLLM `--tool-call-parser hermes`. If these vars are unset, agent turns fall back to `HATCH_LLM_*`.
+Prefer vLLM `--tool-call-parser hermes`. If these vars are unset, agent turns fall back to `HATCH_LLM_*`. RunPod / keyed remotes do not auto-hop to Ollama on `/models` timeout or `chat.completions` HTTP errors unless `HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1`.
 
 Telegram dogfood (`npm run telegram`, [@Hatchboundariesbot](https://t.me/Hatchboundariesbot)) uses this same Ask / agent path. See `apps/hatch-os/README.md`.
 

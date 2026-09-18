@@ -33,18 +33,18 @@ HATCH_LLM_PROVIDER=openai-compatible
 
 A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint.
 
-### Agentic (Hermes) — paste endpoint id
+### Agentic (Hermes)
 
 Ask stays on Qwen (`HATCH_LLM_*`). Chat tool loops use Hermes when these are set:
 
 ```
-HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/<HERMES_ENDPOINT>/openai/v1
+HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/gy5a9f9lpjz2y7/openai/v1
 HATCH_AGENT_LLM_MODEL=NousResearch/Hermes-4.3-36B
 HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>
 HATCH_AGENT_LLM_PROVIDER=openai-compatible
 ```
 
-Replace `<HERMES_ENDPOINT>` with the RunPod Serverless endpoint id. If unset, agent turns fall back to `HATCH_LLM_*`.
+If unset, agent turns fall back to `HATCH_LLM_*`. RunPod / keyed remotes do **not** auto-hop to Ollama on timeout or HTTP errors. Point `HATCH_LLM_BASE_URL` at `http://127.0.0.1:11434` to use local as primary, or set `HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1` to opt in.
 
 Open http://127.0.0.1:3000
 

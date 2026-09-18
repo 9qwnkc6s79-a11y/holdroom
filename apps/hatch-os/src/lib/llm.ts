@@ -7,9 +7,11 @@ export const DEFAULT_MODEL = "qwen3:8b";
 /** RunPod A100 FP8 worker — lowercase qwen/qwen3.8-27b 500s on this endpoint. */
 export const RUNPOD_MODEL = "Qwen/Qwen3.8-27B-FP8";
 export const RUNPOD_ENDPOINT_ID = "diqb3ykkxo0i16";
-/** Hermes 4.3 36B — agent / tool loop. Paste the RunPod endpoint id in .env.local. */
+/** Hermes 4.3 36B — agent / tool loop. */
 export const HERMES_MODEL = "NousResearch/Hermes-4.3-36B";
-export const HERMES_ENDPOINT_PLACEHOLDER = "<HERMES_ENDPOINT>";
+export const HERMES_ENDPOINT_ID = "gy5a9f9lpjz2y7";
+/** @deprecated use HERMES_ENDPOINT_ID */
+export const HERMES_ENDPOINT_PLACEHOLDER = HERMES_ENDPOINT_ID;
 /** Appliance / Spark target name. */
 export const PREFERRED_MODEL = "qwen3.8";
 export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
@@ -130,14 +132,29 @@ export function agentLlmDedicated() {
   return Boolean(process.env.HATCH_AGENT_LLM_BASE_URL || process.env.HATCH_AGENT_LLM_MODEL);
 }
 
+/** Hermes RunPod id from env, else the dogfood endpoint. */
+export function hermesEndpointId(raw = process.env.HATCH_AGENT_LLM_BASE_URL): string {
+  const match = String(raw || "").match(/\/v2\/([^/]+)/);
+  if (match?.[1] && match[1] !== "<HERMES_ENDPOINT>") return match[1];
+  return HERMES_ENDPOINT_ID;
+}
+
+/** Auto-hop to local Ollama only when opted in. Remote + key (RunPod) never does this by default. */
+export function ollamaFallbackEnabled() {
+  return process.env.HATCH_LLM_ALLOW_OLLAMA_FALLBACK === "1";
+}
+
+function ollamaFallbackEndpoint(primary: LlmEndpoint, lane: LlmLane, keyEnv: string): LlmEndpoint | null {
+  if (!ollamaFallbackEnabled()) return null;
+  if (primary.kind === "ollama" || isLocalLlmUrl(primary.rawBase)) return null;
+  return buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible", lane, keyEnv);
+}
+
 export function llmConfig() {
   const raw = stripSlash(process.env.HATCH_LLM_BASE_URL || LOCAL_OLLAMA);
   const ask = askDefaults(raw);
   const primary = buildEndpoint(ask.raw, ask.model, ask.apiKey, ask.provider, "ask", "HATCH_LLM_API_KEY");
-  const fallback =
-    primary.kind === "remote"
-      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible", "ask", "HATCH_LLM_API_KEY")
-      : null;
+  const fallback = ollamaFallbackEndpoint(primary, "ask", "HATCH_LLM_API_KEY");
   return { primary, fallback, provider: ask.provider };
 }
 
@@ -157,10 +174,7 @@ export function agentLlmConfig() {
       ? "HATCH_AGENT_LLM_API_KEY (or HATCH_LLM_API_KEY)"
       : "HATCH_LLM_API_KEY";
   const primary = buildEndpoint(raw, model, apiKey, provider, "agent", keyEnv, dedicated);
-  const fallback =
-    primary.kind === "remote"
-      ? buildEndpoint(LOCAL_OLLAMA, DEFAULT_MODEL, "", "openai-compatible", "agent", keyEnv)
-      : null;
+  const fallback = ollamaFallbackEndpoint(primary, "agent", keyEnv);
   return { primary, fallback, provider, dedicated, usingAskFallback: !dedicated };
 }
 
@@ -176,8 +190,8 @@ export function connectHelp(probe: LlmProbe) {
     "  HATCH_LLM_API_KEY=<RunPod API key>",
     "  HATCH_LLM_PROVIDER=openai-compatible",
     "",
-    "Agent / tools — RunPod Hermes 4.3 36B (paste the endpoint id):",
-    `  HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/${HERMES_ENDPOINT_PLACEHOLDER}/openai/v1`,
+    "Agent / tools — RunPod Hermes 4.3 36B:",
+    `  HATCH_AGENT_LLM_BASE_URL=https://api.runpod.ai/v2/${hermesEndpointId()}/openai/v1`,
     `  HATCH_AGENT_LLM_MODEL=${HERMES_MODEL}`,
     "  HATCH_AGENT_LLM_API_KEY=<same RunPod key or dedicated>",
     "  HATCH_AGENT_LLM_PROVIDER=openai-compatible",
@@ -187,6 +201,7 @@ export function connectHelp(probe: LlmProbe) {
     `  2. ollama pull ${DEFAULT_MODEL}`,
     "  3. HATCH_LLM_BASE_URL=http://127.0.0.1:11434",
     `  4. HATCH_LLM_MODEL=${DEFAULT_MODEL}`,
+    "  RunPod / keyed remotes do not auto-hop to Ollama (set HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1 to opt in).",
     "",
     `Ask now: ${primary.kind} · ${primary.host} · model ${primary.model}.`,
     agent.dedicated
@@ -402,6 +417,22 @@ async function probeEndpoint(endpoint: LlmEndpoint, fallback = false): Promise<L
 
 const resolved: Record<LlmLane, LlmEndpoint | null> = { ask: null, agent: null };
 
+export function resetLlmLaneCache() {
+  resolved.ask = null;
+  resolved.agent = null;
+}
+
+export function endpointsToTry(
+  cfg: { primary: LlmEndpoint; fallback: LlmEndpoint | null },
+  cached: LlmEndpoint | null = null,
+): LlmEndpoint[] {
+  if (cfg.fallback) {
+    if (cached?.rawBase === cfg.fallback.rawBase) return [cfg.fallback];
+    return [cfg.primary, cfg.fallback];
+  }
+  return [cfg.primary];
+}
+
 async function probeLane(lane: LlmLane): Promise<LlmProbe> {
   const cfg = lane === "agent" ? agentLlmConfig() : llmConfig();
   const first = await probeEndpoint(cfg.primary);
@@ -471,17 +502,7 @@ async function streamLane(
   tools?: OpenAiTool[],
 ): Promise<StreamLlmResult> {
   const cfg = lane === "agent" ? agentLlmConfig() : llmConfig();
-  const cached = resolved[lane];
-  const order =
-    isRunpodUrl(cfg.primary.rawBase) && cfg.primary.apiKey
-      ? cfg.fallback
-        ? [cfg.primary, cfg.fallback]
-        : [cfg.primary]
-      : cached
-        ? [cached]
-        : cfg.fallback
-          ? [cfg.primary, cfg.fallback]
-          : [cfg.primary];
+  const order = endpointsToTry(cfg, resolved[lane]);
 
   let last = "LLM unreachable";
   for (const endpoint of order) {
