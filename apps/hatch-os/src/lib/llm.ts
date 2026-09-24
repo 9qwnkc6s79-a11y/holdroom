@@ -16,7 +16,8 @@ export const HERMES_ENDPOINT_PLACEHOLDER = HERMES_ENDPOINT_ID;
 /** Appliance / Spark target name. */
 export const PREFERRED_MODEL = "qwen3.8";
 export const LOCAL_OLLAMA = "http://127.0.0.1:11434";
-export const REMOTE_CHAT_TIMEOUT_MS = 180_000;
+/** Shared Ask + Agent remote wait. Hermes/Ask RunPod cold starts can exceed 3 minutes under queue. */
+export const REMOTE_CHAT_TIMEOUT_MS = 300_000;
 
 export type LlmLane = "ask" | "agent";
 
@@ -342,7 +343,7 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
         connected: true,
         reachable: true,
         modelPulled: true,
-        error: `RunPod /models timed out — ${endpoint.lane === "agent" ? "Agent" : "Ask"} will still try chat.completions (cold start up to 3 min).`,
+        error: `RunPod /models timed out — ${endpoint.lane === "agent" ? "Agent" : "Ask"} will still try chat.completions (cold start up to ${REMOTE_CHAT_TIMEOUT_MS / 60_000} min).`,
       };
     }
     return {

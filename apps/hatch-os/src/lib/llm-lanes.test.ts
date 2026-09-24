@@ -10,6 +10,7 @@ import {
   hermesEndpointId,
   llmConfig,
   probeLlm,
+  REMOTE_CHAT_TIMEOUT_MS,
   resetLlmLaneCache,
   RUNPOD_MODEL,
   streamAgentLlm,
@@ -158,6 +159,33 @@ describe("Ollama fallback is opt-in", () => {
           assert.ok(err instanceof Error);
           assert.equal(/Ollama HTTP 404/i.test(err.message), false);
           assert.match(err.message, /Remote/);
+          return true;
+        },
+      );
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+});
+
+describe("REMOTE_CHAT_TIMEOUT_MS", () => {
+  it("waits 5 minutes and timeout errors mention cold start with matching seconds", async () => {
+    assert.equal(REMOTE_CHAT_TIMEOUT_MS, 300_000);
+    runpodAskEnv();
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      const err = new Error("The operation was aborted due to timeout");
+      err.name = "TimeoutError";
+      throw err;
+    }) as typeof fetch;
+    try {
+      await assert.rejects(
+        () => streamLlm([{ role: "user", content: "Hello" }], () => {}),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /cold start/);
+          assert.match(err.message, new RegExp(`${REMOTE_CHAT_TIMEOUT_MS / 1000}s`));
+          assert.equal(err.message.includes("180s"), false);
           return true;
         },
       );
