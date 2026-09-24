@@ -476,6 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const payload = JSON.parse(line) as {
               delta?: string;
               done?: boolean;
+              text?: string;
               sources?: Source[];
               tools?: ToolEvent[];
               title?: string;
@@ -491,6 +492,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               );
             }
             if (payload.done) {
+              if (typeof payload.text === "string") text = payload.text;
               sources = payload.sources || [];
               tools = payload.tools || [];
               if (payload.title) {

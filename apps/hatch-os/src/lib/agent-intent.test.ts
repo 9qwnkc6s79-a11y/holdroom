@@ -8,6 +8,9 @@ describe("looksAgenticQuery", () => {
     assert.equal(looksAgenticQuery("List files in HQ Ops."), true);
     assert.equal(looksAgenticQuery("Please write_draft for prosper"), true);
     assert.equal(looksAgenticQuery("handoff this to HQ Ops"), true);
+    assert.equal(looksAgenticQuery("use tools to find the catering protocol"), true);
+    assert.equal(looksAgenticQuery("search the library for loyalty"), true);
+    assert.equal(looksAgenticQuery("read file DEMO_loyalty.md"), true);
   });
 
   it("keeps plain Ask questions on Qwen", () => {

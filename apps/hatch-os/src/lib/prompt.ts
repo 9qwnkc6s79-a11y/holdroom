@@ -1,6 +1,16 @@
 import { workspaceLabel } from "./departments";
+import { interleaveHistory, type ThreadHistoryTurn } from "./thread-history.ts";
 import { aclPreview, TOOL_SCHEMAS } from "./tools";
 import type { Source, ToolEvent } from "./types";
+
+export {
+  HISTORY_MAX_CHARS,
+  HISTORY_MAX_MESSAGES,
+  inspectThreadHistory,
+  interleaveHistory,
+  windowThreadHistory,
+  type ThreadHistoryTurn,
+} from "./thread-history.ts";
 
 export interface PromptInput {
   workspaceId: string;
@@ -10,6 +20,8 @@ export interface PromptInput {
   toolResults?: ToolEvent[];
   extra?: string[];
   accessibleDepartments: string[];
+  history?: ThreadHistoryTurn[];
+  defaultDepartmentId?: string;
 }
 
 function sharedContext(input: PromptInput) {
@@ -33,8 +45,9 @@ function sharedContext(input: PromptInput) {
       aclPreview(input.accessibleDepartments),
       "Do not call or pretend to call OpenAI, Anthropic, or any public lab.",
       "Do not invent prices or Toast numbers. DEMO files are labeled DEMO.",
-      "Do not use <think> tags. Answer directly in plain sentences.",
-      "Be concise. After the answer, mention the filename(s) you used in plain text if any.",
+      "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
+      "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are café facts, not a substitute for thread memory.",
+      "Be concise. After the answer, mention the filename(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
     ],
     corpus: [
       "",
@@ -59,10 +72,7 @@ export function buildAskMessages(input: PromptInput) {
     .filter(Boolean)
     .join("\n");
 
-  return [
-    { role: "system" as const, content: system },
-    { role: "user" as const, content: `${input.query}\n/no_think` },
-  ];
+  return interleaveHistory(system, input.history, input.query);
 }
 
 export function buildAgentMessages(input: PromptInput) {
@@ -71,18 +81,19 @@ export function buildAgentMessages(input: PromptInput) {
   const system = [
     ...ctx.firmRules,
     "This is an agent turn. Use tools when you need to search, read, write a draft, or hand off.",
+    "If the user asks to draft, write, create, or save a note/file/memo, you MUST call write_draft. Do not leave the note as prose only.",
+    input.defaultDepartmentId
+      ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names Little Elm, Prosper, or HQ Ops. Enterprise is not a write target.`
+      : "write_draft requires little-elm, prosper, or hq-ops — never enterprise.",
     "Prefer native tool calls (OpenAI tools / Hermes <tool_call>). Fallback trailer if tools are unavailable:",
     tools,
     'TOOL {"name":"write_draft","arguments":{"departmentId":"little-elm","filename":"notes.md","text":"..."}}',
     'TOOL {"name":"handoff_to_department","arguments":{"toDepartmentId":"hq-ops","summary":"...","facts":"..."}}',
-    "If no action is needed, answer in prose and do not emit a TOOL line.",
+    "If no file or search action is needed, answer in prose and do not emit a TOOL line.",
     ...ctx.corpus,
   ]
     .filter(Boolean)
     .join("\n");
 
-  return [
-    { role: "system" as const, content: system },
-    { role: "user" as const, content: `${input.query}\n/no_think` },
-  ];
+  return interleaveHistory(system, input.history, input.query);
 }
