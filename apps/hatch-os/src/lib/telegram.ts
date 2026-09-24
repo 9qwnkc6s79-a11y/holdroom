@@ -1,5 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import path from "path";
+import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
+import { parseMentionedDepartment } from "./agent-draft.ts";
+import { DEPARTMENT_IDS, LITTLE_ELM, migrateWorkspaceId, workspaceLabel } from "./departments.ts";
+import { connectHelp } from "./llm.ts";
 import { stripThinkBlocks } from "./think.ts";
 
 export const BOT_USERNAME = "Hatchboundariesbot";
@@ -9,6 +13,10 @@ export const BOT_URL = `https://t.me/${BOT_USERNAME}`;
 export const TELEGRAM_TEXT_LIMIT = 4096;
 export const TELEGRAM_CHUNK = 3900;
 export const TELEGRAM_TYPING_MS = 4000;
+export const TELEGRAM_WORKING_MS = 8000;
+export const TELEGRAM_POLL_BACKOFF_MS = 2000;
+export const TELEGRAM_CONFLICT_BACKOFF_MS_MIN = 10_000;
+export const TELEGRAM_CONFLICT_BACKOFF_MS_MAX = 30_000;
 
 export const WELCOME_TEXT = `Hatch OS — Boundaries dogfood.
 
@@ -25,8 +33,23 @@ export const HELP_TEXT = `Hatch Telegram (${BOT_HANDLE})
 /start — welcome and BOUNDARIES pair hint
 /help — this list
 /new — start a fresh Chat thread
+/ask — sticky Ask (Qwen). /ask <text> is one-shot Ask
+/agent — sticky Agent (Hermes + tools). /agent <text> is one-shot Agent
+/auto — heuristic (default)
+/dept — show or set sticky write department (little-elm, prosper, hq-ops)
 
-Text goes to Hatch Ask (Qwen) or the agent loop (Hermes when tools). Voice notes and group chats are not on yet.`;
+Auto routes to Agent for: draft/write/save a note, use tools, search the library, read file, list files, handoff, or snake_case tool names. Plain chat stays on Ask.
+
+Enterprise is a view — drafts write via write_draft to the sticky department (default Little Elm unless you /dept or name a store). Voice notes and group chats are not on yet.`;
+
+export const ASK_MODE_TEXT = "Ask mode on (Qwen). /agent or /auto to change.";
+export const AGENT_MODE_TEXT = "Agent mode on (Hermes + tools). /ask or /auto to change.";
+export const AUTO_MODE_TEXT = "Auto mode on — Ask for chat, Agent for drafts / tools / library search.";
+export const DEPT_HELP_TEXT = "Write department: /dept little-elm | prosper | hq-ops";
+export const WORKING_ASK = "Working (Ask)…";
+export const WORKING_AGENT = "Working (Agent)…";
+export const HISTORY_WINDOW_NOTICE =
+  "Older turns in this thread are outside the model window (last 12 messages / ~8k chars). /new starts a fresh thread.";
 
 export const REJECT_TEXT = "This Hatch bot is locked to an allowlisted phone. Ask Daniel if you need access.";
 
@@ -39,13 +62,30 @@ export const TEXT_ONLY_TEXT = "Hatch v0 reads text only. Voice notes are not on 
 
 export const NEW_THREAD_TEXT = "New thread started. Send a question.";
 
+export type TelegramLane = "ask" | "agent" | "auto";
+
 export interface TelegramStore {
   lockedUserId: string | null;
   lastUpdateId: number;
   threads: Record<string, string>;
+  modes: Record<string, TelegramLane>;
+  defaultDepartments: Record<string, string>;
+  historyNoticeShown: Record<string, boolean>;
 }
 
-const EMPTY_STORE: TelegramStore = { lockedUserId: null, lastUpdateId: 0, threads: {} };
+const EMPTY_STORE: TelegramStore = {
+  lockedUserId: null,
+  lastUpdateId: 0,
+  threads: {},
+  modes: {},
+  defaultDepartments: {},
+  historyNoticeShown: {},
+};
+
+function emptyMaps(raw: Partial<TelegramStore> | undefined, key: "threads" | "modes" | "defaultDepartments" | "historyNoticeShown") {
+  const value = raw?.[key];
+  return value && typeof value === "object" ? { ...value } : {};
+}
 
 export function telegramStoreFile(cwd = process.cwd()) {
   return process.env.HATCH_TELEGRAM_STORE || path.join(cwd, "data", "telegram.json");
@@ -53,46 +93,88 @@ export function telegramStoreFile(cwd = process.cwd()) {
 
 export function readTelegramStore(file = telegramStoreFile()): TelegramStore {
   try {
-    if (!existsSync(file)) return { ...EMPTY_STORE, threads: {} };
+    if (!existsSync(file)) return { ...EMPTY_STORE, threads: {}, modes: {}, defaultDepartments: {}, historyNoticeShown: {} };
     const raw = JSON.parse(readFileSync(file, "utf8")) as Partial<TelegramStore>;
     return {
       lockedUserId: raw.lockedUserId != null && raw.lockedUserId !== "" ? String(raw.lockedUserId) : null,
       lastUpdateId: Number(raw.lastUpdateId) || 0,
-      threads: raw.threads && typeof raw.threads === "object" ? { ...raw.threads } : {},
+      threads: emptyMaps(raw, "threads") as Record<string, string>,
+      modes: emptyMaps(raw, "modes") as Record<string, TelegramLane>,
+      defaultDepartments: emptyMaps(raw, "defaultDepartments") as Record<string, string>,
+      historyNoticeShown: emptyMaps(raw, "historyNoticeShown") as Record<string, boolean>,
     };
   } catch {
-    return { ...EMPTY_STORE, threads: {} };
+    return { ...EMPTY_STORE, threads: {}, modes: {}, defaultDepartments: {}, historyNoticeShown: {} };
   }
 }
 
 export function writeTelegramStore(store: TelegramStore, file = telegramStoreFile()) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(store, null, 2)}\n`);
+  withFileLock(file, () => {
+    mkdirSync(path.dirname(file), { recursive: true });
+    atomicWriteFile(file, `${JSON.stringify(store, null, 2)}\n`);
+  });
+}
+
+function updateTelegramStore(mutator: (store: TelegramStore) => void, file = telegramStoreFile()): TelegramStore {
+  return withFileLock(file, () => {
+    const store = readTelegramStore(file);
+    mutator(store);
+    mkdirSync(path.dirname(file), { recursive: true });
+    atomicWriteFile(file, `${JSON.stringify(store, null, 2)}\n`);
+    return store;
+  });
 }
 
 export function lockTelegramUser(userId: string, file = telegramStoreFile()) {
-  const store = readTelegramStore(file);
-  if (!store.lockedUserId) {
-    store.lockedUserId = String(userId);
-    writeTelegramStore(store, file);
-  }
-  return store;
+  return updateTelegramStore((store) => {
+    if (!store.lockedUserId) store.lockedUserId = String(userId);
+  }, file);
 }
 
 export function rememberTelegramThread(userId: string, threadId: string, file = telegramStoreFile()) {
-  const store = readTelegramStore(file);
-  store.threads[String(userId)] = threadId;
-  writeTelegramStore(store, file);
-  return store;
+  return updateTelegramStore((store) => {
+    store.threads[String(userId)] = threadId;
+  }, file);
 }
 
 export function rememberTelegramOffset(updateId: number, file = telegramStoreFile()) {
-  const store = readTelegramStore(file);
-  if (updateId > store.lastUpdateId) {
-    store.lastUpdateId = updateId;
-    writeTelegramStore(store, file);
-  }
-  return store;
+  return updateTelegramStore((store) => {
+    if (updateId > store.lastUpdateId) store.lastUpdateId = updateId;
+  }, file);
+}
+
+export function setTelegramMode(userId: string, mode: TelegramLane, file = telegramStoreFile()) {
+  return updateTelegramStore((store) => {
+    store.modes[String(userId)] = mode;
+  }, file);
+}
+
+export function setTelegramDepartment(userId: string, departmentId: string, file = telegramStoreFile()) {
+  return updateTelegramStore((store) => {
+    store.defaultDepartments[String(userId)] = departmentId;
+  }, file);
+}
+
+export function markTelegramHistoryNotice(userId: string, file = telegramStoreFile()) {
+  return updateTelegramStore((store) => {
+    store.historyNoticeShown[String(userId)] = true;
+  }, file);
+}
+
+export function clearTelegramHistoryNotice(userId: string, file = telegramStoreFile()) {
+  return updateTelegramStore((store) => {
+    delete store.historyNoticeShown[String(userId)];
+  }, file);
+}
+
+export function telegramDefaultDepartment(storeDept?: string | null): string {
+  const raw = (storeDept || process.env.HATCH_TELEGRAM_DEFAULT_DEPT || LITTLE_ELM).trim().toLowerCase();
+  const id = migrateWorkspaceId(raw);
+  return (DEPARTMENT_IDS as readonly string[]).includes(id) ? id : LITTLE_ELM;
+}
+
+export function telegramLaneForUser(store: TelegramStore, userId: string): TelegramLane {
+  return store.modes[String(userId)] || "auto";
 }
 
 export function parseTelegramAllowlist(raw: string | undefined | null): string[] {
@@ -105,6 +187,79 @@ export function parseTelegramAllowlist(raw: string | undefined | null): string[]
 export function parseTelegramCommand(text: string): string | null {
   const match = text.trim().match(/^\/([a-zA-Z0-9_]+)(?:@[\w]+)?(?:\s|$)/);
   return match ? match[1].toLowerCase() : null;
+}
+
+export function telegramCommandRest(text: string): string {
+  return text.trim().replace(/^\/[a-zA-Z0-9_]+(?:@[\w]+)?\s*/, "").trim();
+}
+
+export function isTelegramConflict(error: string): boolean {
+  return /conflict|terminated by other getUpdates/i.test(error);
+}
+
+export function telegramPollBackoffMs(error: string, random = Math.random): number {
+  if (!isTelegramConflict(error)) return TELEGRAM_POLL_BACKOFF_MS;
+  const span = TELEGRAM_CONFLICT_BACKOFF_MS_MAX - TELEGRAM_CONFLICT_BACKOFF_MS_MIN;
+  return TELEGRAM_CONFLICT_BACKOFF_MS_MIN + Math.floor(random() * (span + 1));
+}
+
+export function telegramPidfile(cwd = process.cwd()) {
+  return process.env.HATCH_TELEGRAM_PIDFILE || path.join(cwd, "data", "telegram.pid");
+}
+
+function pidIsAlive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function claimTelegramPidfile(
+  file = telegramPidfile(),
+  pid = process.pid,
+): { ok: true } | { ok: false; reason: string } {
+  mkdirSync(path.dirname(file), { recursive: true });
+  if (existsSync(file)) {
+    const existing = Number(readFileSync(file, "utf8").trim());
+    if (existing && existing !== pid && pidIsAlive(existing)) {
+      return {
+        ok: false,
+        reason: `Telegram bridge already running (pid ${existing}). Stop it or wait — overlapping getUpdates causes Conflict.`,
+      };
+    }
+  }
+  writeFileSync(file, `${pid}\n`);
+  return { ok: true };
+}
+
+export function releaseTelegramPidfile(file = telegramPidfile(), pid = process.pid) {
+  try {
+    if (existsSync(file) && Number(readFileSync(file, "utf8").trim()) === pid) unlinkSync(file);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function formatTelegramFailure(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "Hatch failed";
+  if (/No model is ready/i.test(msg)) return msg;
+  return `${msg}\n\n${connectHelp({
+    connected: false,
+    reachable: false,
+    modelPulled: false,
+    model: "",
+    preferredModel: "",
+    baseUrl: "",
+    host: "",
+    kind: "remote",
+    provider: "openai-compatible",
+    hasKey: false,
+    fallback: false,
+    models: [],
+    error: msg,
+  })}`;
 }
 
 export type TelegramGateAction = "allow" | "reject" | "need-start" | "lock-and-allow";
@@ -135,12 +290,19 @@ export interface IncomingTelegram {
 
 export type TelegramPlan =
   | { type: "ignore" }
-  | { type: "reply"; text: string; lock?: boolean; resetThread?: boolean }
-  | { type: "chat"; query: string };
+  | {
+      type: "reply";
+      text: string;
+      lock?: boolean;
+      resetThread?: boolean;
+      setMode?: TelegramLane;
+      setDepartment?: string;
+    }
+  | { type: "chat"; query: string; agent?: boolean };
 
 export function planTelegramMessage(
   incoming: IncomingTelegram,
-  ctx: { envAllowlist: string[]; lockedUserId: string | null },
+  ctx: { envAllowlist: string[]; lockedUserId: string | null; defaultDepartmentId?: string },
 ): TelegramPlan {
   if (incoming.chatType && incoming.chatType !== "private") {
     return { type: "reply", text: GROUP_TEXT };
@@ -170,6 +332,31 @@ export function planTelegramMessage(
   }
   if (command === "help") return { type: "reply", text: HELP_TEXT };
   if (command === "new") return { type: "reply", text: NEW_THREAD_TEXT, resetThread: true };
+  if (command === "ask" || command === "agent" || command === "auto") {
+    const rest = telegramCommandRest(incoming.text);
+    if (rest && command !== "auto") {
+      return { type: "chat", query: rest, agent: command === "agent" };
+    }
+    const text = command === "ask" ? ASK_MODE_TEXT : command === "agent" ? AGENT_MODE_TEXT : AUTO_MODE_TEXT;
+    return { type: "reply", text, setMode: command };
+  }
+  if (command === "dept") {
+    const rest = telegramCommandRest(incoming.text);
+    if (!rest) {
+      const current = telegramDefaultDepartment(ctx.defaultDepartmentId);
+      return {
+        type: "reply",
+        text: `Write department: ${workspaceLabel(current)} (${current}). ${DEPT_HELP_TEXT}`,
+      };
+    }
+    const parsed = parseMentionedDepartment(rest);
+    if (!parsed) return { type: "reply", text: DEPT_HELP_TEXT };
+    return {
+      type: "reply",
+      text: `Write department set to ${workspaceLabel(parsed)}. Drafts use write_draft here unless you name another store.`,
+      setDepartment: parsed,
+    };
+  }
   if (command) return { type: "reply", text: HELP_TEXT };
 
   return { type: "chat", query: incoming.text.trim() };
@@ -198,14 +385,18 @@ export function formatTelegramReply(result: {
   text: string;
   sources?: { file: string }[];
   tools?: { name: string; ok: boolean; detail: string }[];
+  historyDropped?: boolean;
 }): string {
   const parts = [stripThinkBlocks(result.text || "").trim() || "(empty reply)"];
   const files = [...new Set((result.sources || []).map((s) => s.file).filter(Boolean))];
   if (files.length) parts.push(`Sources: ${files.join(", ")}`);
+  const wrote = (result.tools || []).filter((t) => t.ok && t.name === "write_draft");
+  if (wrote.length) parts.push(wrote.map((t) => t.detail).join("\n"));
   const denied = (result.tools || []).filter((t) => !t.ok);
   if (denied.length) {
     parts.push(denied.map((t) => `${t.name} denied — ${t.detail}`).join("\n"));
   }
+  if (result.historyDropped) parts.push(HISTORY_WINDOW_NOTICE);
   return parts.join("\n\n");
 }
 

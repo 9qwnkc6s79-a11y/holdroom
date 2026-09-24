@@ -1,3 +1,4 @@
+import { DRAFT_NUDGE, finishSoftDraft, shouldNudgeSoftDraft } from "./agent-draft.ts";
 import { streamAgentLlm, type ChatMessage } from "./llm";
 import { buildAgentMessages, type PromptInput } from "./prompt";
 import { stripThinkBlocks } from "./think.ts";
@@ -17,6 +18,7 @@ export interface AgentLoopInput extends PromptInput {
   workspaceId: string;
   accessibleDepartments: string[];
   enterprise?: boolean;
+  defaultDepartmentId?: string;
 }
 
 export interface AgentLoopResult {
@@ -43,6 +45,7 @@ export async function runAgentLoop(
     workspaceId: input.workspaceId,
     accessibleDepartments: input.accessibleDepartments,
     enterprise: input.enterprise,
+    defaultDepartmentId: input.defaultDepartmentId,
   };
   const messages: ChatMessage[] = buildAgentMessages(input);
   const sources = [...input.sources];
@@ -64,7 +67,14 @@ export async function runAgentLoop(
     const calls = mergeCalls(streamed.toolCalls, parseToolCalls(visibleTurn));
     const clean = stripThinkBlocks(stripToolMarkup(visibleTurn));
     if (clean) visible = visible ? `${visible}\n${clean}` : clean;
-    if (!calls.length) break;
+    if (!calls.length) {
+      if (shouldNudgeSoftDraft(turn, input.query, toolResults)) {
+        messages.push({ role: "assistant", content: visibleTurn || turnText || "(no tool)" });
+        messages.push({ role: "user", content: DRAFT_NUDGE });
+        continue;
+      }
+      break;
+    }
 
     const extras: string[] = [];
     for (const call of calls) {
@@ -86,8 +96,21 @@ export async function runAgentLoop(
     });
   }
 
-  return {
+  const finished = finishSoftDraft({
+    query: input.query,
     text: stripThinkBlocks(stripToolMarkup(visible) || visible),
+    tools: toolResults,
+    defaultDepartmentId: input.defaultDepartmentId,
+  });
+  if (finished.toolCall) {
+    const result = executeTool(finished.toolCall, ctx);
+    toolResults.push(result.event);
+    if (result.sources?.length) sources.push(...result.sources);
+  }
+  const text = [finished.text, finished.notice].filter(Boolean).join("\n\n");
+
+  return {
+    text: stripThinkBlocks(text),
     tools: toolResults,
     sources,
   };

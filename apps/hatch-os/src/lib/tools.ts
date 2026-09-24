@@ -71,6 +71,7 @@ export interface ToolContext {
   workspaceId: DepartmentId;
   accessibleDepartments: string[];
   enterprise?: boolean;
+  defaultDepartmentId?: string;
 }
 
 export interface OpenAiTool {
@@ -168,7 +169,13 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
   }
 
   if (name === "write_draft") {
-    const departmentId = asString(args.departmentId) || (ctx.workspaceId === "enterprise" ? "" : ctx.workspaceId);
+    const fallback =
+      ctx.defaultDepartmentId && ctx.defaultDepartmentId !== "enterprise"
+        ? ctx.defaultDepartmentId
+        : ctx.workspaceId === "enterprise"
+          ? ""
+          : ctx.workspaceId;
+    const departmentId = asString(args.departmentId) || fallback;
     const filename = asString(args.filename) || "draft.md";
     const text = asString(args.text) || asString(args.body);
     if (!departmentId) {

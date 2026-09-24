@@ -77,6 +77,8 @@ npm run telegram
 # same as: npx tsx scripts/telegram-bridge.ts
 ```
 
-7. On your phone: open https://t.me/Hatchboundariesbot → `/start` → ask like Chat (`How does loyalty work?`). `/help` lists commands. `/new` starts a fresh thread.
+7. On your phone: open https://t.me/Hatchboundariesbot → `/start` → ask like Chat (`How does loyalty work?`). `/help` lists commands. `/new` starts a fresh thread. `/ask` and `/agent` force a lane; `/dept` sets the write store (default Little Elm).
 
-The worker talks to the local store + LLM directly. `npm run dev` is optional (OS UI). First Ask can take 2–3 minutes (RunPod cold start). Typing shows while Hatch thinks. Long replies are chunked. Non-allowlisted users get a polite reject. Groups and voice notes are v0 non-goals.
+Prefer `npm run telegram:keep` (or `bash scripts/keep-telegram.sh`) after a crash — it stops the old pid and waits so `getUpdates` does not Conflict. Only one bridge process at a time.
+
+The worker talks to the local store + LLM directly. `npm run dev` is optional (OS UI). First Ask can take several minutes (RunPod cold start). Typing plus a delayed “Working (Ask/Agent)…” show while Hatch thinks. Long replies are chunked. Non-allowlisted users get a polite reject. Groups and voice notes are v0 non-goals.

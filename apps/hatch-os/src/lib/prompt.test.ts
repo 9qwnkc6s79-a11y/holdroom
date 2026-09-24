@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   HISTORY_MAX_CHARS,
+  inspectThreadHistory,
   interleaveHistory,
   windowThreadHistory,
 } from "./thread-history.ts";
@@ -42,6 +43,14 @@ describe("windowThreadHistory", () => {
       { maxChars: 100 },
     );
     assert.ok(huge.every((t) => t.text.length <= 100));
+    const long = [];
+    for (let i = 0; i < 16; i++) {
+      long.push({ role: "user" as const, text: `u${i}`, done: true });
+      long.push({ role: "assistant" as const, text: `a${i}`, done: true });
+    }
+    const inspected = inspectThreadHistory(long);
+    assert.equal(inspected.dropped, true);
+    assert.ok(inspected.turns.length <= 12);
   });
 });
 

@@ -3,6 +3,7 @@
  *
  *   cd apps/hatch-os
  *   npm run telegram
+ *   # or: bash scripts/keep-telegram.sh  (kills stale pid, waits, then starts)
  *
  * Uses getUpdates — no public webhook. Same Ask/agent pipeline as Chat.
  * Never logs HATCH_TELEGRAM_BOT_TOKEN.
@@ -10,6 +11,7 @@
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { wantsAgentTurn } from "../src/lib/agent-intent.ts";
 import { runChatTurn } from "../src/lib/chat.ts";
 import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER } from "../src/lib/departments.ts";
 import { applyEnvFile } from "../src/lib/env-file.ts";
@@ -18,17 +20,31 @@ import { createThread, getThread } from "../src/lib/store.ts";
 import {
   BOT_HANDLE,
   BOT_URL,
+  HISTORY_WINDOW_NOTICE,
   TELEGRAM_TYPING_MS,
+  TELEGRAM_WORKING_MS,
+  WORKING_AGENT,
+  WORKING_ASK,
+  claimTelegramPidfile,
+  clearTelegramHistoryNotice,
   createTelegramApi,
+  formatTelegramFailure,
   formatTelegramReply,
   lockTelegramUser,
+  markTelegramHistoryNotice,
   parseTelegramAllowlist,
   planTelegramMessage,
   readTelegramStore,
+  releaseTelegramPidfile,
   rememberTelegramOffset,
   rememberTelegramThread,
   sendTelegramChunks,
+  setTelegramDepartment,
+  setTelegramMode,
+  telegramDefaultDepartment,
+  telegramLaneForUser,
   telegramLog,
+  telegramPollBackoffMs,
   telegramStoreFile,
   type IncomingTelegram,
   type TelegramMessage,
@@ -86,12 +102,19 @@ async function replyToChat(
   incoming: IncomingTelegram,
   query: string,
   api: ReturnType<typeof createTelegramApi>,
+  agent?: boolean,
 ) {
   const threadId = threadForUser(incoming.userId, incoming.firstName);
+  const store = readTelegramStore();
+  const defaultDepartmentId = telegramDefaultDepartment(store.defaultDepartments[incoming.userId]);
+  const agentic = wantsAgentTurn(query, agent);
   await api.sendChatAction(incoming.chatId, "typing").catch(() => undefined);
   const typing = setInterval(() => {
     void api.sendChatAction(incoming.chatId, "typing").catch(() => undefined);
   }, TELEGRAM_TYPING_MS);
+  const working = setTimeout(() => {
+    void sendTelegramChunks(api, incoming.chatId, agentic ? WORKING_AGENT : WORKING_ASK).catch(() => undefined);
+  }, TELEGRAM_WORKING_MS);
   try {
     const result = await runChatTurn({
       query,
@@ -99,9 +122,20 @@ async function replyToChat(
       departmentId: ENTERPRISE,
       accessibleDepartments: PARTNER_DEPARTMENTS,
       enterprise: true,
+      agent,
+      defaultDepartmentId,
     });
-    await sendTelegramChunks(api, incoming.chatId, formatTelegramReply(result));
+    let text = formatTelegramReply({
+      ...result,
+      historyDropped: result.historyDropped && !store.historyNoticeShown[incoming.userId],
+    });
+    if (result.historyDropped && !store.historyNoticeShown[incoming.userId]) {
+      markTelegramHistoryNotice(incoming.userId);
+      if (!text.includes(HISTORY_WINDOW_NOTICE)) text = `${text}\n\n${HISTORY_WINDOW_NOTICE}`;
+    }
+    await sendTelegramChunks(api, incoming.chatId, text);
   } finally {
+    clearTimeout(working);
     clearInterval(typing);
   }
 }
@@ -116,27 +150,39 @@ async function handleMessage(
     const plan = planTelegramMessage(incoming, {
       envAllowlist,
       lockedUserId: store.lockedUserId,
+      defaultDepartmentId: telegramDefaultDepartment(store.defaultDepartments[incoming.userId]),
     });
 
     if (plan.type === "ignore") return;
 
     if (plan.type === "reply") {
       if (plan.lock) lockTelegramUser(incoming.userId);
-      if (plan.resetThread) threadForUser(incoming.userId, incoming.firstName, true);
+      if (plan.resetThread) {
+        threadForUser(incoming.userId, incoming.firstName, true);
+        clearTelegramHistoryNotice(incoming.userId);
+      }
+      if (plan.setMode) setTelegramMode(incoming.userId, plan.setMode);
+      if (plan.setDepartment) setTelegramDepartment(incoming.userId, plan.setDepartment);
       await sendTelegramChunks(api, incoming.chatId, plan.text);
       return;
     }
 
+    const lane = telegramLaneForUser(store, incoming.userId);
+    const agent = plan.agent ?? (lane === "agent" ? true : lane === "ask" ? false : undefined);
     telegramLog(`Chat turn from user ${incoming.userId} (${incoming.firstName})`);
-    await replyToChat(incoming, plan.query, api);
+    await replyToChat(incoming, plan.query, api, agent);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Hatch failed";
-    await sendTelegramChunks(api, incoming.chatId, msg).catch(() => undefined);
+    await sendTelegramChunks(api, incoming.chatId, formatTelegramFailure(err)).catch(() => undefined);
   }
 }
 
 async function main() {
   loadLocalEnv();
+  const claimed = claimTelegramPidfile();
+  if (!claimed.ok) {
+    console.error(claimed.reason);
+    process.exit(1);
+  }
   const token = requireToken();
   const envAllowlist = parseTelegramAllowlist(process.env.HATCH_TELEGRAM_ALLOWLIST);
   const api = createTelegramApi(token);
@@ -154,8 +200,10 @@ async function main() {
         : "Allowlist: empty — first /start locks and persists in data/telegram.json",
     );
     telegramLog(`Ask LLM: ${primary.label} · ${primary.host} · ${primary.model}`);
+    telegramLog(`Default write dept: ${telegramDefaultDepartment()}`);
     telegramLog(`Store: ${telegramStoreFile()}`);
   } catch (err) {
+    releaseTelegramPidfile();
     console.error(err instanceof Error ? err.message : "Telegram getMe failed.");
     process.exit(1);
   }
@@ -165,9 +213,11 @@ async function main() {
 
   const stop = () => {
     running = false;
+    releaseTelegramPidfile();
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
+  process.on("exit", () => releaseTelegramPidfile());
 
   while (running) {
     try {
@@ -184,12 +234,13 @@ async function main() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "getUpdates failed";
       telegramLog(`Poll error: ${msg}`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, telegramPollBackoffMs(msg)));
     }
   }
 }
 
 main().catch((err) => {
+  releaseTelegramPidfile();
   console.error(err instanceof Error ? err.message : "Telegram bridge failed.");
   process.exit(1);
 });

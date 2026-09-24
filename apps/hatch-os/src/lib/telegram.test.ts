@@ -6,16 +6,23 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, it } from "node:test";
 import { applyEnvFile, parseEnvFile } from "./env-file.ts";
 import {
+  AGENT_MODE_TEXT,
+  ASK_MODE_TEXT,
+  AUTO_MODE_TEXT,
   BOT_HANDLE,
   HELP_TEXT,
+  HISTORY_WINDOW_NOTICE,
   LOCKED_HINT,
   NEED_START_TEXT,
   NEW_THREAD_TEXT,
   REJECT_TEXT,
+  TELEGRAM_CONFLICT_BACKOFF_MS_MIN,
   TEXT_ONLY_TEXT,
   WELCOME_TEXT,
+  claimTelegramPidfile,
   chunkTelegramText,
   createTelegramApi,
+  formatTelegramFailure,
   formatTelegramReply,
   sendTelegramChunks,
   lockTelegramUser,
@@ -24,7 +31,9 @@ import {
   planTelegramMessage,
   readTelegramStore,
   redactTelegramSecrets,
+  releaseTelegramPidfile,
   telegramGate,
+  telegramPollBackoffMs,
   telegramStoreFile,
 } from "./telegram.ts";
 
@@ -137,6 +146,27 @@ describe("planTelegramMessage", () => {
       { envAllowlist: ["42"], lockedUserId: null },
     );
     assert.deepEqual(fresh, { type: "reply", text: NEW_THREAD_TEXT, resetThread: true });
+
+    const askSticky = planTelegramMessage({ ...daniel, text: "/ask" }, { envAllowlist: ["42"], lockedUserId: null });
+    assert.deepEqual(askSticky, { type: "reply", text: ASK_MODE_TEXT, setMode: "ask" });
+    const agentOnce = planTelegramMessage(
+      { ...daniel, text: "/agent Draft a short note" },
+      { envAllowlist: ["42"], lockedUserId: null },
+    );
+    assert.deepEqual(agentOnce, { type: "chat", query: "Draft a short note", agent: true });
+    const auto = planTelegramMessage({ ...daniel, text: "/auto" }, { envAllowlist: ["42"], lockedUserId: null });
+    assert.deepEqual(auto, { type: "reply", text: AUTO_MODE_TEXT, setMode: "auto" });
+    const dept = planTelegramMessage(
+      { ...daniel, text: "/dept prosper" },
+      { envAllowlist: ["42"], lockedUserId: null },
+    );
+    assert.equal(dept.type, "reply");
+    if (dept.type === "reply") {
+      assert.equal(dept.setDepartment, "prosper");
+      assert.match(dept.text, /Prosper/);
+    }
+    assert.match(HELP_TEXT, /\/ask/);
+    assert.match(HELP_TEXT, /search the library/);
   });
 
   it("blocks groups and non-text", () => {
@@ -182,6 +212,42 @@ describe("formatTelegramReply", () => {
     assert.match(text, /TapMango/);
     assert.match(text, /Sources: DEMO_loyalty.md/);
     assert.match(text, /write_draft denied/);
+    const dropped = formatTelegramReply({ text: "Hi", historyDropped: true });
+    assert.match(dropped, new RegExp(HISTORY_WINDOW_NOTICE.slice(0, 20)));
+  });
+});
+
+describe("telegram poll conflict + pidfile", () => {
+  it("backs off 10–30s on overlapping getUpdates", () => {
+    const ms = telegramPollBackoffMs("Conflict: terminated by other getUpdates", () => 0);
+    assert.equal(ms, TELEGRAM_CONFLICT_BACKOFF_MS_MIN);
+    assert.ok(telegramPollBackoffMs("Conflict: terminated by other getUpdates", () => 1) >= 10_000);
+    assert.equal(telegramPollBackoffMs("network down"), 2000);
+  });
+
+  it("refuses a second live pidfile", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "hatch-pid-"));
+    const file = path.join(dir, "telegram.pid");
+    process.env.HATCH_TELEGRAM_PIDFILE = file;
+    try {
+      const first = claimTelegramPidfile(file, process.pid);
+      assert.equal(first.ok, true);
+      const second = claimTelegramPidfile(file, process.pid + 99999);
+      assert.equal(second.ok, false);
+      if (!second.ok) assert.match(second.reason, /already running/);
+      releaseTelegramPidfile(file, process.pid);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("formatTelegramFailure", () => {
+  it("sends connectHelp-style guidance instead of a bare exception", () => {
+    const text = formatTelegramFailure(new Error("Remote api.runpod.ai timed out after 300s (cold start)."));
+    assert.match(text, /300s \(cold start\)/);
+    assert.match(text, /No model is ready/);
+    assert.match(text, /HATCH_LLM_BASE_URL/);
   });
 });
 

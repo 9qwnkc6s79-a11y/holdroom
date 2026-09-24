@@ -6,6 +6,7 @@ import type { Source, ToolEvent } from "./types";
 export {
   HISTORY_MAX_CHARS,
   HISTORY_MAX_MESSAGES,
+  inspectThreadHistory,
   interleaveHistory,
   windowThreadHistory,
   type ThreadHistoryTurn,
@@ -20,6 +21,7 @@ export interface PromptInput {
   extra?: string[];
   accessibleDepartments: string[];
   history?: ThreadHistoryTurn[];
+  defaultDepartmentId?: string;
 }
 
 function sharedContext(input: PromptInput) {
@@ -79,11 +81,15 @@ export function buildAgentMessages(input: PromptInput) {
   const system = [
     ...ctx.firmRules,
     "This is an agent turn. Use tools when you need to search, read, write a draft, or hand off.",
+    "If the user asks to draft, write, create, or save a note/file/memo, you MUST call write_draft. Do not leave the note as prose only.",
+    input.defaultDepartmentId
+      ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names Little Elm, Prosper, or HQ Ops. Enterprise is not a write target.`
+      : "write_draft requires little-elm, prosper, or hq-ops — never enterprise.",
     "Prefer native tool calls (OpenAI tools / Hermes <tool_call>). Fallback trailer if tools are unavailable:",
     tools,
     'TOOL {"name":"write_draft","arguments":{"departmentId":"little-elm","filename":"notes.md","text":"..."}}',
     'TOOL {"name":"handoff_to_department","arguments":{"toDepartmentId":"hq-ops","summary":"...","facts":"..."}}',
-    "If no action is needed, answer in prose and do not emit a TOOL line.",
+    "If no file or search action is needed, answer in prose and do not emit a TOOL line.",
     ...ctx.corpus,
   ]
     .filter(Boolean)

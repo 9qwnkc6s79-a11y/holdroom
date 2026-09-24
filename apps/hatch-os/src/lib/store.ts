@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, existsSync, writeFileSync, readdirSync } from "fs";
 import path from "path";
+import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
 import { canWriteDepartment, normalizeDepartments } from "./acl";
 import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "./departments";
 import { DRIVE_STUB_ITEMS } from "./drive";
@@ -343,10 +344,12 @@ function readState(): DiskState {
 }
 
 function writeState(state: DiskState) {
-  ensure();
-  state.version = STATE_VERSION;
-  decorateFiles(state);
-  writeFileSync(STATE, JSON.stringify(state, null, 2));
+  withFileLock(STATE, () => {
+    ensure();
+    state.version = STATE_VERSION;
+    decorateFiles(state);
+    atomicWriteFile(STATE, JSON.stringify(state, null, 2));
+  });
 }
 
 function allFiles(state: DiskState): HatchFile[] {
@@ -595,14 +598,16 @@ export function persistUpload(input: {
       };
     }
   }
-  return pushFile(readState(), {
-    departmentId,
-    filename: input.filename,
-    body: input.body,
-    inLibrary: Boolean(input.inLibrary),
-    folderId: input.folderId,
-    origin: input.origin || "upload",
-  });
+  return withFileLock(STATE, () =>
+    pushFile(readState(), {
+      departmentId,
+      filename: input.filename,
+      body: input.body,
+      inLibrary: Boolean(input.inLibrary),
+      folderId: input.folderId,
+      origin: input.origin || "upload",
+    }),
+  );
 }
 
 export function writeDraft(input: {
@@ -624,63 +629,71 @@ export function writeDraft(input: {
     return { event };
   }
   const filename = input.filename.endsWith(".md") ? input.filename : `${input.filename.replace(/\s+/g, "_")}.md`;
-  const result = pushFile(readState(), {
-    departmentId: acl.departmentId,
-    filename,
-    body: input.text,
-    inLibrary: false,
-    folderId: input.folderId,
-    origin: "draft",
+  return withFileLock(STATE, () => {
+    const result = pushFile(readState(), {
+      departmentId: acl.departmentId,
+      filename,
+      body: input.text,
+      inLibrary: false,
+      folderId: input.folderId,
+      origin: "draft",
+    });
+    const event: ToolEvent = {
+      name: "write_draft",
+      ok: !result.error,
+      detail:
+        result.error ||
+        `Draft written to ${workspaceLabel(acl.departmentId)} Files: ${filename} (not in Library until promoted).`,
+      departmentId: acl.departmentId,
+      fileId: result.error ? undefined : result.file.id,
+    };
+    recordAudit(event);
+    return { file: result.file, event };
   });
-  const event: ToolEvent = {
-    name: "write_draft",
-    ok: !result.error,
-    detail:
-      result.error ||
-      `Draft written to ${workspaceLabel(acl.departmentId)} Files: ${filename} (not in Library until promoted).`,
-    departmentId: acl.departmentId,
-    fileId: result.error ? undefined : result.file.id,
-  };
-  recordAudit(event);
-  return { file: result.file, event };
 }
 
 export function setLibraryFlag(departmentId: DepartmentId, fileId: string, inLibrary: boolean): HatchFile | null {
-  const state = readState();
-  const id = isEnterprise(departmentId) ? "" : migrateWorkspaceId(departmentId);
-  for (const room of state.rooms) {
-    if (id && room.id !== id) continue;
-    const file = room.files.find((f) => f.id === fileId);
-    if (!file) continue;
-    file.inLibrary = inLibrary;
-    writeState(state);
-    return file;
-  }
-  return null;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const id = isEnterprise(departmentId) ? "" : migrateWorkspaceId(departmentId);
+    for (const room of state.rooms) {
+      if (id && room.id !== id) continue;
+      const file = room.files.find((f) => f.id === fileId);
+      if (!file) continue;
+      file.inLibrary = inLibrary;
+      writeState(state);
+      return file;
+    }
+    return null;
+  });
 }
 
 export function removeFile(departmentId: DepartmentId, fileId: string) {
-  const state = readState();
-  const rooms = isEnterprise(departmentId) ? state.rooms : state.rooms.filter((r) => r.id === migrateWorkspaceId(departmentId));
-  for (const room of rooms) {
-    const file = room.files.find((f) => f.id === fileId);
-    if (!file) continue;
-    room.files = room.files.filter((f) => f.id !== fileId);
-    state.chunks = state.chunks.filter((c) => !(c.departmentId === file.departmentId && c.file === file.name));
-    writeState(state);
-    return;
-  }
+  withFileLock(STATE, () => {
+    const state = readState();
+    const rooms = isEnterprise(departmentId) ? state.rooms : state.rooms.filter((r) => r.id === migrateWorkspaceId(departmentId));
+    for (const room of rooms) {
+      const file = room.files.find((f) => f.id === fileId);
+      if (!file) continue;
+      room.files = room.files.filter((f) => f.id !== fileId);
+      state.chunks = state.chunks.filter((c) => !(c.departmentId === file.departmentId && c.file === file.name));
+      writeState(state);
+      return;
+    }
+  });
 }
 
 export function createFolder(departmentId: DepartmentId, name: string, parentId: string | null = null): FileFolder | { error: string } {
   const id = migrateWorkspaceId(departmentId);
   if (isEnterprise(id)) return { error: "Create the folder in a department, not Enterprise." };
-  const state = readState();
-  if (!state.rooms.some((r) => r.id === id)) return { error: "Unknown department." };
-  const folder: FileFolder = { id: newId("fld"), name: name.trim() || "Untitled", departmentId: id, parentId };
-  state.folders.push(folder);
-  writeState(state);
-  return folder;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    if (!state.rooms.some((r) => r.id === id)) return { error: "Unknown department." };
+    const folder: FileFolder = { id: newId("fld"), name: name.trim() || "Untitled", departmentId: id, parentId };
+    state.folders.push(folder);
+    writeState(state);
+    return folder;
+  });
 }
 
 export function importDriveStub(input: {
@@ -734,60 +747,68 @@ export function getThread(threadId: string): ChatThread | null {
 }
 
 export function createThread(departmentId: DepartmentId, title = "New thread"): ChatThread {
-  const state = readState();
-  const now = new Date().toISOString();
-  const thread: ChatThread = {
-    id: newId("th"),
-    departmentId: migrateWorkspaceId(departmentId),
-    title,
-    archived: false,
-    createdAt: now,
-    updatedAt: now,
-    messages: [],
-  };
-  state.threads.unshift(thread);
-  writeState(state);
-  return thread;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const now = new Date().toISOString();
+    const thread: ChatThread = {
+      id: newId("th"),
+      departmentId: migrateWorkspaceId(departmentId),
+      title,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+    state.threads.unshift(thread);
+    writeState(state);
+    return thread;
+  });
 }
 
 export function updateThread(
   threadId: string,
   patch: Partial<Pick<ChatThread, "title" | "archived" | "messages" | "lastArtifactId">>,
 ): ChatThread | null {
-  const state = readState();
-  const thread = state.threads.find((t) => t.id === threadId);
-  if (!thread) return null;
-  if (patch.title != null) thread.title = patch.title;
-  if (patch.archived != null) thread.archived = patch.archived;
-  if (patch.messages) thread.messages = patch.messages;
-  if (patch.lastArtifactId !== undefined) thread.lastArtifactId = patch.lastArtifactId;
-  thread.updatedAt = new Date().toISOString();
-  writeState(state);
-  return thread;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const thread = state.threads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    if (patch.title != null) thread.title = patch.title;
+    if (patch.archived != null) thread.archived = patch.archived;
+    if (patch.messages) thread.messages = patch.messages;
+    if (patch.lastArtifactId !== undefined) thread.lastArtifactId = patch.lastArtifactId;
+    thread.updatedAt = new Date().toISOString();
+    writeState(state);
+    return thread;
+  });
 }
 
 export function appendThreadMessages(threadId: string, messages: ChatMessage[]): ChatThread | null {
-  const state = readState();
-  const thread = state.threads.find((t) => t.id === threadId);
-  if (!thread) return null;
-  thread.messages = [...thread.messages, ...messages];
-  const firstUser = thread.messages.find((m) => m.role === "user");
-  if (thread.title === "New thread" && firstUser) {
-    thread.title = firstUser.text.slice(0, 42) + (firstUser.text.length > 42 ? "…" : "");
-  }
-  thread.updatedAt = new Date().toISOString();
-  writeState(state);
-  return thread;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const thread = state.threads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.messages = [...thread.messages, ...messages];
+    const firstUser = thread.messages.find((m) => m.role === "user");
+    if (thread.title === "New thread" && firstUser) {
+      thread.title = firstUser.text.slice(0, 42) + (firstUser.text.length > 42 ? "…" : "");
+    }
+    thread.updatedAt = new Date().toISOString();
+    writeState(state);
+    return thread;
+  });
 }
 
 export function replaceThreadMessage(threadId: string, message: ChatMessage): ChatThread | null {
-  const state = readState();
-  const thread = state.threads.find((t) => t.id === threadId);
-  if (!thread) return null;
-  thread.messages = thread.messages.map((m) => (m.id === message.id ? message : m));
-  thread.updatedAt = new Date().toISOString();
-  writeState(state);
-  return thread;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const thread = state.threads.find((t) => t.id === threadId);
+    if (!thread) return null;
+    thread.messages = thread.messages.map((m) => (m.id === message.id ? message : m));
+    thread.updatedAt = new Date().toISOString();
+    writeState(state);
+    return thread;
+  });
 }
 
 export function listHandoffs(departmentId?: DepartmentId): Handoff[] {
@@ -823,31 +844,35 @@ export function createHandoff(input: {
     status: "learned",
     createdAt: new Date().toISOString(),
   };
-  const state = readState();
-  state.handoffs.unshift(handoff);
-  writeState(state);
   const event: ToolEvent = {
     name: "handoff_to_department",
     ok: true,
     detail: `Handoff to ${workspaceLabel(to)} recorded. Their inbox was notified. No files were written in ${workspaceLabel(to)}.`,
     departmentId: to,
   };
-  recordAudit(event);
-  return { handoff, event };
+  return withFileLock(STATE, () => {
+    const state = readState();
+    state.handoffs.unshift(handoff);
+    writeState(state);
+    recordAudit(event);
+    return { handoff, event };
+  });
 }
 
 function recordAudit(event: ToolEvent) {
-  const state = readState();
-  state.audit.unshift({
-    id: newId("aud"),
-    tool: event.name,
-    ok: event.ok,
-    detail: event.detail,
-    departmentId: event.departmentId,
-    at: new Date().toISOString(),
+  withFileLock(STATE, () => {
+    const state = readState();
+    state.audit.unshift({
+      id: newId("aud"),
+      tool: event.name,
+      ok: event.ok,
+      detail: event.detail,
+      departmentId: event.departmentId,
+      at: new Date().toISOString(),
+    });
+    state.audit = state.audit.slice(0, 80);
+    writeState(state);
   });
-  state.audit = state.audit.slice(0, 80);
-  writeState(state);
 }
 
 export function listAudit(): AuditEntry[] {
@@ -855,5 +880,7 @@ export function listAudit(): AuditEntry[] {
 }
 
 export function resetSeed() {
-  writeFileSync(STATE, JSON.stringify(loadSeed(), null, 2));
+  withFileLock(STATE, () => {
+    atomicWriteFile(STATE, JSON.stringify(loadSeed(), null, 2));
+  });
 }

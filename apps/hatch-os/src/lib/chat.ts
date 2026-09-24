@@ -3,7 +3,7 @@ import { wantsAgentTurn } from "./agent-intent";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
 import { buildAskMessages } from "./prompt";
-import { windowThreadHistory } from "./thread-history.ts";
+import { inspectThreadHistory } from "./thread-history.ts";
 import { appendThreadMessages, createThread, fileListing, getThread, retrieveFirm } from "./store";
 import { stripThinkBlocks } from "./think.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
@@ -29,6 +29,7 @@ export interface ChatTurnInput {
   enterprise?: boolean;
   attachments?: ChatAttachment[];
   agent?: boolean;
+  defaultDepartmentId?: string;
 }
 
 export interface ChatTurnResult {
@@ -38,6 +39,8 @@ export interface ChatTurnResult {
   sources: Source[];
   tools: ToolEvent[];
   error?: boolean;
+  historyDropped?: boolean;
+  lane?: "ask" | "agent";
 }
 
 export interface ChatTurnHooks {
@@ -69,7 +72,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
-  const history = windowThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
+  const inspected = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
+  const history = inspected.turns;
 
   const agentic = wantsAgentTurn(query, input.agent);
   const probe = agentic ? await probeAgentLlm() : await probeLlm();
@@ -87,6 +91,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       sources: [],
       tools: toolResults,
       error: true,
+      historyDropped: inspected.dropped,
+      lane: agentic ? "agent" : "ask",
     };
   }
 
@@ -99,15 +105,19 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     extra,
     accessibleDepartments,
     history,
+    defaultDepartmentId: input.defaultDepartmentId,
   };
 
   let text = "";
   try {
     if (agentic) {
-      const result = await runAgentLoop({ ...promptInput, enterprise: input.enterprise }, (delta) => {
-        text += delta;
-        hooks.onDelta?.(delta);
-      });
+      const result = await runAgentLoop(
+        { ...promptInput, enterprise: input.enterprise, defaultDepartmentId: input.defaultDepartmentId },
+        (delta) => {
+          text += delta;
+          hooks.onDelta?.(delta);
+        },
+      );
       text = stripThinkBlocks(result.text || text);
       toolResults.splice(0, toolResults.length, ...result.tools);
       sources.splice(0, sources.length, ...result.sources);
@@ -124,6 +134,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
           workspaceId,
           accessibleDepartments,
           enterprise: input.enterprise,
+          defaultDepartmentId: input.defaultDepartmentId,
         });
         toolResults.push(result.event);
         if (result.sources?.length) sources.push(...result.sources);
@@ -144,6 +155,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       text,
       sources,
       tools: toolResults,
+      historyDropped: inspected.dropped,
+      lane: agentic ? "agent" : "ask",
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "LLM failed";
@@ -156,6 +169,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       sources: [],
       tools: toolResults,
       error: true,
+      historyDropped: inspected.dropped,
+      lane: agentic ? "agent" : "ask",
     };
   }
 }
