@@ -623,11 +623,28 @@ tr:last-child td { border-bottom: 0; }
 
 /* Form */
 form.inquiry {
+  position: relative;
   background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 16px;
   padding: 28px;
 }
+.hp {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.hp input {
+  width: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+.field-help { margin: -2px 0 6px; }
+#source-other-wrap[hidden] { display: none; }
 label {
   display: block;
   font-size: 13px;

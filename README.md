@@ -2,7 +2,8 @@
 
 In-house AI. Secure data that stays with you. Customized to the firm’s needs and knowledge base. Encrypted cluster + Hatch OS so employees work without feeding frontier labs (OpenAI / Anthropic / Bedrock).
 
-- Live: https://holdroom.vercel.app (legacy project host)
+- Public site: https://hatchsystems.ai
+- Vercel project name stays `holdroom` (do not rename)
 - Working name: **Hatch** / **Hatch OS**
 - Visual system inspired by go.ai (cream, dark nav, violet period, Inter, pills). Not affiliated. Do not copy their claims or copy.
 
@@ -29,7 +30,7 @@ Encrypted cluster you own, in your environment; Hatch OS (ChatGPT-like login, fi
 
 ## Site
 
-Static multi-page HTML. No build step. No paid APIs.
+Static multi-page HTML. No build step. No paid API in this repo. The inquiry form posts to a Google Apps Script web app.
 
 | Path | Page |
 | --- | --- |
@@ -40,7 +41,7 @@ Static multi-page HTML. No build step. No paid APIs.
 | `/security/` | What we will / will not claim (incl. remote) |
 | `/for/` | Firms that will not leak the file — law, PE/deal, operators as beachheads |
 | `/faq/` | Straight answers |
-| `/inquire/` | Locked form |
+| `/inquire/` | Inquiry form. Posts to Apps Script, which writes a Sheet and sends Gmail |
 | `/app/` | Internal Phase 1 UI wireframe (clickable HTML/CSS/JS, fake Fund A / Fund B data, not live) |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
@@ -53,7 +54,13 @@ Copy prefers ownership / room language (“stays with you”, “in the room”,
 
 Do not add: HIPAA, SOC 2, “beats Claude/GPT”, invented customers, checkout, paid APIs, or cold-outreach copy.
 
-Inquiry form: `localStorage` key `hatch_inquiries` + `mailto:daniel.keene223@gmail.com`. Fields stay as on `/inquire/` (name, firm, role, email, phone, headcount, tier, secret, message).
+Inquiry form posts to the web app in `integrations/inquiry-apps-script/`. The script appends a row to a Google Sheet tab named `Inquiries` and emails Daniel plus a confirmation to the inquirer via Gmail (`MailApp`). It rejects a filled honeypot, submissions faster than 3 seconds, over-long fields, a bad email, and bursts over 5 per email or 20 overall in 10 minutes. If the Sheet write fails, the notification email still goes out.
+
+`assets/js/inquire.js` reads one constant, `INQUIRY_ENDPOINT`. Until that replaces `REPLACE_WITH_APPS_SCRIPT_URL`, Send inquiry opens a `mailto:daniel.keene223@gmail.com` draft and does not call the network. The form does not use `localStorage`.
+
+Required: name, work email, company, role, firm size, what you want to use private AI for, timeline. Optional: phone, how you heard about Hatch, tier interest, message. Hidden: honeypot and the form-load time.
+
+Inquiry details go to Hatch's Google Workspace (Sheet and Gmail) only and are never sent to AI model providers. Resend can replace `MailApp` later without changing the page, other than the endpoint URL if it moves.
 
 ## Local
 
@@ -65,7 +72,7 @@ Open http://127.0.0.1:4173/
 
 ## Deploy
 
-The Vercel project `holdroom` is linked to this repo with **no framework** (`framework: null`). Push to `main` updates https://holdroom.vercel.app. Keep the site static — do not add a build unless you also set a Vercel build command.
+The Vercel project `holdroom` is linked to this repo with **no framework** (`framework: null`). Push to `main` updates the deployment served at https://hatchsystems.ai. Keep the site static — do not add a build unless you also set a Vercel build command. Do not rename the repo or the Vercel project.
 
 `vercel.json` uses clean URLs and trailing slashes so `/product` and `/product/` both resolve.
 
