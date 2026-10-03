@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /app/
 
-Sitemap: https://holdroom.vercel.app/sitemap.xml
+Sitemap: https://hatchsystems.ai/sitemap.xml

@@ -1,4 +1,17 @@
 {
   "cleanUrls": true,
-  "trailingSlash": true
+  "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "holdroom.vercel.app"
+        }
+      ],
+      "destination": "https://hatchsystems.ai/:path*",
+      "permanent": true
+    }
+  ]
 }

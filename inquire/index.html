@@ -3,9 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Inquire — Hatch</title>
-  <link rel="canonical" href="https://holdroom.ai/inquire/" />
-  <meta name="description" content="Request a Hatch conversation. Pre-launch inquiries. The form saves a copy in your browser and opens an email draft. Nothing is sent to a frontier lab." />
+  <title>Talk to Hatch About Private AI for Your Firm</title>
+  <link rel="canonical" href="https://hatchsystems.ai/inquire/" />
+  <meta name="description" content="Tell us about your firm and the files you won’t paste into ChatGPT. A person reads every inquiry. No spam list, no sales sequence." />
+  <meta property="og:title" content="Talk to Hatch About Private AI for Your Firm" />
+  <meta property="og:description" content="Tell us about your firm and the files you won’t paste into ChatGPT. A person reads every inquiry. No spam list, no sales sequence." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hatchsystems.ai/inquire/" />
+  <meta property="og:site_name" content="Hatch" />
+  <meta name="twitter:card" content="summary" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Hatch", "item": "https://hatchsystems.ai/" },
+      { "@type": "ListItem", "position": 2, "name": "Inquire", "item": "https://hatchsystems.ai/inquire/" }
+    ]
+  }
+  </script>
   <meta name="theme-color" content="#111111" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -37,63 +53,101 @@
   <main id="main">
     <section class="page-hero">
       <div class="wrap">
-        <p class="eyebrow">Inquire</p>
+        <p class="eyebrow">Talk to Hatch</p>
         <h1>No spam list. No sequence<span class="dot">.</span></h1>
-        <p class="lede">If you send this, a person reads it. Pre-launch. No checkout. A smaller office is welcome.</p>
+        <p class="lede">Tell us about your firm and the files you won’t paste into ChatGPT. A person reads every inquiry. Pre-launch. No checkout.</p>
       </div>
     </section>
 
     <section class="bg-white" style="padding-top:8px">
       <div class="wrap-narrow wrap">
         <form class="inquiry" id="inq" novalidate>
+          <div class="hp" aria-hidden="true">
+            <label for="hp_field">Company website</label>
+            <input id="hp_field" name="hp_field" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+          <input type="hidden" id="loaded_at" name="loaded_at" value="" />
+
           <div class="grid g2">
             <div>
               <label for="name">Name</label>
-              <input id="name" name="name" autocomplete="name" required />
+              <input id="name" name="name" autocomplete="name" required maxlength="120" />
             </div>
             <div>
-              <label for="firm">Firm</label>
-              <input id="firm" name="firm" autocomplete="organization" required />
+              <label for="email">Work email</label>
+              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" />
+            </div>
+            <div>
+              <label for="company">Company</label>
+              <input id="company" name="company" autocomplete="organization" required maxlength="200" />
             </div>
             <div>
               <label for="role">Role</label>
-              <input id="role" name="role" placeholder="Partner, associate, founder…" />
+              <input id="role" name="role" autocomplete="organization-title" required maxlength="120" placeholder="Partner, associate, founder…" />
             </div>
             <div>
-              <label for="email">Email</label>
-              <input id="email" name="email" type="email" autocomplete="email" required />
+              <label for="firm_size">Firm size</label>
+              <select id="firm_size" name="firm_size" required>
+                <option value="">Select firm size</option>
+                <option>Under 50</option>
+                <option>50–250</option>
+                <option>250–1,000</option>
+                <option>1,000+</option>
+              </select>
+            </div>
+            <div>
+              <label for="timeline">Timeline</label>
+              <select id="timeline" name="timeline" required>
+                <option value="">Select a timeline</option>
+                <option>Exploring</option>
+                <option>0–3 months</option>
+                <option>3–6 months</option>
+                <option>6+ months</option>
+              </select>
             </div>
             <div>
               <label for="phone">Phone (optional)</label>
-              <input id="phone" name="phone" type="tel" autocomplete="tel" />
+              <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40" />
             </div>
             <div>
-              <label for="headcount">People in your firm</label>
-              <select id="headcount" name="headcount">
-                <option>Under 50</option>
-                <option selected>50–250</option>
-                <option>250–1000</option>
-                <option>1000+</option>
+              <label for="source">How did you hear about us? (optional)</label>
+              <select id="source" name="source">
+                <option value="">Select</option>
+                <option>Referral</option>
+                <option>Search</option>
+                <option>LinkedIn</option>
+                <option>Event</option>
+                <option>Other</option>
               </select>
             </div>
           </div>
-          <label for="tier">Which tier are you asking about?</label>
+
+          <div id="source-other-wrap" hidden>
+            <label for="source_other">Where else?</label>
+            <input id="source_other" name="source_other" maxlength="200" />
+          </div>
+
+          <label for="use_case">What do you want to use private AI for?</label>
+          <p class="fine field-help" id="use-case-help">What will you not paste into ChatGPT?</p>
+          <textarea id="use_case" name="use_case" required maxlength="4000" placeholder="What will you not paste into ChatGPT?" aria-describedby="use-case-help"></textarea>
+
+          <label for="tier">Tier interest (optional)</label>
           <select id="tier" name="tier">
-            <option selected>Firm — $18k + $24k/yr</option>
+            <option value="" selected>Not sure yet</option>
+            <option>Firm — $18k + $24k/yr</option>
             <option>Enterprise — $28k + $48k/yr</option>
             <option>Corporation — talk to us</option>
-            <option>Not sure</option>
           </select>
-          <label for="secret">What will you not paste into ChatGPT?</label>
-          <input id="secret" name="secret" placeholder="Client memos, IC deck, source, pricing…" />
-          <label for="message">Anything else</label>
-          <textarea id="message" name="message"></textarea>
+
+          <label for="message">Message (optional)</label>
+          <textarea id="message" name="message" maxlength="4000"></textarea>
+
           <div class="hero-actions" style="margin-top:20px">
             <button class="btn btn-dark" type="submit">Send inquiry</button>
           </div>
-          <p class="fine" style="margin-top:14px">This form stores a copy in your browser and opens an email draft to daniel.keene223@gmail.com. Nothing is sent to a frontier lab or a data company. Required: name, firm, email.</p>
-          <div class="form-ok" id="ok" role="status">Inquiry saved in this browser. An email draft should have opened.</div>
-          <div class="form-err" id="err" role="alert"></div>
+          <p class="fine" style="margin-top:14px">Inquiry details go to Hatch's Google Workspace (Sheet and Gmail) only and are never sent to AI model providers. Required: name, work email, company, role, firm size, what you want to use private AI for, and timeline.</p>
+          <div class="form-ok" id="ok" role="status" tabindex="-1">Thanks, we got it. Check your inbox for a confirmation.</div>
+          <div class="form-err" id="err" role="alert" tabindex="-1"></div>
         </form>
       </div>
     </section>
@@ -116,7 +170,7 @@
           <a href="/inquire/">Inquire</a>
         </nav>
       </div>
-      <p>Hatch is a private AI clean room. Live: <a href="https://holdroom.vercel.app/">holdroom.vercel.app</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
+      <p>Hatch is a private AI clean room. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
     </div>
   </footer>
   <script src="/assets/js/site.js"></script>
