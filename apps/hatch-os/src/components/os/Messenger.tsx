@@ -10,6 +10,7 @@ import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
 import { ACCEPT_ATTR } from "@/lib/files";
+import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
 import type { ApprovalCard, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
 
 interface LivePayload {
@@ -91,6 +92,7 @@ export function Messenger() {
   const [seen, setSeen] = useState<Record<string, string>>({});
   const [account, setAccount] = useState("Partner");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shownAgent = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -120,6 +122,26 @@ export function Messenger() {
     localStorage.setItem("hatch-extra-agents", JSON.stringify(next));
   }
 
+  function rememberConversation(agentId: string, threadId: string, departmentId: string, messages: ChatMessage[], title?: string) {
+    const now = new Date().toISOString();
+    const prev = readTranscripts().find((item) => item.agentId === agentId);
+    const thread: ChatThread = {
+      id: threadId || prev?.id || `local-${agentId}`,
+      agentId,
+      departmentId: (departmentId || prev?.departmentId || "hq-ops") as ChatThread["departmentId"],
+      title: title || prev?.title || messages.find((item) => item.role === "user")?.text.slice(0, 42) || "New thread",
+      archived: false,
+      createdAt: prev?.createdAt || now,
+      updatedAt: now,
+      messages,
+    };
+    const next = mergeThreads(readTranscripts(), [thread]);
+    writeTranscripts(next);
+    setThreads((current) => mergeThreads(current, next));
+    setActiveThread(thread.id);
+    setMessages(messages);
+  }
+
   async function load() {
     const [agentRes, threadRes] = await Promise.all([
       fetch("/api/agents", { cache: "no-store" }),
@@ -131,13 +153,17 @@ export function Messenger() {
       const ids = new Set(server.map((item) => item.id));
       setAgents([...server, ...extraAgents().filter((item) => !ids.has(item.id))]);
     }
-    if (threadRes.ok) {
-      const data = (await threadRes.json()) as { threads?: ChatThread[] };
-      setThreads(data.threads || []);
-    }
+    const serverThreads = threadRes.ok ? (((await threadRes.json()) as { threads?: ChatThread[] }).threads || []) : [];
+    setThreads((current) => {
+      const merged = mergeThreads(mergeThreads(readTranscripts(), current), serverThreads);
+      writeTranscripts(merged);
+      return merged;
+    });
   }
 
   useEffect(() => {
+    const local = readTranscripts();
+    if (local.length) setThreads(local);
     void load().catch(() => undefined);
     const onRefresh = () => void load();
     window.addEventListener("hatch-refresh", onRefresh);
@@ -173,9 +199,16 @@ export function Messenger() {
       setActiveThread(null);
       return;
     }
-    const thread = latest.get(agent.id);
-    setActiveThread(thread?.id || null);
-    setMessages(thread?.messages || []);
+    const saved = readTranscripts().find((item) => item.agentId === agent.id);
+    const chosen = richerThread(latest.get(agent.id), saved);
+    const switched = shownAgent.current !== agent.id;
+    shownAgent.current = agent.id;
+    setActiveThread(chosen?.id || null);
+    setMessages((prev) => {
+      const next = chosen?.messages || [];
+      if (!switched && next.length === 0 && prev.length > 0) return prev;
+      return next;
+    });
     const next = { ...seenMap(), [agent.id]: new Date().toISOString() };
     localStorage.setItem("hatch-seen", JSON.stringify(next));
     setSeen(next);
@@ -213,21 +246,9 @@ export function Messenger() {
     setAttachOpen(false);
     const quote = reply;
     setReply(null);
-    let thread = activeThread;
-    if (!thread) {
-      const created = await fetch("/api/threads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ departmentId: agent.departmentId, agentId: agent.id, title: q.slice(0, 42) }),
-      });
-      const data = (await created.json()) as { thread?: ChatThread };
-      thread = data.thread?.id || null;
-      if (thread) setActiveThread(thread);
-    }
-    if (!thread) {
-      setStreaming(false);
-      return;
-    }
+    const saved = readTranscripts().find((item) => item.agentId === agent.id);
+    const thread = saved?.id || `local-${agent.id}`;
+    const prior = saved?.messages || [];
     const user: ChatMessage = {
       id: `local-u-${Date.now()}`,
       role: "user",
@@ -237,7 +258,13 @@ export function Messenger() {
       replyTo: quote ? { text: quote } : undefined,
     };
     const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "", done: false, sources: [] };
-    setMessages((prev) => [...prev, user, assistant]);
+    const pending = [...prior, user, assistant];
+    rememberConversation(agent.id, thread, agent.departmentId, pending, q.slice(0, 42));
+    void fetch("/api/threads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ departmentId: agent.departmentId, agentId: agent.id, title: q.slice(0, 42) }),
+    }).catch(() => undefined);
     if (inputRef.current) inputRef.current.value = "";
     try {
       const res = await fetch("/api/chat", {
@@ -268,8 +295,15 @@ export function Messenger() {
       if (contentType.includes("application/json")) {
         let payload = (await res.json()) as LivePayload;
         while (payload.phase === "wait") {
-          setStatusNote(payload.note || "The firm model is waking up.");
-          await new Promise((resolve) => setTimeout(resolve, 4000));
+          const note = payload.note || "The firm model is waking up.";
+          setStatusNote(note);
+          rememberConversation(
+            agent.id,
+            thread,
+            agent.departmentId,
+            pending.map((item) => (item.id === assistant.id ? { ...item, text: note } : item)),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2500));
           const next = await fetch("/api/chat/step", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -314,10 +348,12 @@ export function Messenger() {
         }
         finalText = finalText || streamed;
       }
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === assistant.id ? { ...item, id: messageId, text: finalText, done: true, tools, approval } : item,
-        ),
+      const shown = finalText || (modelOffline ? "The model is offline. Nothing was sent to an outside AI lab." : "The model returned an empty reply.");
+      rememberConversation(
+        agent.id,
+        thread,
+        agent.departmentId,
+        pending.map((item) => (item.id === assistant.id ? { ...item, id: messageId, text: shown, done: true, tools, approval } : item)),
       );
       if (opts?.voice && finalText && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -326,8 +362,11 @@ export function Messenger() {
       if (modelOffline) setStatusNote("The model is offline.");
       window.dispatchEvent(new Event("hatch-refresh"));
     } catch {
-      setMessages((prev) =>
-        prev.map((item) =>
+      rememberConversation(
+        agent.id,
+        thread,
+        agent.departmentId,
+        pending.map((item) =>
           item.id === assistant.id
             ? { ...item, done: true, text: "The model is offline. Nothing was sent to an outside AI lab." }
             : item,
@@ -747,15 +786,23 @@ export function Messenger() {
       }),
     });
     const data = (await res.json().catch(() => null)) as { message?: ChatMessage };
-    if (data?.message) {
-      setMessages((prev) => prev.map((item) => (item.id === message.id ? data.message! : item)));
+    if (data?.message && agent) {
+      const next = (readTranscripts().find((item) => item.agentId === agent.id)?.messages || messages).map((item) =>
+        item.id === message.id ? data.message! : item,
+      );
+      rememberConversation(agent.id, activeThread, agent.departmentId, next);
     }
   }
 
   async function react(message: ChatMessage, emoji: string) {
     if (!activeThread) return;
     const reactions = Array.from(new Set([...(message.reactions || []), emoji]));
-    setMessages((prev) => prev.map((item) => (item.id === message.id ? { ...item, reactions } : item)));
+    if (agent) {
+      const next = (readTranscripts().find((item) => item.agentId === agent.id)?.messages || messages).map((item) =>
+        item.id === message.id ? { ...item, reactions } : item,
+      );
+      rememberConversation(agent.id, activeThread, agent.departmentId, next);
+    }
     setHold(null);
     await fetch("/api/threads/message", {
       method: "POST",
