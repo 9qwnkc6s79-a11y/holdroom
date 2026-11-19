@@ -23,6 +23,7 @@ import type {
 } from "./types.ts";
 import { scrubVaultSecrets } from "./vault.ts";
 import { AGENTS, AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "./agents.ts";
+import { hatchDataDir } from "./data-dir.ts";
 
 export interface Chunk {
   id: string;
@@ -45,7 +46,7 @@ interface DiskState {
   agents: HatchAgent[];
 }
 
-const DATA = path.join(process.cwd(), "data");
+const DATA = hatchDataDir();
 const STATE = path.join(DATA, "state.json");
 const UPLOADS = path.join(DATA, "uploads");
 const STATE_VERSION = 5;

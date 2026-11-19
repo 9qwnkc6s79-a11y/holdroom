@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
+import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
@@ -78,6 +79,8 @@ export function Messenger() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [agentSettings, setAgentSettings] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [hold, setHold] = useState<string | null>(null);
   const [chatSearch, setChatSearch] = useState(false);
@@ -104,6 +107,19 @@ export function Messenger() {
     return () => media.removeEventListener("change", apply);
   }, []);
 
+  function extraAgents(): HatchAgent[] {
+    try {
+      return JSON.parse(localStorage.getItem("hatch-extra-agents") || "[]") as HatchAgent[];
+    } catch {
+      return [];
+    }
+  }
+
+  function rememberAgent(agent: HatchAgent) {
+    const next = [agent, ...extraAgents().filter((item) => item.id !== agent.id)].slice(0, 40);
+    localStorage.setItem("hatch-extra-agents", JSON.stringify(next));
+  }
+
   async function load() {
     const [agentRes, threadRes] = await Promise.all([
       fetch("/api/agents", { cache: "no-store" }),
@@ -111,7 +127,9 @@ export function Messenger() {
     ]);
     if (agentRes.ok) {
       const data = (await agentRes.json()) as { agents?: HatchAgent[] };
-      setAgents(data.agents || []);
+      const server = data.agents || [];
+      const ids = new Set(server.map((item) => item.id));
+      setAgents([...server, ...extraAgents().filter((item) => !ids.has(item.id))]);
     }
     if (threadRes.ok) {
       const data = (await threadRes.json()) as { threads?: ChatThread[] };
@@ -403,7 +421,7 @@ export function Messenger() {
       {showList ? (
         <section className="inbox" aria-label="Agents">
           <header className="inbox-top">
-            <button type="button" className="round" aria-label="Account and settings" onClick={() => router.push("/settings")}>
+            <button type="button" className="round" aria-label="Account and settings" onClick={() => setSettingsOpen(true)}>
               <InitialAvatar label={account} size={40} />
             </button>
             <button type="button" className="round round-plus" aria-label="New agent" onClick={() => setCreating(true)}>
@@ -656,17 +674,32 @@ export function Messenger() {
 
       {creating ? (
         <NewAgent
-          onClose={() => setCreating(false)}
-          onCreate={async (input) => {
-            const res = await fetch("/api/agents", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(input),
-            });
-            const data = (await res.json()) as { agent?: HatchAgent };
-            await load();
+          error={createError}
+          onClose={() => {
+            setCreateError("");
             setCreating(false);
-            if (data.agent) router.push(`/chat?agent=${data.agent.id}`);
+          }}
+          onCreate={async (input) => {
+            setCreateError("");
+            try {
+              const res = await fetch("/api/agents", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(input),
+              });
+              const data = (await res.json().catch(() => null)) as { agent?: HatchAgent; error?: string } | null;
+              if (!res.ok || !data?.agent) {
+                setCreateError(data?.error || "Could not create that agent.");
+                return;
+              }
+              rememberAgent(data.agent);
+              setAgents((prev) => [data.agent!, ...prev.filter((item) => item.id !== data.agent!.id)]);
+              setCreating(false);
+              router.push(`/chat?agent=${data.agent.id}`);
+              void load();
+            } catch {
+              setCreateError("Could not create that agent. The request did not finish.");
+            }
           }}
         />
       ) : null}
@@ -683,6 +716,8 @@ export function Messenger() {
           <p className="fine">Talk, then Hatch answers aloud. Demo uses this phone’s voice.</p>
         </div>
       ) : null}
+
+      {settingsOpen ? <SettingsScreen onClose={() => setSettingsOpen(false)} /> : null}
 
       {palette ? (
         <div className="sheet" role="dialog" aria-label="Search">
@@ -820,9 +855,11 @@ function AgentSettings({
 }
 
 function NewAgent({
+  error,
   onClose,
   onCreate,
 }: {
+  error?: string;
   onClose: () => void;
   onCreate: (input: { name: string; description: string; color: string }) => Promise<void>;
 }) {
@@ -836,6 +873,7 @@ function NewAgent({
         <strong>New agent</strong>
         <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color })}>Create</button>
       </header>
+      {error ? <p className="os-error" role="alert">{error}</p> : null}
       <BlobAvatar color={color} size={84} />
       <div className="swatches">
         {AGENT_COLORS.map((swatch) => (

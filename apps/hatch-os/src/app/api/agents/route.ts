@@ -20,18 +20,23 @@ export async function POST(req: Request) {
     pinned?: boolean;
   } | null;
   if (!body?.name?.trim()) return NextResponse.json({ error: "Name the agent." }, { status: 400 });
-  const agent = saveStoredAgent({
-    id: body.id,
-    name: body.name,
-    title: body.title,
-    description: body.description,
-    color: body.color,
-    model: body.model,
-    notifications: body.notifications,
-    muted: body.muted,
-    pinned: body.pinned,
-  });
-  return NextResponse.json({ agent });
+  try {
+    const agent = saveStoredAgent({
+      id: body.id,
+      name: body.name,
+      title: body.title,
+      description: body.description,
+      color: body.color,
+      model: body.model,
+      notifications: body.notifications,
+      muted: body.muted,
+      pinned: body.pinned,
+    });
+    return NextResponse.json({ agent });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not save the agent.";
+    return NextResponse.json({ error: `Could not save the agent. ${message}` }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request) {

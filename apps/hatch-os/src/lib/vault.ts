@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from "fs";
 import path from "path";
 import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
 import type { VaultKind, VaultPublicItem } from "./types.ts";
+import { hatchDataDir } from "./data-dir.ts";
 import { decryptJson, encryptJson, vaultConfigured, vaultKey } from "./vault-crypto.ts";
 
 export interface VaultSecret {
@@ -21,7 +22,7 @@ interface VaultRecord extends VaultPublicItem {
 }
 
 function vaultPath() {
-  return process.env.HATCH_VAULT_PATH || path.join(process.cwd(), "data", "vault.json");
+  return process.env.HATCH_VAULT_PATH || path.join(hatchDataDir(), "vault.json");
 }
 
 function readRecords(): VaultRecord[] {
