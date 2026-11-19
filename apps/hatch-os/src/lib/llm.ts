@@ -1,3 +1,4 @@
+import { runpodApiRoot } from "./runpod-jobs.ts";
 import type { ToolCall } from "./tool-parse";
 import { thinkingOffExtras, visibleStreamText } from "./think.ts";
 import type { OpenAiTool } from "./tools";
@@ -292,11 +293,12 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
       error: `${endpoint.keyEnv} is required for ${endpoint.host}`,
     };
   }
+  if (isRunpodUrl(endpoint.rawBase)) return probeRunpodHealth(endpoint, base);
   try {
     const res = await fetch(`${endpoint.openaiRoot}/models`, {
       cache: "no-store",
       headers: headersFor(endpoint),
-      signal: AbortSignal.timeout(isRunpodUrl(endpoint.rawBase) ? 20_000 : 8_000),
+      signal: AbortSignal.timeout(8_000),
     });
     const reachable = res.status !== 0;
     if (res.status === 401 || res.status === 403) {
@@ -336,22 +338,88 @@ async function probeRemote(endpoint: LlmEndpoint): Promise<LlmProbe> {
       modelPulled,
     };
   } catch {
-    /* RunPod cold start can stall /models. Key + host is enough to try Ask. */
-    if (isRunpodUrl(endpoint.rawBase) && endpoint.apiKey) {
-      return {
-        ...base,
-        connected: true,
-        reachable: true,
-        modelPulled: true,
-        error: `RunPod /models timed out — ${endpoint.lane === "agent" ? "Agent" : "Ask"} will still try chat.completions (cold start up to ${REMOTE_CHAT_TIMEOUT_MS / 60_000} min).`,
-      };
-    }
     return {
       ...base,
       connected: false,
       reachable: false,
       modelPulled: false,
       error: `Cannot reach ${endpoint.host}`,
+    };
+  }
+}
+
+function workerCount(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** RunPod's OpenAI /models proxy stalls even when workers are idle. /health is the control plane. */
+async function probeRunpodHealth(endpoint: LlmEndpoint, base: Omit<LlmProbe, "connected" | "reachable" | "modelPulled" | "error">): Promise<LlmProbe> {
+  const root = runpodApiRoot(endpoint.rawBase);
+  if (!root) {
+    return {
+      ...base,
+      connected: false,
+      reachable: false,
+      modelPulled: false,
+      error: `Cannot find a RunPod endpoint id for ${endpoint.host}`,
+    };
+  }
+  try {
+    const res = await fetch(`${root}/health`, {
+      cache: "no-store",
+      headers: headersFor(endpoint),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ...base,
+        connected: false,
+        reachable: true,
+        modelPulled: false,
+        error: `Endpoint ${endpoint.host} reachable — auth failed (HTTP ${res.status})`,
+      };
+    }
+    if (!res.ok) {
+      return {
+        ...base,
+        connected: false,
+        reachable: true,
+        modelPulled: false,
+        error: `RunPod /health HTTP ${res.status}`,
+      };
+    }
+    const json = (await res.json().catch(() => null)) as {
+      workers?: { idle?: number; ready?: number; running?: number };
+    } | null;
+    const idle = workerCount(json?.workers?.idle);
+    const ready = workerCount(json?.workers?.ready);
+    const running = workerCount(json?.workers?.running);
+    const label = `${endpoint.label} · idle ${idle}, ready ${ready}, running ${running}`;
+    if (idle > 0 || ready > 0 || running > 0) {
+      return {
+        ...base,
+        label,
+        models: [endpoint.model],
+        connected: true,
+        reachable: true,
+        modelPulled: true,
+      };
+    }
+    return {
+      ...base,
+      label,
+      connected: false,
+      reachable: true,
+      modelPulled: false,
+      error: "RunPod /health responded. No workers are idle, ready, or running.",
+    };
+  } catch {
+    return {
+      ...base,
+      connected: false,
+      reachable: false,
+      modelPulled: false,
+      error: `Cannot reach RunPod /health for ${endpoint.host}`,
     };
   }
 }
@@ -448,10 +516,11 @@ async function probeLane(lane: LlmLane): Promise<LlmProbe> {
     resolved[lane] = cfg.primary;
     return tagged;
   }
-  /* RunPod with a key: do not steal Ask onto Ollama just because /models is slow. */
+  /* A keyed RunPod lane stays on that endpoint. Do not hop to Ollama, and do not
+     report the workers as ready when /health said they are not. */
   if (isRunpodUrl(cfg.primary.rawBase) && cfg.primary.apiKey) {
     resolved[lane] = cfg.primary;
-    return { ...tagged, connected: true, reachable: first.reachable || true, label: cfg.primary.label };
+    return tagged;
   }
   if (cfg.fallback) {
     const second = await probeEndpoint(cfg.fallback, true);

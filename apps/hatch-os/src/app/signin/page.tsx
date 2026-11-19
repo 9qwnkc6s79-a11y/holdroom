@@ -2,22 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
 
 export default function SignInPage() {
   const { pair, pairError, session } = useHatch();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [demo, setDemo] = useState<boolean | null>(null);
   const [invite, setInvite] = useState(false);
-
-  useEffect(() => {
-    void fetch("/api/status", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data: { demoMode?: boolean }) => setDemo(Boolean(data.demoMode)))
-      .catch(() => setDemo(false));
-  }, []);
 
   if (session) return <p className="boot-note">Opening Hatch…</p>;
 
@@ -46,11 +38,9 @@ export default function SignInPage() {
         <h1>Hatch</h1>
         <p>The firm’s private agents. Sign in on the office network.</p>
         {pairError ? <p className="os-error">{pairError}</p> : null}
-        {demo !== false ? (
-          <button className="demo-go" type="button" onClick={() => void onDemo()} disabled={busy || demo === null}>
-            Continue in demo
-          </button>
-        ) : null}
+        <button className="demo-go" type="button" onClick={() => void onDemo()} disabled={busy}>
+          Continue in demo
+        </button>
         <button className="text-btn" type="button" onClick={() => setInvite((value) => !value)}>
           {invite ? "Hide invite" : "Use an invite code"}
         </button>

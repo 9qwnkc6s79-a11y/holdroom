@@ -9,6 +9,7 @@ import {
   HERMES_MODEL,
   hermesEndpointId,
   llmConfig,
+  probeAgentLlm,
   probeLlm,
   REMOTE_CHAT_TIMEOUT_MS,
   resetLlmLaneCache,
@@ -189,6 +190,65 @@ describe("REMOTE_CHAT_TIMEOUT_MS", () => {
           return true;
         },
       );
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+});
+
+describe("RunPod health probe", () => {
+  it("reads /health with the key and reports ready workers", async () => {
+    runpodAskEnv();
+    process.env.HATCH_AGENT_LLM_BASE_URL = `https://api.runpod.ai/v2/${HERMES_ENDPOINT_ID}/openai/v1`;
+    process.env.HATCH_AGENT_LLM_MODEL = HERMES_MODEL;
+    const orig = globalThis.fetch;
+    const seen: { url: string; authorization: string }[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+      seen.push({ url, authorization: headers.get("authorization") || "" });
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ workers: { idle: 2, ready: 2, running: 0 } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+    try {
+      const ask = await probeLlm();
+      assert.equal(ask.connected, true);
+      assert.equal(ask.reachable, true);
+      assert.equal(ask.hasKey, true);
+      assert.equal(ask.error, undefined);
+      assert.match(ask.label || "", /idle 2, ready 2, running 0/);
+      assert.equal(seen.some((call) => call.url.includes("/models")), false);
+      assert.equal(seen.some((call) => call.url === "https://api.runpod.ai/v2/diqb3ykkxo0i16/health"), true);
+      assert.equal(seen[0]?.authorization, "Bearer ask-key");
+
+      const agent = await probeAgentLlm();
+      assert.equal(agent.connected, true);
+      assert.equal(seen.some((call) => call.url === `https://api.runpod.ai/v2/${HERMES_ENDPOINT_ID}/health`), true);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("stays offline when /health has no workers, without calling it a timeout", async () => {
+    runpodAskEnv();
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      return new Response(JSON.stringify({ workers: { idle: 0, ready: 0, running: 0, throttled: 1 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      const probe = await probeLlm();
+      assert.equal(probe.connected, false);
+      assert.equal(probe.reachable, true);
+      assert.match(probe.error || "", /No workers are idle, ready, or running/);
+      assert.equal(/timed out/i.test(probe.error || ""), false);
     } finally {
       globalThis.fetch = orig;
     }

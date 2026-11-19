@@ -89,15 +89,16 @@ export async function GET(req: Request) {
   const status = await fetchBoxStatus();
   const { primary } = llmConfig();
   const agent = agentLlmConfig();
+  const ready = llm.connected && !/timed out/i.test(llm.error || "");
   return NextResponse.json(
     {
       ...status,
       ok: llm.reachable,
       model: llm.model,
-      label: "Software dry-run — appliance not connected",
+      label: ready ? `${llm.label || "Firm model"} is ready` : "The firm model is offline",
       dryRun: true,
       demoMode: false,
-      modelState: llm.connected && !/timed out/i.test(llm.error || "") ? "ready" : "offline",
+      modelState: ready ? "ready" : "offline",
       llm: {
         ...llm,
         model: llm.model,
