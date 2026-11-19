@@ -1,5 +1,5 @@
-# Hatch OS is a separate Next.js app. The holdroom Vercel project is the
-# static marketing site (framework: null). Do not build apps/ as this project.
-apps
-node_modules
+# Dependencies and git metadata. The Next.js app in apps/hatch-os is a
+# separate Vercel project (root directory apps/hatch-os). Ignoring `apps`
+# here deletes that app before its build can see package.json.
 .git
+node_modules
