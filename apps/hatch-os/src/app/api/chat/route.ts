@@ -1,7 +1,9 @@
 import { runChatTurn } from "@/lib/chat";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 180;
+// Vercel preview plans cap this at 60s. Demo replies finish immediately.
+// A live RunPod cold start can take longer and should run on the firm box.
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {

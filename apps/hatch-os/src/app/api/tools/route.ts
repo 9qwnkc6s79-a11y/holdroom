@@ -6,7 +6,7 @@ import { fileListing, listAudit, retrieveFirm } from "@/lib/store";
 import { TOOL_SCHEMAS, executeTool, mentionedReads } from "@/lib/tools";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 180;
+export const maxDuration = 60;
 
 export async function GET() {
   const agent = agentLlmConfig();
