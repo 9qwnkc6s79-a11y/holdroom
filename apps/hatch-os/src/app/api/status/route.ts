@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchBoxStatus } from "@/lib/adapters";
+import { demoModeEnabled } from "@/lib/demo.ts";
 import { probeLlm, probeAgentLlm, llmConfig, agentLlmConfig } from "@/lib/llm";
 import { MOCK_STATUS } from "@/lib/mock-data";
 import type { BoxStatus, EgressCheck } from "@/lib/types";
@@ -7,6 +8,40 @@ import type { BoxStatus, EgressCheck } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  if (demoModeEnabled()) {
+    const body: BoxStatus = {
+      ...MOCK_STATUS,
+      ok: true,
+      label: "Demo mode — the firm model is not called",
+      model: "demo",
+      demoMode: true,
+      modelState: "demo",
+      dryRun: true,
+      source: "mock",
+      llm: {
+        connected: false,
+        reachable: false,
+        model: "demo",
+        baseUrl: "",
+        host: "demo",
+        label: "Demo mode",
+        lane: "ask",
+      },
+      agentLlm: {
+        connected: false,
+        reachable: false,
+        model: "demo",
+        baseUrl: "",
+        host: "demo",
+        label: "Demo mode",
+        lane: "agent",
+        dedicated: false,
+        usingAskFallback: false,
+      },
+    };
+    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+  }
+
   const url = new URL(req.url);
   const demo = url.searchParams.get("egress");
   const llm = await probeLlm();
@@ -61,6 +96,8 @@ export async function GET(req: Request) {
       model: llm.model,
       label: "Software dry-run — appliance not connected",
       dryRun: true,
+      demoMode: false,
+      modelState: llm.connected && !/timed out/i.test(llm.error || "") ? "ready" : "offline",
       llm: {
         ...llm,
         model: llm.model,

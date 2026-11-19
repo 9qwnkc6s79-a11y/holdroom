@@ -16,8 +16,13 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     departmentId?: string;
     title?: string;
+    agentId?: string;
   } | null;
-  const thread = createThread(migrateWorkspaceId(body?.departmentId || LITTLE_ELM), body?.title || "New thread");
+  const thread = createThread(
+    migrateWorkspaceId(body?.departmentId || LITTLE_ELM),
+    body?.title || "New thread",
+    body?.agentId,
+  );
   return NextResponse.json({ thread });
 }
 

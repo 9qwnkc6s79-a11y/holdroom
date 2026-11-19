@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import { AppProvider } from "@/components/AppProvider";
 import { AuthGate } from "@/components/AuthGate";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
+import "./os.css";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -11,24 +12,34 @@ const inter = Inter({
   display: "swap",
 });
 
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Boundaries Coffee · Hatch OS",
-  description: "Boundaries Coffee dry-run — departments, chat, files, library. Interim local Qwen on this machine.",
+  title: "Hatch",
+  description: "Hatch OS — the firm’s private assistant. Agents, file room, vault, and an audit log on your network.",
+  applicationName: "Hatch",
   robots: { index: false, follow: false },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Boundaries",
-    statusBarStyle: "default",
+    title: "Hatch",
+    statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: "/icons/icon.svg",
-    apple: "/icons/icon-192.png",
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#0B3B32",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -41,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.variable}>
+      <body className={`${inter.variable} ${fraunces.variable}`}>
         <a className="skip" href="#stage">
           Skip to content
         </a>

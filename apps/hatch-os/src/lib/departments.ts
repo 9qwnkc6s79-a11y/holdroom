@@ -3,9 +3,11 @@ import type { DepartmentId } from "./types";
 export const LITTLE_ELM = "little-elm";
 export const PROSPER = "prosper";
 export const HQ_OPS = "hq-ops";
+export const LEGAL = "legal";
+export const FINANCE = "finance";
 export const ENTERPRISE = "enterprise";
 
-export const DEPARTMENT_IDS = [LITTLE_ELM, PROSPER, HQ_OPS] as const;
+export const DEPARTMENT_IDS = [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE] as const;
 export const ALL_WORKSPACES = [ENTERPRISE, LITTLE_ELM, PROSPER, HQ_OPS] as const;
 
 /** @deprecated use DEPARTMENT_IDS */
@@ -37,6 +39,8 @@ export function workspaceLabel(id: string): string {
   if (rid === LITTLE_ELM) return "Little Elm";
   if (rid === PROSPER) return "Prosper";
   if (rid === HQ_OPS) return "HQ Ops";
+  if (rid === LEGAL) return "Legal";
+  if (rid === FINANCE) return "Finance";
   return id;
 }
 
@@ -69,6 +73,12 @@ export function uxIsolation(id: string): string {
   }
   if (rid === HQ_OPS) {
     return "UX space for HQ Ops. Chat, Files, and Library are this department’s. Ask may use firm-wide knowledge. Writes stay in departments you can open.";
+  }
+  if (rid === LEGAL) {
+    return "File room for the Legal agent. Reads may use the firm library. Writes stay in Legal.";
+  }
+  if (rid === FINANCE) {
+    return "File room for the Finance agent. Reads may use the firm library. Writes stay in Finance.";
   }
   return "UX space for this department. Ask may use firm-wide knowledge. Writes stay in departments you can open.";
 }

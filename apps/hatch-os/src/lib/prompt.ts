@@ -2,6 +2,7 @@ import { workspaceLabel } from "./departments";
 import { interleaveHistory, type ThreadHistoryTurn } from "./thread-history.ts";
 import { aclPreview, TOOL_SCHEMAS } from "./tools";
 import type { Source, ToolEvent } from "./types";
+import { scrubVaultSecrets, vaultCatalog } from "./vault.ts";
 
 export {
   HISTORY_MAX_CHARS,
@@ -22,6 +23,19 @@ export interface PromptInput {
   accessibleDepartments: string[];
   history?: ThreadHistoryTurn[];
   defaultDepartmentId?: string;
+}
+
+function vaultPromptLine() {
+  try {
+    const items = vaultCatalog();
+    if (!items.length) {
+      return "Vault catalog is empty. Never invent a password, token, or card number.";
+    }
+    const line = items.map((item) => `${item.name} [${item.kind}] — ${item.whenToUse}`).join("; ");
+    return `Vault items by name only: ${scrubVaultSecrets(line)}. Call use_vault to request a reference. You never receive the secret. Do not repeat a secret if the user types one.`;
+  } catch {
+    return "Vault is unavailable. Never invent a password, token, or card number.";
+  }
 }
 
 function sharedContext(input: PromptInput) {
@@ -90,6 +104,8 @@ export function buildAgentMessages(input: PromptInput) {
     'TOOL {"name":"write_draft","arguments":{"departmentId":"little-elm","filename":"notes.md","text":"..."}}',
     'TOOL {"name":"handoff_to_department","arguments":{"toDepartmentId":"hq-ops","summary":"...","facts":"..."}}',
     "If no file or search action is needed, answer in prose and do not emit a TOOL line.",
+    "write_draft, handoff_to_department, delete_file, and use_vault wait for a person to approve on Hatch OS. Do not claim they already happened.",
+    vaultPromptLine(),
     ...ctx.corpus,
   ]
     .filter(Boolean)

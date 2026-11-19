@@ -1,4 +1,4 @@
-import type { FileKind } from "./types";
+import type { FileKind } from "./types.ts";
 
 const DOC = /\.(pdf|docx?|xlsx?|md|txt)$/i;
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;

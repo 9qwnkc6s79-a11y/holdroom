@@ -1,3 +1,4 @@
+import { toolNeedsApproval } from "./action-cards.ts";
 import { DRAFT_NUDGE, finishSoftDraft, shouldNudgeSoftDraft } from "./agent-draft.ts";
 import { streamAgentLlm, type ChatMessage } from "./llm";
 import { buildAgentMessages, type PromptInput } from "./prompt";
@@ -25,6 +26,7 @@ export interface AgentLoopResult {
   text: string;
   tools: ToolEvent[];
   sources: Source[];
+  pendingCalls?: ToolCall[];
 }
 
 function mergeCalls(streamed: ToolCall[], fromText: ToolCall[]): ToolCall[] {
@@ -40,6 +42,7 @@ function mergeCalls(streamed: ToolCall[], fromText: ToolCall[]): ToolCall[] {
 export async function runAgentLoop(
   input: AgentLoopInput,
   onDelta: (text: string) => void,
+  options?: { pauseMutations?: boolean },
 ): Promise<AgentLoopResult> {
   const ctx: ToolContext = {
     workspaceId: input.workspaceId,
@@ -77,11 +80,24 @@ export async function runAgentLoop(
     }
 
     const extras: string[] = [];
+    const pending: ToolCall[] = [];
     for (const call of calls) {
+      if (options?.pauseMutations && toolNeedsApproval(call.name)) {
+        pending.push(call);
+        continue;
+      }
       const result = executeTool(call, ctx);
       toolResults.push(result.event);
       if (result.sources?.length) sources.push(...result.sources);
       if (result.extra) extras.push(`${call.name}: ${result.extra}`);
+    }
+    if (pending.length) {
+      return {
+        text: stripThinkBlocks(stripToolMarkup(visible) || visible),
+        tools: toolResults,
+        sources,
+        pendingCalls: pending,
+      };
     }
 
     messages.push({ role: "assistant", content: visibleTurn || turnText });
@@ -102,6 +118,14 @@ export async function runAgentLoop(
     tools: toolResults,
     defaultDepartmentId: input.defaultDepartmentId,
   });
+  if (finished.toolCall && options?.pauseMutations && toolNeedsApproval(finished.toolCall.name)) {
+    return {
+      text: stripThinkBlocks(finished.text || visible),
+      tools: toolResults,
+      sources,
+      pendingCalls: [finished.toolCall],
+    };
+  }
   if (finished.toolCall) {
     const result = executeTool(finished.toolCall, ctx);
     toolResults.push(result.event);

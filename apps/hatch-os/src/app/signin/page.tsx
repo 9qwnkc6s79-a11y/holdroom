@@ -1,47 +1,22 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
-
-async function tryPasskey(device: string) {
-  if (!window.PublicKeyCredential) return "demo";
-  try {
-    const challenge = new Uint8Array(32);
-    crypto.getRandomValues(challenge);
-    const userId = new Uint8Array(16);
-    crypto.getRandomValues(userId);
-    await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { name: "Hatch OS", id: location.hostname },
-        user: {
-          id: userId,
-          name: "partner@firm.local",
-          displayName: device || "This device",
-        },
-        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-        timeout: 30000,
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "preferred",
-          residentKey: "preferred",
-        },
-      },
-    });
-    return "webauthn";
-  } catch {
-    return "demo";
-  }
-}
 
 export default function SignInPage() {
   const { pair, pairError, session } = useHatch();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [passkeyNote, setPasskeyNote] = useState("");
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/status", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { demoMode?: boolean }) => setDemo(Boolean(data.demoMode)))
+      .catch(() => setDemo(false));
+  }, []);
 
   if (session) return <p className="boot-note">Opening Hatch OS…</p>;
 
@@ -54,95 +29,52 @@ export default function SignInPage() {
     setBusy(true);
     const ok = await pair({ invite, totp, device, method: "totp" });
     setBusy(false);
-    if (ok) router.push("/chat");
+    if (ok) router.push("/chat?agent=general");
   }
 
-  async function onPasskey(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = document.getElementById("pair-form") as HTMLFormElement | null;
-    const invite = String(form ? new FormData(form).get("invite") : "");
-    const device = String(form ? new FormData(form).get("device") : "");
+  async function onDemo() {
     setBusy(true);
-    const result = await tryPasskey(device);
-    const ok = await pair({ invite, device, method: "passkey" });
+    const ok = await pair({ invite: "BOUNDARIES", totp: "000000", device: "Demo", method: "totp" });
     setBusy(false);
-    if (ok) {
-      setPasskeyNote(
-        result === "webauthn"
-          ? "Passkey registered on this box."
-          : "Passkey registered on this box (demo).",
-      );
-      router.push("/chat");
-    }
+    if (ok) router.push("/chat?agent=general");
   }
 
   return (
-    <div className="gate">
-      <div className="gate-inner">
-        <p className="brand">
-          <Image className="brand-logo is-large" src="/brand/boundaries-logo.svg" alt="Boundaries Coffee" width={200} height={40} unoptimized priority />
+    <div className="os-gate">
+      <div className="os-gate-card">
+        <p className="os-kicker" style={{ color: "#6d776f" }}>
+          Private to the firm
         </p>
-        <h1>This device is not paired.</h1>
-        <p className="lede">
-          Ask your admin for an invite code. The session lives on this box — the phone stores a
-          pointer, not the corpus.
-        </p>
-        {pairError ? (
-          <div className="banner banner-warn" role="alert">
-            <p>{pairError}</p>
-          </div>
-        ) : null}
-        {passkeyNote ? (
-          <div className="banner banner-ok">
-            <p>{passkeyNote}</p>
-          </div>
-        ) : null}
-        <form className="card" id="pair-form" onSubmit={onSubmit}>
-          <label htmlFor="invite">Invite code</label>
-          <input
-            id="invite"
-            name="invite"
-            type="text"
-            autoComplete="one-time-code"
-            placeholder="HATCH-····"
-            required
-          />
-          <p className="field-hint">
-            Dry-run stub. Try BOUNDARIES or HATCH-BETA (all departments + Enterprise), HATCH-ASSOC
-            (Little Elm only), or HATCH-NOSEAT for the empty-seat path.
+        <h1>Hatch</h1>
+        <p>The firm’s assistant. It runs on your network. Sign in to open it.</p>
+        {pairError ? <p className="os-error">{pairError}</p> : null}
+        {demo ? (
+          <p>
+            <button className="os-btn" type="button" onClick={() => void onDemo()} disabled={busy}>
+              Continue in demo
+            </button>
           </p>
-          <label htmlFor="totp">Authenticator code</label>
-          <input
-            id="totp"
-            name="totp"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            placeholder="000000"
-          />
-          <p className="field-hint">TOTP stub — any six digits. No SMS. No “sign in with Google.”</p>
-          <label htmlFor="device">Device name (optional)</label>
-          <input id="device" name="device" type="text" placeholder="Jane iPhone" />
-          <div className="btn-row">
-            <button className="btn btn-dark btn-block" type="submit" disabled={busy}>
-              Pair this device
-            </button>
-          </div>
+        ) : null}
+        <form className="os-form" onSubmit={onSubmit}>
+          <label>
+            Invite code
+            <input name="invite" autoComplete="one-time-code" placeholder="Invite" required />
+          </label>
+          <label>
+            Authenticator code
+            <input name="totp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="6 digits" required />
+          </label>
+          <label>
+            Device
+            <input name="device" placeholder="This browser" />
+          </label>
+          <button className="os-btn" type="submit" disabled={busy}>
+            Sign in
+          </button>
         </form>
-        <form onSubmit={onPasskey}>
-          <div className="btn-row">
-            <button className="btn btn-outline btn-block" type="submit" disabled={busy}>
-              Use a passkey
-            </button>
-          </div>
-        </form>
-        <p className="fine" style={{ marginTop: 16 }}>
-          If the box is not reachable, you will see “can’t reach the room” — not a login that
-          pretends to work.{" "}
-          <Link className="linkish" href="/offline">
-            Show offline demo
-          </Link>
+        <p className="os-fine">
+          If the office network is down, Hatch does not fall back to a public lab.{" "}
+          <Link href="/offline">Offline</Link>
         </p>
       </div>
     </div>

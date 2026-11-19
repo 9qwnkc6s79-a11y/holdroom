@@ -1,4 +1,4 @@
-import type { DepartmentId } from "./types";
+import type { DepartmentId } from "./types.ts";
 
 export const DRIVE_STUB_NOTE =
   "Google Drive OAuth is not wired. This is a connect stub — pick the sample Boundaries folder to land files in this department’s Files. Add to Library when you want Ask to cite them.";

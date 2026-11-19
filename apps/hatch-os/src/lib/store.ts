@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, existsSync, writeFileSync, readdirSync } from "fs";
 import path from "path";
 import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
-import { canWriteDepartment, normalizeDepartments } from "./acl";
-import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "./departments";
-import { DRIVE_STUB_ITEMS } from "./drive";
-import { imageAssetPassage, isAcceptedFilename, kindFromFilename, REJECT_COPY } from "./files";
-import { INITIAL_SEATS } from "./mock-data";
+import { canWriteDepartment, normalizeDepartments } from "./acl.ts";
+import { ENTERPRISE, FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER, isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "./departments.ts";
+import { DRIVE_STUB_ITEMS } from "./drive.ts";
+import { imageAssetPassage, isAcceptedFilename, kindFromFilename, REJECT_COPY } from "./files.ts";
+import { INITIAL_SEATS } from "./mock-data.ts";
 import type {
   AuditEntry,
   ChatMessage,
@@ -16,10 +16,12 @@ import type {
   FileOrigin,
   Handoff,
   HatchFile,
+  Routine,
   Seat,
   Source,
   ToolEvent,
-} from "./types";
+} from "./types.ts";
+import { scrubVaultSecrets } from "./vault.ts";
 
 export interface Chunk {
   id: string;
@@ -38,17 +40,20 @@ interface DiskState {
   threads: ChatThread[];
   handoffs: Handoff[];
   audit: AuditEntry[];
+  routines: Routine[];
 }
 
 const DATA = path.join(process.cwd(), "data");
 const STATE = path.join(DATA, "state.json");
 const UPLOADS = path.join(DATA, "uploads");
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 
 const SEED_FOLDERS: Record<string, string[]> = {
   [LITTLE_ELM]: ["Checklists", "Staff", "Shared from HQ"],
   [PROSPER]: ["Checklists", "Staff", "Shared from HQ"],
   [HQ_OPS]: ["Catering", "Loyalty", "Roster"],
+  [LEGAL]: ["Notes"],
+  [FINANCE]: ["Notes"],
 };
 
 const SEED_FILE_FOLDER: Record<string, string> = {
@@ -70,7 +75,7 @@ function newId(prefix: string) {
 }
 
 function emptyDepartments(): Department[] {
-  return [LITTLE_ELM, PROSPER, HQ_OPS].map((id) => ({
+  return [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE].map((id) => ({
     id,
     name: workspaceLabel(id),
     kind: "department" as const,
@@ -222,7 +227,7 @@ function loadSeed(): DiskState {
   const chunks: Chunk[] = [];
   const root = seedDir();
   if (!existsSync(root)) {
-    return { version: STATE_VERSION, rooms, folders, chunks, seats: defaultSeats(), threads: [], handoffs: [], audit: [] };
+    return { version: STATE_VERSION, rooms, folders, chunks, seats: defaultSeats(), threads: [], handoffs: [], audit: [], routines: defaultRoutines() };
   }
 
   for (const room of rooms) {
@@ -275,6 +280,7 @@ function loadSeed(): DiskState {
     threads: [],
     handoffs: [],
     audit: [],
+    routines: defaultRoutines(),
   };
   decorateFiles(state);
   return state;
@@ -299,7 +305,10 @@ function migrateState(raw: Partial<DiskState>): DiskState {
     threads: raw.threads || [],
     handoffs: raw.handoffs || [],
     audit: raw.audit || [],
+    routines: raw.routines ?? defaultRoutines(),
   };
+  addSeedFilesIfEmpty(state, LEGAL);
+  addSeedFilesIfEmpty(state, FINANCE);
   for (const room of state.rooms) {
     room.files = (room.files || []).map((f) => {
       const file = normalizeFile(f, room.id);
@@ -746,7 +755,7 @@ export function getThread(threadId: string): ChatThread | null {
   return readState().threads.find((t) => t.id === threadId) || null;
 }
 
-export function createThread(departmentId: DepartmentId, title = "New thread"): ChatThread {
+export function createThread(departmentId: DepartmentId, title = "New thread", agentId?: string): ChatThread {
   return withFileLock(STATE, () => {
     const state = readState();
     const now = new Date().toISOString();
@@ -758,6 +767,7 @@ export function createThread(departmentId: DepartmentId, title = "New thread"): 
       createdAt: now,
       updatedAt: now,
       messages: [],
+      agentId,
     };
     state.threads.unshift(thread);
     writeState(state);
@@ -859,19 +869,117 @@ export function createHandoff(input: {
   });
 }
 
-function recordAudit(event: ToolEvent) {
+export function recordAuditEntry(
+  event: ToolEvent,
+  extra?: { actor?: string; agentId?: string; kind?: AuditEntry["kind"] },
+) {
   withFileLock(STATE, () => {
     const state = readState();
     state.audit.unshift({
       id: newId("aud"),
       tool: event.name,
       ok: event.ok,
-      detail: event.detail,
+      detail: scrubVaultSecrets(event.detail || "").slice(0, 500),
       departmentId: event.departmentId,
       at: new Date().toISOString(),
+      actor: extra?.actor,
+      agentId: extra?.agentId,
+      kind: extra?.kind || "tool",
     });
-    state.audit = state.audit.slice(0, 80);
+    state.audit = state.audit.slice(0, 200);
     writeState(state);
+  });
+}
+
+function recordAudit(event: ToolEvent) {
+  recordAuditEntry(event);
+}
+
+function defaultRoutines(): Routine[] {
+  return [
+    {
+      id: "routine-morning-brief",
+      agentId: "general",
+      name: "Morning brief",
+      prompt: "Summarize what changed in the file room and list anything waiting on a partner.",
+      schedule: "weekdays 07:00",
+      enabled: true,
+      createdAt: "2026-01-01T12:00:00.000Z",
+    },
+  ];
+}
+
+function addSeedFilesIfEmpty(state: DiskState, departmentId: string) {
+  const room = state.rooms.find((item) => item.id === departmentId);
+  if (!room || room.files.length) return;
+  const dir = path.join(seedDir(), departmentId);
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    const full = path.join(dir, name);
+    let body = "";
+    try {
+      body = readFileSync(full, "utf8");
+    } catch {
+      body = "";
+    }
+    const rec = ingestSeedFile(departmentId, name, body, kindFromFilename(name), null);
+    room.files.push(rec.file);
+    state.chunks.push(...rec.chunks);
+  }
+}
+
+export function listRoutines(): Routine[] {
+  return readState().routines || [];
+}
+
+export function saveRoutine(input: {
+  id?: string;
+  agentId: string;
+  name: string;
+  prompt: string;
+  schedule: string;
+  enabled?: boolean;
+}): Routine {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const name = input.name.trim() || "Untitled routine";
+    const prompt = input.prompt.trim();
+    const schedule = input.schedule.trim() || "weekdays 07:00";
+    if (input.id) {
+      const existing = state.routines.find((item) => item.id === input.id);
+      if (existing) {
+        existing.agentId = input.agentId;
+        existing.name = name;
+        existing.prompt = prompt;
+        existing.schedule = schedule;
+        if (input.enabled != null) existing.enabled = input.enabled;
+        writeState(state);
+        return existing;
+      }
+    }
+    const routine: Routine = {
+      id: newId("routine"),
+      agentId: input.agentId,
+      name,
+      prompt,
+      schedule,
+      enabled: input.enabled !== false,
+      createdAt: new Date().toISOString(),
+    };
+    state.routines.unshift(routine);
+    writeState(state);
+    return routine;
+  });
+}
+
+export function deleteRoutine(id: string): boolean {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const next = state.routines.filter((item) => item.id !== id);
+    if (next.length === state.routines.length) return false;
+    state.routines = next;
+    writeState(state);
+    return true;
   });
 }
 

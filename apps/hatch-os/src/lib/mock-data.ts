@@ -1,5 +1,5 @@
-import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, uxIsolation } from "./departments";
-import type { BoxStatus, Department, Device, Seat } from "./types";
+import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, uxIsolation } from "./departments.ts";
+import type { BoxStatus, Department, Device, Seat } from "./types.ts";
 
 export { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER };
 

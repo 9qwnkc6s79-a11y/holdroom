@@ -1,4 +1,19 @@
-# Hatch OS — Boundaries Coffee dry-run
+# Hatch OS
+
+The product surface is the web app: named agents, chat, Library, Routines, Vault, and Audit. Telegram is still in the repo and is not the interface.
+
+```bash
+cd apps/hatch-os
+cp .env.local.example .env.local
+# Demo, no model call:
+#   HATCH_DEMO_MODE=1
+#   HATCH_VAULT_KEY=<64 hex chars or a passphrase>
+npm i && npm run dev
+```
+
+Open http://127.0.0.1:3000 and continue in demo, or sign in with `BOUNDARIES` and any six digits. Live models use `HATCH_LLM_*` (Ask / Qwen) and `HATCH_AGENT_LLM_*` (agent / Hermes). If those endpoints are down, the chat says the model is offline instead of waiting. Vault items are encrypted with `HATCH_VAULT_KEY` and the secret is not sent to the model or the audit log.
+
+## Boundaries Coffee dry-run
 
 Software dry-run. Appliance not connected.
 

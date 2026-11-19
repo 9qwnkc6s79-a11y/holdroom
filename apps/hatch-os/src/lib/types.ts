@@ -66,6 +66,48 @@ export interface ToolEvent {
   detail: string;
   departmentId?: DepartmentId;
   fileId?: string;
+  /** Non-secret input summary for an action card. */
+  input?: string;
+}
+
+export interface ApprovalInput {
+  label: string;
+  value: string;
+}
+
+export interface ApprovalCard {
+  id: string;
+  tool: string;
+  title: string;
+  summary: string;
+  inputs: ApprovalInput[];
+  /** Arguments safe to persist and replay. Secret fields are removed. */
+  call: { name: string; arguments: Record<string, string> };
+  status: "pending" | "approved" | "cancelled";
+  agentId?: string;
+}
+
+export interface Routine {
+  id: string;
+  agentId: string;
+  name: string;
+  prompt: string;
+  schedule: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export type VaultKind = "login" | "token" | "card";
+
+export interface VaultPublicItem {
+  id: string;
+  kind: VaultKind;
+  name: string;
+  whenToUse: string;
+  username?: string;
+  last4?: string;
+  brand?: string;
+  updatedAt: string;
 }
 
 export interface ChatAttachment {
@@ -82,6 +124,7 @@ export interface ChatMessage {
   sources: Source[];
   tools?: ToolEvent[];
   attachments?: ChatAttachment[];
+  approval?: ApprovalCard;
 }
 
 export interface ChatThread {
@@ -94,6 +137,8 @@ export interface ChatThread {
   messages: ChatMessage[];
   /** Last artifact opened in this thread — Files id, not a second store. */
   lastArtifactId?: string | null;
+  /** Hatch OS agent that owns this thread. */
+  agentId?: string;
 }
 
 export interface Handoff {
@@ -113,6 +158,9 @@ export interface AuditEntry {
   detail: string;
   departmentId?: DepartmentId;
   at: string;
+  actor?: string;
+  agentId?: string;
+  kind?: "ask" | "tool" | "approval" | "vault";
 }
 
 export interface Seat {
@@ -202,4 +250,6 @@ export interface BoxStatus {
     error?: string;
   };
   dryRun?: boolean;
+  demoMode?: boolean;
+  modelState?: "demo" | "offline" | "ready";
 }

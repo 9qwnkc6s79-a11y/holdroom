@@ -1,5 +1,6 @@
-import { canWriteDepartment, knownDepartmentId, writeDeniedHandoffHint } from "./acl";
-import { DEPARTMENT_IDS, migrateWorkspaceId, workspaceLabel } from "./departments";
+import { canWriteDepartment, knownDepartmentId, writeDeniedHandoffHint } from "./acl.ts";
+import { findVaultByName } from "./vault.ts";
+import { DEPARTMENT_IDS, migrateWorkspaceId, workspaceLabel } from "./departments.ts";
 import {
   createHandoff,
   fileListing,
@@ -7,7 +8,7 @@ import {
   readFileRecord,
   retrieveFirm,
   writeDraft,
-} from "./store";
+} from "./store.ts";
 import {
   parseHermesToolCalls,
   parseToolCalls,
@@ -15,8 +16,8 @@ import {
   stripToolMarkup,
   stripToolTrailer,
   type ToolCall,
-} from "./tool-parse";
-import type { DepartmentId, Source, ToolEvent } from "./types";
+} from "./tool-parse.ts";
+import type { DepartmentId, Source, ToolEvent } from "./types.ts";
 
 export {
   parseHermesToolCalls,
@@ -33,6 +34,7 @@ export const TOOL_NAMES = [
   "read_file",
   "write_draft",
   "handoff_to_department",
+  "use_vault",
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -62,8 +64,14 @@ export const TOOL_SCHEMAS = [
   {
     name: "handoff_to_department",
     description:
-      "Notify a peer department inbox and record what was learned. Does not write their Files.",
-    parameters: { toDepartmentId: "little-elm | prosper | hq-ops", summary: "string", facts: "string" },
+      "Notify a peer department inbox and record what was learned. Does not write their Files. Waits for approval on Hatch OS.",
+    parameters: { toDepartmentId: "little-elm | prosper | hq-ops | legal | finance", summary: "string", facts: "string" },
+  },
+  {
+    name: "use_vault",
+    description:
+      "Ask to reference a vault item by name. You never receive the password, token, or card number. Say which item and why. A person must approve. Autofill is not applied.",
+    parameters: { itemName: "string", purpose: "string" },
   },
 ];
 
@@ -72,6 +80,8 @@ export interface ToolContext {
   accessibleDepartments: string[];
   enterprise?: boolean;
   defaultDepartmentId?: string;
+  /** Set only after a person approves a vault reference. Still does not return the secret. */
+  vaultApproved?: boolean;
 }
 
 export interface OpenAiTool {
@@ -128,6 +138,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         detail: sources.length
           ? `Firm-wide library: ${sources.map((s) => `${s.file} (${s.room})`).join(", ")}`
           : "No library passages matched.",
+        input: query.slice(0, 200),
       },
       sources,
     };
@@ -197,6 +208,39 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
       result.event.detail = `${result.event.detail} ${writeDeniedHandoffHint(departmentId)}`;
     }
     return { event: result.event, extra: result.file ? `fileId=${result.file.id}` : undefined };
+  }
+
+  if (name === "use_vault") {
+    const itemName = asString(args.itemName) || asString(args.name);
+    if (!ctx.vaultApproved) {
+      return {
+        event: {
+          name,
+          ok: false,
+          detail: "Vault access is waiting on approval. The secret was not read.",
+          input: `item: ${itemName.slice(0, 80)}`,
+        },
+      };
+    }
+    const item = findVaultByName(itemName);
+    if (!item) {
+      return {
+        event: {
+          name,
+          ok: false,
+          detail: `No vault item matched “${itemName.slice(0, 80)}”. The secret was not read.`,
+          input: `item: ${itemName.slice(0, 80)}`,
+        },
+      };
+    }
+    return {
+      event: {
+        name,
+        ok: true,
+        detail: `Referenced “${item.name}” (${item.kind}). Secret withheld. Autofill is not applied in this version.`,
+        input: `item: ${item.name}`,
+      },
+    };
   }
 
   if (name === "handoff_to_department") {

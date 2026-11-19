@@ -13,6 +13,11 @@ export async function POST(req: Request) {
     enterprise?: boolean;
     attachments?: { fileId: string; name: string; kind: "PDF" | "Office" | "Markdown" | "Image" }[];
     agent?: boolean;
+    agentId?: string;
+    actor?: string;
+    failFast?: boolean;
+    approvals?: "wait" | "immediate";
+    defaultDepartmentId?: string;
   } | null;
 
   const query = (body?.query || "").trim();
@@ -40,6 +45,11 @@ export async function POST(req: Request) {
             enterprise: body?.enterprise,
             attachments: body?.attachments,
             agent: body?.agent,
+            agentId: body?.agentId,
+            actor: body?.actor,
+            failFast: body?.failFast !== false,
+            approvals: body?.approvals || "wait",
+            defaultDepartmentId: body?.defaultDepartmentId,
           },
           {
             onStart: (info) => {
@@ -65,6 +75,10 @@ export async function POST(req: Request) {
               tools: result.tools,
               threadId: result.threadId,
               title: result.title,
+              messageId: result.messageId,
+              approval: result.pendingApproval,
+              demo: result.demo || undefined,
+              modelOffline: result.modelOffline || undefined,
               error: result.error || undefined,
             })}\n\n`,
           ),

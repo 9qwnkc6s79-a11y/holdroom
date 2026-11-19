@@ -1,5 +1,5 @@
-import { DEPARTMENT_IDS, ENTERPRISE, isEnterprise, migrateWorkspaceId, workspaceLabel } from "./departments";
-import type { DepartmentId } from "./types";
+import { DEPARTMENT_IDS, ENTERPRISE, isEnterprise, migrateWorkspaceId, workspaceLabel } from "./departments.ts";
+import type { DepartmentId } from "./types.ts";
 
 export function normalizeDepartments(ids: string[] | undefined | null): DepartmentId[] {
   const seen = new Set<DepartmentId>();

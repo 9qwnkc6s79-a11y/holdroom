@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { VALID_INVITES } from "@/lib/mock-data";
-import { HQ_OPS, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const departments = associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS];
+  const departments = associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE];
   const enterprise = !associate;
   const homeDepartment = associate ? LITTLE_ELM : HQ_OPS;
 

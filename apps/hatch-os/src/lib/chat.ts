@@ -1,13 +1,18 @@
 import { runAgentLoop } from "./agent";
 import { wantsAgentTurn } from "./agent-intent";
+import { agentById } from "./agents.ts";
+import { approvalCardForCall } from "./approvals.ts";
+import { demoModeEnabled, modelOfflineMessage, planDemoReply, streamText } from "./demo.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
 import { buildAskMessages } from "./prompt";
 import { inspectThreadHistory } from "./thread-history.ts";
-import { appendThreadMessages, createThread, fileListing, getThread, retrieveFirm } from "./store";
+import { appendThreadMessages, createThread, fileListing, getThread, recordAuditEntry, retrieveFirm } from "./store";
 import { stripThinkBlocks } from "./think.ts";
+import { toolNeedsApproval } from "./action-cards.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
-import type { ChatAttachment, ChatMessage, Source, ToolEvent } from "./types";
+import type { ApprovalCard, ChatAttachment, ChatMessage, Source, ToolEvent } from "./types";
+import { scrubVaultSecrets } from "./vault.ts";
 
 export function newChatMessage(role: ChatMessage["role"], text: string, extra?: Partial<ChatMessage>): ChatMessage {
   return {
@@ -30,6 +35,12 @@ export interface ChatTurnInput {
   attachments?: ChatAttachment[];
   agent?: boolean;
   defaultDepartmentId?: string;
+  agentId?: string;
+  actor?: string;
+  /** Web UI: do not sit on a dead RunPod call. Telegram keeps the long cold-start wait. */
+  failFast?: boolean;
+  /** Web UI waits for Approve / Cancel before a send, change, delete, or vault use. */
+  approvals?: "wait" | "immediate";
 }
 
 export interface ChatTurnResult {
@@ -41,6 +52,10 @@ export interface ChatTurnResult {
   error?: boolean;
   historyDropped?: boolean;
   lane?: "ask" | "agent";
+  messageId?: string;
+  pendingApproval?: ApprovalCard;
+  demo?: boolean;
+  modelOffline?: boolean;
 }
 
 export interface ChatTurnHooks {
@@ -72,6 +87,43 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
+  const hatchAgent = agentById(input.agentId);
+  recordAuditEntry(
+    {
+      name: "ask",
+      ok: true,
+      detail: scrubVaultSecrets(`${hatchAgent.name}: ${query}`).slice(0, 400),
+      departmentId: workspaceId,
+    },
+    { actor: input.actor || "signed-in", agentId: hatchAgent.id, kind: "ask" },
+  );
+
+  if (demoModeEnabled()) {
+    const demoSources = retrieveFirm(query, 4);
+    const plan = planDemoReply({ query, agentId: hatchAgent.id, sources: demoSources });
+    await streamText(plan.text, hooks.onDelta);
+    const demoMessage: ChatMessage = {
+      ...assistantMsg,
+      text: plan.text,
+      done: true,
+      sources: plan.sources,
+      tools: plan.tools,
+      approval: plan.approval,
+    };
+    appendThreadMessages(active.id, [demoMessage]);
+    return {
+      threadId: active.id,
+      title: getThread(active.id)?.title,
+      text: plan.text,
+      sources: plan.sources,
+      tools: plan.tools,
+      messageId: demoMessage.id,
+      pendingApproval: plan.approval,
+      demo: true,
+      lane: "agent",
+    };
+  }
+
   const inspected = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
   const history = inspected.turns;
 
@@ -79,6 +131,25 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const probe = agentic ? await probeAgentLlm() : await probeLlm();
   const { primary } = agentic ? agentLlmConfig() : llmConfig();
   const runpodReady = isRunpodUrl(primary.rawBase) && Boolean(primary.apiKey);
+  const optimisticTimeout = Boolean(probe.error && /timed out/i.test(probe.error));
+
+  if (input.failFast && (!probe.connected || optimisticTimeout)) {
+    const detail = modelOfflineMessage(probe.error);
+    const offlineMessage: ChatMessage = { ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults };
+    appendThreadMessages(active.id, [offlineMessage]);
+    return {
+      threadId: active.id,
+      title: getThread(active.id)?.title,
+      text: detail,
+      sources: [],
+      tools: toolResults,
+      error: true,
+      modelOffline: true,
+      messageId: offlineMessage.id,
+      historyDropped: inspected.dropped,
+      lane: agentic ? "agent" : "ask",
+    };
+  }
 
   if (!probe.connected && !runpodReady) {
     const help = connectHelp(probe);
@@ -109,6 +180,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   };
 
   let text = "";
+  let pendingApproval: ApprovalCard | undefined;
   try {
     if (agentic) {
       const result = await runAgentLoop(
@@ -117,10 +189,16 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
           text += delta;
           hooks.onDelta?.(delta);
         },
+        { pauseMutations: input.approvals === "wait" },
       );
       text = stripThinkBlocks(result.text || text);
       toolResults.splice(0, toolResults.length, ...result.tools);
       sources.splice(0, sources.length, ...result.sources);
+      const held = result.pendingCalls?.[0];
+      if (held && input.approvals === "wait") {
+        pendingApproval = approvalCardForCall(held, { agentId: hatchAgent.id });
+        if (!text.trim()) text = pendingApproval.summary;
+      }
     } else {
       const messages = buildAskMessages(promptInput);
       const streamed = await streamLlm(messages, (delta) => {
@@ -129,7 +207,10 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       });
       text = stripThinkBlocks(streamed.text || text);
       const call = parseToolTrailer(text);
-      if (call) {
+      if (call && input.approvals === "wait" && toolNeedsApproval(call.name)) {
+        pendingApproval = approvalCardForCall(call, { agentId: hatchAgent.id });
+        text = stripThinkBlocks(stripToolTrailer(text) || text) || pendingApproval.summary;
+      } else if (call) {
         const result = executeTool(call, {
           workspaceId,
           accessibleDepartments,
@@ -138,8 +219,10 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         });
         toolResults.push(result.event);
         if (result.sources?.length) sources.push(...result.sources);
+        text = stripThinkBlocks(stripToolTrailer(text) || text);
+      } else {
+        text = stripThinkBlocks(stripToolTrailer(text) || text);
       }
-      text = stripThinkBlocks(stripToolTrailer(text) || text);
     }
     const final: ChatMessage = {
       ...assistantMsg,
@@ -147,6 +230,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       done: true,
       sources,
       tools: toolResults,
+      approval: pendingApproval,
     };
     appendThreadMessages(active.id, [final]);
     return {
@@ -155,13 +239,16 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       text,
       sources,
       tools: toolResults,
+      messageId: final.id,
+      pendingApproval,
       historyDropped: inspected.dropped,
       lane: agentic ? "agent" : "ask",
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "LLM failed";
-    const help = `${msg}\n\n${connectHelp(probe)}`;
-    appendThreadMessages(active.id, [{ ...assistantMsg, text: help, done: true, sources: [], tools: toolResults }]);
+    const help = input.failFast ? modelOfflineMessage(msg) : `${msg}\n\n${connectHelp(probe)}`;
+    const failed: ChatMessage = { ...assistantMsg, text: help, done: true, sources: [], tools: toolResults };
+    appendThreadMessages(active.id, [failed]);
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -169,6 +256,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       sources: [],
       tools: toolResults,
       error: true,
+      modelOffline: Boolean(input.failFast),
+      messageId: failed.id,
       historyDropped: inspected.dropped,
       lane: agentic ? "agent" : "ask",
     };

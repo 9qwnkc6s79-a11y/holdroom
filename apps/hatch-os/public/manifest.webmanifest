@@ -1,13 +1,13 @@
 {
-  "name": "Boundaries Coffee",
-  "short_name": "Boundaries",
-  "description": "Boundaries Coffee on Hatch OS — departments, chat, files, library on this box.",
-  "start_url": "/chat",
+  "name": "Hatch",
+  "short_name": "Hatch",
+  "description": "The firm’s private assistant. Agents, file room, vault, and audit on your network.",
+  "start_url": "/chat?agent=general",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#F5F1E8",
+  "theme_color": "#0B3B32",
   "icons": [
     {
       "src": "/icons/icon.svg",
@@ -26,6 +26,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
