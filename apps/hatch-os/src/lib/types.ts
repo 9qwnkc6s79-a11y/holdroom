@@ -125,6 +125,8 @@ export interface ChatMessage {
   tools?: ToolEvent[];
   attachments?: ChatAttachment[];
   approval?: ApprovalCard;
+  reactions?: string[];
+  replyTo?: { text: string };
 }
 
 export interface ChatThread {

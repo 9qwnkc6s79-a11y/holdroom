@@ -1,0 +1,871 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useHatch } from "@/components/AppProvider";
+import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
+import { actionTitle } from "@/lib/action-cards";
+import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
+import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { ACCEPT_ATTR } from "@/lib/files";
+import type { ApprovalCard, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
+
+interface LivePayload {
+  phase?: "wait" | "done";
+  state?: unknown;
+  note?: string;
+  text?: string;
+  tools?: ToolEvent[];
+  approval?: ApprovalCard;
+  messageId?: string;
+  modelOffline?: boolean;
+}
+
+type SpeechCtor = new () => {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+function clock(iso?: string) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return sameDay
+    ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function choicesOf(text: string) {
+  const match = text.match(/\[\[choices:\s*([^\]]+)\]\]/i);
+  if (!match) return { body: text, choices: [] as string[] };
+  return {
+    body: text.replace(match[0], "").trim(),
+    choices: match[1].split("|").map((item) => item.trim()).filter(Boolean).slice(0, 3),
+  };
+}
+
+function seenMap(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem("hatch-seen") || "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export function Messenger() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const { session } = useHatch();
+  const agentId = params.get("agent");
+  const [wide, setWide] = useState(false);
+  const [agents, setAgents] = useState<HatchAgent[]>([]);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeThread, setActiveThread] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
+  const [statusNote, setStatusNote] = useState("");
+  const [query, setQuery] = useState("");
+  const [reply, setReply] = useState<string | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [agentSettings, setAgentSettings] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [hold, setHold] = useState<string | null>(null);
+  const [chatSearch, setChatSearch] = useState(false);
+  const [find, setFind] = useState("");
+  const [voice, setVoice] = useState(false);
+  const [apps, setApps] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [seen, setSeen] = useState<Record<string, string>>({});
+  const [account, setAccount] = useState("Partner");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const scanRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 960px)");
+    const apply = () => setWide(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    setSeen(seenMap());
+    setAccount(localStorage.getItem("hatch-account") || "Partner");
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  async function load() {
+    const [agentRes, threadRes] = await Promise.all([
+      fetch("/api/agents", { cache: "no-store" }),
+      fetch("/api/threads", { cache: "no-store" }),
+    ]);
+    if (agentRes.ok) {
+      const data = (await agentRes.json()) as { agents?: HatchAgent[] };
+      setAgents(data.agents || []);
+    }
+    if (threadRes.ok) {
+      const data = (await threadRes.json()) as { threads?: ChatThread[] };
+      setThreads(data.threads || []);
+    }
+  }
+
+  useEffect(() => {
+    void load().catch(() => undefined);
+    const onRefresh = () => void load();
+    window.addEventListener("hatch-refresh", onRefresh);
+    return () => window.removeEventListener("hatch-refresh", onRefresh);
+  }, []);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPalette(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const agent = agents.find((item) => item.id === agentId) || null;
+  const latest = useMemo(() => {
+    const map = new Map<string, ChatThread>();
+    for (const thread of threads) {
+      if (!thread.agentId || thread.archived) continue;
+      const prev = map.get(thread.agentId);
+      if (!prev || thread.updatedAt > prev.updatedAt) map.set(thread.agentId, thread);
+    }
+    return map;
+  }, [threads]);
+
+  useEffect(() => {
+    if (streaming) return;
+    if (!agent) {
+      setMessages([]);
+      setActiveThread(null);
+      return;
+    }
+    const thread = latest.get(agent.id);
+    setActiveThread(thread?.id || null);
+    setMessages(thread?.messages || []);
+    const next = { ...seenMap(), [agent.id]: new Date().toISOString() };
+    localStorage.setItem("hatch-seen", JSON.stringify(next));
+    setSeen(next);
+  }, [agent, latest, streaming]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, streaming, statusNote]);
+
+  const actor = session ? `${session.role} · ${session.deviceName}` : "signed-in";
+  const accessible = session?.enterprise
+    ? Array.from(new Set([...(session.departments || []), HQ_OPS, LEGAL, FINANCE, LITTLE_ELM, PROSPER, agent?.writeDepartmentId || ""]))
+    : Array.from(new Set([...(session?.departments || []), agent?.writeDepartmentId || ""]));
+
+  function unread(item: HatchAgent) {
+    const thread = latest.get(item.id);
+    const last = thread?.messages.at(-1);
+    if (!thread || !last || last.role !== "assistant") return false;
+    const seenAt = seen[item.id];
+    return !seenAt || thread.updatedAt > seenAt;
+  }
+
+  const rows = agents.filter((item) => {
+    const preview = latest.get(item.id)?.messages.at(-1)?.text || item.description;
+    const hay = `${item.name} ${preview}`.toLowerCase();
+    return hay.includes(query.trim().toLowerCase());
+  });
+  const unreadCount = agents.filter(unread).length;
+
+  async function send(text: string, opts?: { voice?: boolean }) {
+    const q = text.trim();
+    if (!q || streaming || !session || !agent) return;
+    setStreaming(true);
+    setStatusNote("");
+    setAttachOpen(false);
+    const quote = reply;
+    setReply(null);
+    let thread = activeThread;
+    if (!thread) {
+      const created = await fetch("/api/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ departmentId: agent.departmentId, agentId: agent.id, title: q.slice(0, 42) }),
+      });
+      const data = (await created.json()) as { thread?: ChatThread };
+      thread = data.thread?.id || null;
+      if (thread) setActiveThread(thread);
+    }
+    if (!thread) {
+      setStreaming(false);
+      return;
+    }
+    const user: ChatMessage = {
+      id: `local-u-${Date.now()}`,
+      role: "user",
+      text: q,
+      done: true,
+      sources: [],
+      replyTo: quote ? { text: quote } : undefined,
+    };
+    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "", done: false, sources: [] };
+    setMessages((prev) => [...prev, user, assistant]);
+    if (inputRef.current) inputRef.current.value = "";
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentId: agent.departmentId,
+          defaultDepartmentId: agent.writeDepartmentId,
+          threadId: thread,
+          query: q,
+          agentId: agent.id,
+          actor,
+          agent: true,
+          failFast: true,
+          approvals: "wait",
+          accessibleDepartments: accessible.filter(Boolean),
+          enterprise: session.enterprise,
+          replyTo: quote ? { text: quote } : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("offline");
+      const contentType = res.headers.get("content-type") || "";
+      let finalText = "";
+      let tools: ToolEvent[] = [];
+      let approval: ApprovalCard | undefined;
+      let messageId = assistant.id;
+      let modelOffline = false;
+      if (contentType.includes("application/json")) {
+        let payload = (await res.json()) as LivePayload;
+        while (payload.phase === "wait") {
+          setStatusNote(payload.note || "The firm model is waking up.");
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+          const next = await fetch("/api/chat/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state: payload.state }),
+          });
+          payload = (await next.json()) as LivePayload;
+        }
+        finalText = payload.text || "";
+        tools = payload.tools || [];
+        approval = payload.approval;
+        messageId = payload.messageId || assistant.id;
+        modelOffline = Boolean(payload.modelOffline);
+      } else {
+        if (!res.body) throw new Error("offline");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamed = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+          for (const part of parts) {
+            const line = part.replace(/^data:\s*/, "");
+            if (!line) continue;
+            const payload = JSON.parse(line) as LivePayload & { delta?: string; done?: boolean };
+            if (payload.delta) {
+              streamed += payload.delta;
+              const shown = streamed;
+              setMessages((prev) => prev.map((item) => (item.id === assistant.id ? { ...item, text: shown } : item)));
+            }
+            if (payload.done) {
+              if (typeof payload.text === "string") finalText = payload.text;
+              tools = payload.tools || [];
+              approval = payload.approval;
+              if (payload.messageId) messageId = payload.messageId;
+              modelOffline = Boolean(payload.modelOffline);
+            }
+          }
+        }
+        finalText = finalText || streamed;
+      }
+      setMessages((prev) =>
+        prev.map((item) =>
+          item.id === assistant.id ? { ...item, id: messageId, text: finalText, done: true, tools, approval } : item,
+        ),
+      );
+      if (opts?.voice && finalText && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(finalText).body.slice(0, 400)));
+      }
+      if (modelOffline) setStatusNote("The model is offline.");
+      window.dispatchEvent(new Event("hatch-refresh"));
+    } catch {
+      setMessages((prev) =>
+        prev.map((item) =>
+          item.id === assistant.id
+            ? { ...item, done: true, text: "The model is offline. Nothing was sent to an outside AI lab." }
+            : item,
+        ),
+      );
+    } finally {
+      setStreaming(false);
+      setStatusNote("");
+    }
+  }
+
+  async function attach(file?: File | null) {
+    if (!file || !agent || !session) return;
+    setAttachOpen(false);
+    const form = new FormData();
+    form.set("file", file);
+    form.set("departmentId", agent.writeDepartmentId);
+    form.set("inLibrary", "1");
+    form.set("accessibleDepartments", accessible.filter(Boolean).join(","));
+    const res = await fetch("/api/ingest", { method: "POST", body: form });
+    const data = (await res.json().catch(() => null)) as { file?: { name: string }; error?: string };
+    setReply(data?.file ? `Attached ${data.file.name}` : data?.error || "Could not attach that file.");
+  }
+
+  function dictate(intoVoice = false) {
+    const w = window as Window & { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (Ctor) {
+      const rec = new Ctor();
+      rec.lang = "en-US";
+      rec.interimResults = false;
+      rec.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        if (intoVoice) void send(text, { voice: true });
+        else if (inputRef.current) inputRef.current.value = text;
+      };
+      rec.start();
+      return;
+    }
+    void recordFallback(intoVoice);
+  }
+
+  async function recordFallback(intoVoice: boolean) {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatusNote("This phone has no speech service, and the microphone is unavailable.");
+      return;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => chunks.push(event.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      const form = new FormData();
+      form.set("audio", blob, "note.webm");
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      const data = (await res.json().catch(() => null)) as { text?: string; note?: string };
+      const text = data?.text || "";
+      if (text && intoVoice) void send(text, { voice: true });
+      else if (text && inputRef.current) inputRef.current.value = text;
+      else setStatusNote(data?.note || "Whisper is not connected on this box.");
+    };
+    recorder.start();
+    setStatusNote("Listening… tap the mic again is not required. Recording for 4 seconds.");
+    window.setTimeout(() => recorder.state !== "inactive" && recorder.stop(), 4000);
+  }
+
+  async function saveAgent(patch: Partial<HatchAgent> & { name: string }) {
+    await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    await load();
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void send(inputRef.current?.value || "");
+  }
+
+  const showList = wide || !agent;
+  const showChat = wide || Boolean(agent);
+  const visibleMessages = find
+    ? messages.filter((message) => message.text.toLowerCase().includes(find.toLowerCase()))
+    : messages;
+
+  return (
+    <div className={`msg${wide ? " is-wide" : ""}`}>
+      {showList ? (
+        <section className="inbox" aria-label="Agents">
+          <header className="inbox-top">
+            <button type="button" className="round" aria-label="Account and settings" onClick={() => router.push("/settings")}>
+              <InitialAvatar label={account} size={40} />
+            </button>
+            <button type="button" className="round round-plus" aria-label="New agent" onClick={() => setCreating(true)}>
+              +
+            </button>
+          </header>
+          <div className="pins">
+            {agents.filter((item) => item.pinned).map((item) => (
+              <button key={item.id} type="button" className="pin" onClick={() => router.push(`/chat?agent=${item.id}`)}>
+                <BlobAvatar color={item.color} size={72} badge={item.id === "general"} />
+                <span>{item.name}</span>
+              </button>
+            ))}
+          </div>
+          <ul className="rows">
+            {rows.map((item) => {
+              const thread = latest.get(item.id);
+              const preview = thread?.messages.at(-1)?.text || item.description;
+              const on = item.id === agent?.id;
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className={`row${on ? " is-on" : ""}`}
+                    onClick={() => {
+                      setMenu(null);
+                      router.push(`/chat?agent=${item.id}`);
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setMenu({ id: item.id, x: event.clientX, y: event.clientY });
+                    }}
+                  >
+                    <BlobAvatar color={item.color} size={52} />
+                    <span className="row-copy">
+                      <span className="row-name">{item.name}</span>
+                      <span className="row-preview">{preview.replace(/\s+/g, " ").slice(0, 80)}</span>
+                    </span>
+                    <span className="row-side">
+                      <span className="row-time">{clock(thread?.updatedAt)}</span>
+                      {unread(item) ? <span className="unread" aria-label="Unread" /> : <span className="unread is-off" />}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {unreadCount > 0 ? (
+            <button
+              type="button"
+              className="jump"
+              onClick={() => {
+                const first = agents.find(unread);
+                if (first) router.push(`/chat?agent=${first.id}`);
+              }}
+            >
+              {unreadCount} unread
+              <span aria-hidden="true">⌄</span>
+            </button>
+          ) : null}
+          <form className="dock" onSubmit={(event) => event.preventDefault()}>
+            <button type="button" className="round" aria-label="Apps" onClick={() => setApps((value) => !value)}>
+              <GridIcon />
+            </button>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search"
+              aria-label="Search agents"
+            />
+          </form>
+          {apps ? (
+            <div className="popover apps-pop">
+              <button type="button" onClick={() => router.push("/settings")}>Settings</button>
+              <button type="button" onClick={() => router.push("/settings?tab=vault")}>Vault</button>
+              <button type="button" onClick={() => router.push("/settings?tab=audit")}>Audit</button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {showChat ? (
+        <section className="chat" aria-label={agent ? agent.name : "Chat"}>
+          {agent ? (
+            <>
+              <header className="chat-top">
+                <button type="button" className="round" aria-label="Back" onClick={() => router.push("/chat")}>
+                  ‹
+                </button>
+                <button type="button" className="who" onClick={() => setInfoOpen(true)}>
+                  <BlobAvatar color={agent.color} size={28} />
+                  <span>{agent.name}</span>
+                </button>
+                <button type="button" className="round" aria-label="More" onClick={() => setMoreOpen(true)}>
+                  ···
+                </button>
+              </header>
+              {chatSearch ? (
+                <input className="find" value={find} onChange={(event) => setFind(event.target.value)} placeholder="Search in chat" aria-label="Search in chat" />
+              ) : null}
+              <div className="stream">
+                {statusNote ? <p className="working">{statusNote}</p> : null}
+                {visibleMessages.map((message) => {
+                  const parsed = choicesOf(message.text);
+                  const mine = message.role === "user";
+                  return (
+                    <div
+                      key={message.id}
+                      className={`turn${mine ? " mine" : ""}`}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setHold(message.id);
+                      }}
+                    >
+                      {!mine ? <BlobAvatar color={agent.color} size={22} /> : null}
+                      <div>
+                        {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
+                        <div className={mine ? "bubble user" : "bubble agent"}>
+                          {mine ? parsed.body : parsed.body ? <MarkdownPreview text={parsed.body} /> : null}
+                          {!message.done && !parsed.body ? <span className="os-caret" /> : null}
+                        </div>
+                        {(message.tools || []).map((tool, index) => (
+                          <details key={`${message.id}-t-${index}`} className="tool-row">
+                            <summary>{actionTitle(tool.name)}</summary>
+                            <p>{tool.input || "—"}</p>
+                            <p>{tool.detail}</p>
+                          </details>
+                        ))}
+                        {message.approval ? (
+                          <div className="approve">
+                            <strong>{message.approval.title}</strong>
+                            <p>{message.approval.summary}</p>
+                            {message.approval.status === "pending" ? (
+                              <div className="row-actions">
+                                <button type="button" onClick={() => void decide(message, "approved")}>Approve</button>
+                                <button type="button" className="ghost" onClick={() => void decide(message, "cancelled")}>Cancel</button>
+                              </div>
+                            ) : (
+                              <p>{message.approval.status === "approved" ? "Approved" : "Cancelled"}</p>
+                            )}
+                          </div>
+                        ) : null}
+                        {parsed.choices.length ? (
+                          <div className="choices">
+                            {parsed.choices.map((choice) => (
+                              <button key={choice} type="button" onClick={() => void send(choice)}>{choice}</button>
+                            ))}
+                          </div>
+                        ) : null}
+                        {message.reactions?.length ? <span className="reacts">{message.reactions.join(" ")}</span> : null}
+                        {hold === message.id ? (
+                          <div className="hold">
+                            {["👍", "👀", "✅"].map((emoji) => (
+                              <button key={emoji} type="button" onClick={() => void react(message, emoji)}>{emoji}</button>
+                            ))}
+                            <button type="button" onClick={() => void navigator.clipboard.writeText(parsed.body)}>Copy</button>
+                            <button type="button" onClick={() => { setReply(parsed.body.slice(0, 80)); setHold(null); }}>Reply</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {streaming ? <p className="working">Working…</p> : null}
+                <div ref={endRef} />
+              </div>
+              {reply ? (
+                <p className="replying">
+                  {reply}
+                  <button type="button" onClick={() => setReply(null)} aria-label="Clear reply">×</button>
+                </p>
+              ) : null}
+              <form className="composer" onSubmit={onSubmit}>
+                <button type="button" className="round" aria-label="Attach" onClick={() => setAttachOpen((value) => !value)}>+</button>
+                <textarea
+                  ref={inputRef}
+                  rows={1}
+                  placeholder={`Ask ${agent.name}`}
+                  aria-label={`Ask ${agent.name}`}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void send(event.currentTarget.value);
+                    }
+                  }}
+                />
+                <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
+                  <MicIcon />
+                </button>
+                <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
+                  <WaveIcon />
+                </button>
+              </form>
+              {attachOpen ? (
+                <div className="popover attach" role="menu">
+                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><ImageIcon /></button>
+                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><CameraIcon /></button>
+                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><ScanIcon /></button>
+                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><FileIcon /></button>
+                </div>
+              ) : null}
+              <input ref={photoRef} hidden type="file" accept="image/*,video/*" onChange={(event) => void attach(event.target.files?.[0])} />
+              <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
+              <input ref={scanRef} hidden type="file" accept="image/*,application/pdf" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
+              <input ref={fileRef} hidden type="file" accept={ACCEPT_ATTR} onChange={(event) => void attach(event.target.files?.[0])} />
+            </>
+          ) : (
+            <div className="chat-empty">
+              <p>Choose an agent.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {menu ? (
+        <div className="popover" style={{ left: menu.x, top: menu.y }} role="menu">
+          <button type="button" onClick={() => { const item = agents.find((agent) => agent.id === menu.id); const name = window.prompt("Rename", item?.name || ""); if (name && item) void saveAgent({ ...item, name }); setMenu(null); }}>Rename</button>
+          <button type="button" onClick={() => { if (window.confirm("Remove this agent?")) void fetch(`/api/agents?id=${menu.id}`, { method: "DELETE" }).then(() => load()); setMenu(null); }}>Delete</button>
+        </div>
+      ) : null}
+
+      {moreOpen && agent ? (
+        <div className="sheet" role="dialog" aria-label="Agent menu">
+          <button type="button" onClick={() => { setMoreOpen(false); setInfoOpen(true); }}>Agent info</button>
+          <button type="button" onClick={() => { setMoreOpen(false); setAgentSettings(true); }}>Settings</button>
+          <button type="button" onClick={() => { setMoreOpen(false); setChatSearch((value) => !value); }}>Search in chat</button>
+          <button type="button" onClick={() => { void saveAgent({ ...agent, muted: !agent.muted }); setMoreOpen(false); }}>{agent.muted ? "Unmute" : "Mute"}</button>
+          <button type="button" onClick={() => setMoreOpen(false)}>Close</button>
+        </div>
+      ) : null}
+
+      {infoOpen && agent ? (
+        <InfoPane
+          agent={agent}
+          onClose={() => setInfoOpen(false)}
+          onSettings={() => { setInfoOpen(false); setAgentSettings(true); }}
+        />
+      ) : null}
+
+      {agentSettings && agent ? (
+        <AgentSettings
+          agent={agent}
+          onClose={() => setAgentSettings(false)}
+          onSave={async (patch) => {
+            await saveAgent(patch);
+            setAgentSettings(false);
+          }}
+        />
+      ) : null}
+
+      {creating ? (
+        <NewAgent
+          onClose={() => setCreating(false)}
+          onCreate={async (input) => {
+            const res = await fetch("/api/agents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(input),
+            });
+            const data = (await res.json()) as { agent?: HatchAgent };
+            await load();
+            setCreating(false);
+            if (data.agent) router.push(`/chat?agent=${data.agent.id}`);
+          }}
+        />
+      ) : null}
+
+      {voice && agent ? (
+        <div className="voice-screen">
+          <button type="button" className="round" onClick={() => setVoice(false)} aria-label="Close voice">×</button>
+          <BlobAvatar color={agent.color} size={120} />
+          <p>{agent.name}</p>
+          <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
+          <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
+            <WaveIcon />
+          </button>
+          <p className="fine">Talk, then Hatch answers aloud. Demo uses this phone’s voice.</p>
+        </div>
+      ) : null}
+
+      {palette ? (
+        <div className="sheet" role="dialog" aria-label="Search">
+          <input autoFocus placeholder="Jump to an agent" aria-label="Command" onChange={(event) => setQuery(event.target.value)} />
+          {rows.slice(0, 6).map((item) => (
+            <button key={item.id} type="button" onClick={() => { setPalette(false); router.push(`/chat?agent=${item.id}`); }}>{item.name}</button>
+          ))}
+          <button type="button" onClick={() => { setPalette(false); router.push("/settings"); }}>Settings</button>
+          <button type="button" onClick={() => setPalette(false)}>Close</button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  async function decide(message: ChatMessage, decision: "approved" | "cancelled") {
+    if (!activeThread || !message.approval) return;
+    const res = await fetch("/api/approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        threadId: activeThread,
+        messageId: message.id,
+        decision,
+        actor,
+        accessibleDepartments: accessible.filter(Boolean),
+        enterprise: session?.enterprise,
+      }),
+    });
+    const data = (await res.json().catch(() => null)) as { message?: ChatMessage };
+    if (data?.message) {
+      setMessages((prev) => prev.map((item) => (item.id === message.id ? data.message! : item)));
+    }
+  }
+
+  async function react(message: ChatMessage, emoji: string) {
+    if (!activeThread) return;
+    const reactions = Array.from(new Set([...(message.reactions || []), emoji]));
+    setMessages((prev) => prev.map((item) => (item.id === message.id ? { ...item, reactions } : item)));
+    setHold(null);
+    await fetch("/api/threads/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId: activeThread, messageId: message.id, reactions }),
+    });
+  }
+}
+
+function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: () => void; onSettings: () => void }) {
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    void fetch("/api/routines", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { routines?: Routine[] }) => setRoutines((data.routines || []).filter((item) => item.agentId === agent.id)));
+    void fetch("/api/departments", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { departments?: { id: string; files: { id: string; name: string }[] }[] }) => {
+        const room = (data.departments || []).find((item) => item.id === agent.departmentId || item.id === agent.writeDepartmentId);
+        setFiles(room?.files?.slice(0, 6) || []);
+      });
+  }, [agent]);
+  return (
+    <aside className="info" role="dialog" aria-label={`${agent.name} info`}>
+      <header>
+        <button type="button" onClick={onClose} aria-label="Close">×</button>
+        <button type="button" onClick={onSettings} aria-label="Agent settings">⚙</button>
+      </header>
+      <BlobAvatar color={agent.color} size={84} />
+      <h2>{agent.name}</h2>
+      <p>{agent.description}</p>
+      <h3>Routines</h3>
+      {routines.map((routine) => (
+        <p key={routine.id} className="info-row">
+          <strong>{routine.name}</strong> · {routine.schedule} · {routine.enabled ? "On" : "Paused"}
+          <button type="button" onClick={() => void fetch("/api/routines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...routine, enabled: !routine.enabled }) }).then(() => setRoutines((prev) => prev.map((item) => item.id === routine.id ? { ...item, enabled: !item.enabled } : item)))}>{routine.enabled ? "Pause" : "Resume"}</button>
+        </p>
+      ))}
+      <button type="button" onClick={() => {
+        const name = window.prompt("Routine name", "Afternoon check");
+        const prompt = name ? window.prompt("Prompt", "What should be ready?") : null;
+        if (!name || !prompt) return;
+        void fetch("/api/routines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId: agent.id, name, prompt, schedule: "weekdays 17:00" }) })
+          .then((res) => res.json())
+          .then((data: { routine?: Routine }) => { if (data.routine) setRoutines((prev) => [data.routine!, ...prev]); });
+      }}>Add routine</button>
+      <h3>Sources</h3>
+      <p className="fine">File room on this system. Google Drive is not connected.</p>
+      <h3>Files</h3>
+      {files.length ? files.map((file) => <p key={file.id} className="info-row">{file.name}</p>) : <p className="fine">No files in this room yet.</p>}
+    </aside>
+  );
+}
+
+function AgentSettings({
+  agent,
+  onClose,
+  onSave,
+}: {
+  agent: HatchAgent;
+  onClose: () => void;
+  onSave: (patch: HatchAgent) => Promise<void>;
+}) {
+  const [name, setName] = useState(agent.name);
+  const [title, setTitle] = useState(agent.title);
+  const [description, setDescription] = useState(agent.description);
+  const [model, setModel] = useState(agent.model || FIRM_MODEL);
+  const [notifications, setNotifications] = useState(agent.notifications);
+  const [color, setColor] = useState(agent.color);
+  return (
+    <div className="sheet settings-sheet" role="dialog" aria-label="Agent settings">
+      <header>
+        <button type="button" onClick={onClose}>Close</button>
+        <strong>Settings</strong>
+        <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
+      </header>
+      <BlobAvatar color={color} size={72} />
+      <div className="swatches">
+        {AGENT_COLORS.map((swatch) => (
+          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
+        ))}
+      </div>
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+      <label>Instructions<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      <label>Model
+        <select value={model} onChange={(event) => setModel(event.target.value)}>
+          <option>{FIRM_MODEL}</option>
+          <option>Qwen</option>
+          <option>Hermes</option>
+        </select>
+      </label>
+      <label className="check"><input type="checkbox" checked={notifications} onChange={(event) => setNotifications(event.target.checked)} /> Notifications</label>
+    </div>
+  );
+}
+
+function NewAgent({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (input: { name: string; description: string; color: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState<string>(AGENT_COLORS[0]);
+  return (
+    <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
+      <header>
+        <button type="button" onClick={onClose}>Close</button>
+        <strong>New agent</strong>
+        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color })}>Create</button>
+      </header>
+      <BlobAvatar color={color} size={84} />
+      <div className="swatches">
+        {AGENT_COLORS.map((swatch) => (
+          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
+        ))}
+      </div>
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Research" /></label>
+      <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is for" /></label>
+    </div>
+  );
+}
+
+function GridIcon() {
+  return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="currentColor" d="M2 2h5v5H2V2zm9 0h5v5h-5V2zM2 11h5v5H2v-5zm9 0h5v5h-5v-5z" /></svg>;
+}
+function MicIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.7" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
+}
+function WaveIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+}
+function ImageIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" /><circle cx="9" cy="10" r="1.4" fill="currentColor" /><path d="m7 16 3.5-3.5L14 16l2-2 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
+}
+function CameraIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7 9.5 5h5L16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="13" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>;
+}
+function ScanIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4H5a1 1 0 0 0-1 1v2M17 4h2a1 1 0 0 1 1 1v2M7 20H5a1 1 0 0 1-1-1v-2M17 20h2a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
+}
+function FileIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.6" /><path d="M14 3v6h6" stroke="currentColor" strokeWidth="1.6" /></svg>;
+}

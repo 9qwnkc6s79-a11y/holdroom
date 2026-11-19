@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     failFast?: boolean;
     approvals?: "wait" | "immediate";
     defaultDepartmentId?: string;
+    replyTo?: { text: string };
   } | null;
 
   const query = (body?.query || "").trim();
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
         agentId: body?.agentId,
         actor: body?.actor,
         defaultDepartmentId: body?.defaultDepartmentId,
+        replyTo: body?.replyTo,
       });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {
@@ -81,6 +83,7 @@ export async function POST(req: Request) {
             failFast: body?.failFast !== false,
             approvals: body?.approvals || "wait",
             defaultDepartmentId: body?.defaultDepartmentId,
+            replyTo: body?.replyTo,
           },
           {
             onStart: (info) => {

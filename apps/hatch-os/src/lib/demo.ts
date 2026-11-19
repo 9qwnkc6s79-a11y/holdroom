@@ -1,5 +1,5 @@
 import { approvalCardForCall } from "./approvals.ts";
-import { agentById } from "./agents.ts";
+import { resolveAgent } from "./store.ts";
 import type { ApprovalCard, Source, ToolEvent } from "./types.ts";
 import { findVaultByName, listVaultPublic } from "./vault.ts";
 
@@ -32,7 +32,7 @@ export function planDemoReply(input: {
   agentId?: string;
   sources: Source[];
 }): { text: string; tools: ToolEvent[]; approval?: ApprovalCard; sources: Source[] } {
-  const agent = agentById(input.agentId);
+  const agent = resolveAgent(input.agentId);
   const query = input.query.trim();
   const sources = input.sources;
   const tools: ToolEvent[] = [

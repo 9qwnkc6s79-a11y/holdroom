@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { OsShell } from "@/components/os/OsShell";
 import { AGENTS } from "@/lib/agents";
 import type { AuditEntry } from "@/lib/types";
 
@@ -11,7 +10,7 @@ function when(iso: string) {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function AuditScreen() {
+export function AuditScreen({ embedded = false }: { embedded?: boolean }) {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
 
   useEffect(() => {
@@ -21,8 +20,7 @@ export function AuditScreen() {
       .catch(() => setEntries([]));
   }, []);
 
-  return (
-    <OsShell title="Audit" lede="Who asked, which tools ran, and which approvals were given. Vault secrets are not written here.">
+  const body = (
       <div className="os-page">
         {entries.length ? (
           <table className="os-table">
@@ -54,6 +52,7 @@ export function AuditScreen() {
           <p>No audit entries yet. A question in chat will show up here.</p>
         )}
       </div>
-    </OsShell>
   );
+  if (embedded) return body;
+  return <div className="settings">{body}</div>;
 }

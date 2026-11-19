@@ -22,6 +22,7 @@ import type {
   ToolEvent,
 } from "./types.ts";
 import { scrubVaultSecrets } from "./vault.ts";
+import { AGENTS, AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "./agents.ts";
 
 export interface Chunk {
   id: string;
@@ -41,12 +42,13 @@ interface DiskState {
   handoffs: Handoff[];
   audit: AuditEntry[];
   routines: Routine[];
+  agents: HatchAgent[];
 }
 
 const DATA = path.join(process.cwd(), "data");
 const STATE = path.join(DATA, "state.json");
 const UPLOADS = path.join(DATA, "uploads");
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 
 const SEED_FOLDERS: Record<string, string[]> = {
   [LITTLE_ELM]: ["Checklists", "Staff", "Shared from HQ"],
@@ -227,7 +229,7 @@ function loadSeed(): DiskState {
   const chunks: Chunk[] = [];
   const root = seedDir();
   if (!existsSync(root)) {
-    return { version: STATE_VERSION, rooms, folders, chunks, seats: defaultSeats(), threads: [], handoffs: [], audit: [], routines: defaultRoutines() };
+    return { version: STATE_VERSION, rooms, folders, chunks, seats: defaultSeats(), threads: [], handoffs: [], audit: [], routines: defaultRoutines(), agents: defaultAgents() };
   }
 
   for (const room of rooms) {
@@ -281,6 +283,7 @@ function loadSeed(): DiskState {
     handoffs: [],
     audit: [],
     routines: defaultRoutines(),
+    agents: defaultAgents(),
   };
   decorateFiles(state);
   return state;
@@ -306,6 +309,7 @@ function migrateState(raw: Partial<DiskState>): DiskState {
     handoffs: raw.handoffs || [],
     audit: raw.audit || [],
     routines: raw.routines ?? defaultRoutines(),
+    agents: raw.agents?.length ? raw.agents.map(normalizeAgent) : defaultAgents(),
   };
   addSeedFilesIfEmpty(state, LEGAL);
   addSeedFilesIfEmpty(state, FINANCE);
@@ -895,6 +899,27 @@ function recordAudit(event: ToolEvent) {
   recordAuditEntry(event);
 }
 
+function defaultAgents(): HatchAgent[] {
+  return AGENTS.map((agent) => ({ ...agent }));
+}
+
+function normalizeAgent(raw: HatchAgent): HatchAgent {
+  const base = AGENTS.find((agent) => agent.id === raw.id);
+  return {
+    id: raw.id,
+    name: raw.name || base?.name || "Agent",
+    title: raw.title || base?.title || "Assistant",
+    description: raw.description || base?.description || "",
+    departmentId: raw.departmentId || base?.departmentId || raw.id,
+    writeDepartmentId: raw.writeDepartmentId || base?.writeDepartmentId || raw.departmentId || raw.id,
+    color: raw.color || base?.color || AGENT_COLORS[0],
+    model: raw.model || base?.model || FIRM_MODEL,
+    notifications: raw.notifications !== false,
+    muted: Boolean(raw.muted),
+    pinned: raw.pinned ?? base?.pinned ?? false,
+  };
+}
+
 function defaultRoutines(): Routine[] {
   return [
     {
@@ -969,6 +994,90 @@ export function saveRoutine(input: {
     state.routines.unshift(routine);
     writeState(state);
     return routine;
+  });
+}
+
+export function listStoredAgents(): HatchAgent[] {
+  return readState().agents || defaultAgents();
+}
+
+export function resolveAgent(id?: string | null): HatchAgent {
+  const agents = listStoredAgents();
+  return agents.find((agent) => agent.id === id) || agents[0] || defaultAgents()[0];
+}
+
+export function saveStoredAgent(input: Partial<HatchAgent> & { name: string }): HatchAgent {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const name = input.name.trim().slice(0, 40) || "Agent";
+    if (input.id) {
+      const existing = state.agents.find((agent) => agent.id === input.id);
+      if (existing) {
+        Object.assign(existing, normalizeAgent({ ...existing, ...input, name }));
+        writeState(state);
+        return existing;
+      }
+    }
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "agent";
+    let id = slug;
+    let n = 2;
+    while (state.agents.some((agent) => agent.id === id) || state.rooms.some((room) => room.id === id)) {
+      id = `${slug}-${n++}`;
+    }
+    const agent = normalizeAgent({
+      id,
+      name,
+      title: input.title || "Assistant",
+      description: (input.description || "").slice(0, 400),
+      departmentId: id,
+      writeDepartmentId: id,
+      color: input.color || AGENT_COLORS[state.agents.length % AGENT_COLORS.length],
+      model: input.model || FIRM_MODEL,
+      notifications: input.notifications !== false,
+      muted: Boolean(input.muted),
+      pinned: Boolean(input.pinned),
+    });
+    state.agents.unshift(agent);
+    if (!state.rooms.some((room) => room.id === id)) {
+      state.rooms.push({
+        id,
+        name,
+        kind: "department",
+        isolation: `File room for ${name}.`,
+        files: [],
+      });
+    }
+    writeState(state);
+    return agent;
+  });
+}
+
+export function removeStoredAgent(id: string): boolean {
+  if (AGENTS.some((agent) => agent.id === id)) return false;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const next = state.agents.filter((agent) => agent.id !== id);
+    if (next.length === state.agents.length) return false;
+    state.agents = next;
+    writeState(state);
+    return true;
+  });
+}
+
+export function patchMessage(
+  threadId: string,
+  messageId: string,
+  patch: Partial<Pick<ChatMessage, "reactions" | "replyTo">>,
+): ChatMessage | null {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const thread = state.threads.find((item) => item.id === threadId);
+    const message = thread?.messages.find((item) => item.id === messageId);
+    if (!message) return null;
+    if (patch.reactions) message.reactions = patch.reactions.slice(0, 8);
+    if (patch.replyTo !== undefined) message.replyTo = patch.replyTo;
+    writeState(state);
+    return message;
   });
 }
 

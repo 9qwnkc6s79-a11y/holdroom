@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import { RoutinesScreen } from "@/components/os/RoutinesScreen";
+import { redirect } from "next/navigation";
 
 export default function RoutinesPage() {
-  return (
-    <Suspense fallback={<p className="boot-note">Opening Hatch OS…</p>}>
-      <RoutinesScreen />
-    </Suspense>
-  );
+  redirect("/chat");
 }

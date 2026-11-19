@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
-import { OsShell } from "@/components/os/OsShell";
 import type { VaultKind, VaultPublicItem } from "@/lib/types";
 
 interface Secret {
@@ -14,7 +13,7 @@ interface Secret {
   holder?: string;
 }
 
-export function VaultScreen() {
+export function VaultScreen({ embedded = false }: { embedded?: boolean }) {
   const { session } = useHatch();
   const actor = session ? `${session.role} · ${session.deviceName}` : "owner";
   const [items, setItems] = useState<VaultPublicItem[]>([]);
@@ -97,11 +96,7 @@ export function VaultScreen() {
     await load();
   }
 
-  return (
-    <OsShell
-      title="Vault"
-      lede="Logins, keys, and cards stay encrypted on this system. Agents can ask to use a name. They never receive the secret."
-    >
+  const body = (
       <div className="os-page">
         {!configured ? <div className="os-banner">{keyError}</div> : null}
         <div className="os-list">
@@ -204,6 +199,7 @@ export function VaultScreen() {
           </button>
         </form>
       </div>
-    </OsShell>
   );
+  if (embedded) return body;
+  return <div className="settings">{body}</div>;
 }

@@ -1,6 +1,6 @@
 import { runAgentLoop } from "./agent";
 import { wantsAgentTurn } from "./agent-intent";
-import { agentById } from "./agents.ts";
+import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { demoModeEnabled, modelOfflineMessage, planDemoReply, streamText } from "./demo.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
@@ -41,6 +41,7 @@ export interface ChatTurnInput {
   failFast?: boolean;
   /** Web UI waits for Approve / Cancel before a send, change, delete, or vault use. */
   approvals?: "wait" | "immediate";
+  replyTo?: { text: string };
 }
 
 export interface ChatTurnResult {
@@ -84,10 +85,11 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
 
   const userMsg = newChatMessage("user", query, {
     attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    replyTo: input.replyTo,
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [userMsg]);
-  const hatchAgent = agentById(input.agentId);
+  const hatchAgent = resolveAgent(input.agentId);
   recordAuditEntry(
     {
       name: "ask",

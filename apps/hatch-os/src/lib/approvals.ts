@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { toolNeedsApproval } from "./action-cards.ts";
-import { agentById } from "./agents.ts";
+import { resolveAgent } from "./store.ts";
 import { workspaceLabel } from "./departments.ts";
 import { getThread, recordAuditEntry, removeFile, replaceThreadMessage } from "./store.ts";
 import { executeTool, type ToolCall, type ToolContext } from "./tools.ts";
@@ -175,7 +175,7 @@ export function applyApprovalDecision(input: {
   if (message.approval.status !== "pending") {
     return { ok: false, error: "This approval was already decided." };
   }
-  const agent = agentById(message.approval.agentId || thread.agentId);
+  const agent = resolveAgent(message.approval.agentId || thread.agentId);
   const actor = (input.actor || "signed-in").slice(0, 80);
   if (input.decision === "cancelled") {
     const next: ChatMessage = {

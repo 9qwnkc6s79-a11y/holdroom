@@ -1,5 +1,5 @@
 import { toolNeedsApproval } from "./action-cards.ts";
-import { agentById } from "./agents.ts";
+import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments.ts";
@@ -69,6 +69,7 @@ export interface LiveTurnInput {
   agentId?: string;
   actor?: string;
   defaultDepartmentId?: string;
+  replyTo?: { text: string };
 }
 
 export function liveRunpodReady(): boolean {
@@ -83,7 +84,7 @@ export function liveRunpodReady(): boolean {
 export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   const query = input.query.trim();
-  const agent = agentById(input.agentId);
+  const agent = resolveAgent(input.agentId);
   const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
   const active = thread || createThread(workspaceId, query.slice(0, 42), agent.id);
   const sources = retrieveFirm(query);
@@ -91,6 +92,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const tools = reads.map((item) => item.event);
   const user = newChatMessage("user", query, {
     attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    replyTo: input.replyTo,
   });
   const assistant = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [user]);
