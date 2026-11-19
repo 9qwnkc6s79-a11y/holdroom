@@ -92,36 +92,33 @@ export async function readRunpodJob(endpoint: LlmEndpoint, jobId: string): Promi
   };
 }
 
-/** Accept the shapes the vLLM worker returns: a completion, a wrapper, or streamed chunks. */
+/** Accept the shapes the vLLM worker returns: a completion, a wrapper, a one-item array, or streamed chunks. */
 export function parseRunpodChatOutput(output: unknown): { text: string; toolCalls: ToolCall[] } {
-  const completion = unwrapCompletion(output);
-  if (!completion) return { text: "", toolCalls: [] };
-  const choice = completion.choices?.[0];
-  const message = choice?.message;
-  let text = typeof message?.content === "string" ? message.content : "";
-  if (!text && Array.isArray(output)) {
-    text = output
-      .map((chunk) => {
-        const delta = unwrapCompletion(chunk)?.choices?.[0]?.delta?.content;
-        return typeof delta === "string" ? delta : "";
-      })
-      .join("");
-  }
+  const pieces = Array.isArray(output) ? output : [output];
+  let text = "";
   const toolCalls: ToolCall[] = [];
-  for (const call of message?.tool_calls || []) {
-    const name = call.function?.name;
-    if (!name) continue;
-    let args: Record<string, unknown> = {};
-    const raw = call.function?.arguments;
-    if (typeof raw === "string" && raw.trim()) {
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed as Record<string, unknown>;
-      } catch {
-        args = {};
+  for (const piece of pieces) {
+    const completion = unwrapCompletion(piece);
+    if (!completion) continue;
+    const choice = completion.choices?.[0];
+    const message = choice?.message;
+    if (typeof message?.content === "string") text += message.content;
+    else if (typeof choice?.delta?.content === "string") text += choice.delta.content;
+    for (const call of message?.tool_calls || []) {
+      const name = call.function?.name;
+      if (!name) continue;
+      let args: Record<string, unknown> = {};
+      const raw = call.function?.arguments;
+      if (typeof raw === "string" && raw.trim()) {
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed as Record<string, unknown>;
+        } catch {
+          args = {};
+        }
       }
+      toolCalls.push({ name, arguments: args });
     }
-    toolCalls.push({ name, arguments: args });
   }
   const clean = stripThinkBlocks(text);
   for (const extra of parseToolCalls(clean)) {
@@ -132,6 +129,13 @@ export function parseRunpodChatOutput(output: unknown): { text: string; toolCall
 
 function unwrapCompletion(value: unknown): Completion | null {
   if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = unwrapCompletion(item);
+      if (found) return found;
+    }
+    return null;
+  }
   const record = value as Completion & { output?: unknown };
   if (Array.isArray(record.choices)) return record;
   if (record.output) return unwrapCompletion(record.output);

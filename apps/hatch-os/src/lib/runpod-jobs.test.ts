@@ -34,4 +34,20 @@ describe("runpod jobs", () => {
     assert.equal(parsed.toolCalls.some((call) => call.name === "write_draft"), true);
     assert.equal(parsed.text.includes("tool_call"), false);
   });
+
+  it("reads the one-item array vLLM returns and drops the think preamble", () => {
+    const parsed = parseRunpodChatOutput([
+      {
+        choices: [
+          {
+            message: {
+              content: "We need to reply with exactly: hatch ask ok.\n</think>\n\nhatch ask ok",
+              role: "assistant",
+            },
+          },
+        ],
+      },
+    ]);
+    assert.equal(parsed.text, "hatch ask ok");
+  });
 });
