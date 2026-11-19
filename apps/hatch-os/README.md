@@ -11,7 +11,7 @@ cp .env.local.example .env.local
 npm i && npm run dev
 ```
 
-Open http://127.0.0.1:3000 and continue in demo, or sign in with `BOUNDARIES` and any six digits. Live models use `HATCH_LLM_*` (Ask / Qwen) and `HATCH_AGENT_LLM_*` (agent / Hermes). If those endpoints are down, the chat says the model is offline instead of waiting. Vault items are encrypted with `HATCH_VAULT_KEY` and the secret is not sent to the model or the audit log.
+Open http://127.0.0.1:3000 and continue in demo, or sign in with `BOUNDARIES` and any six digits. Live models use `HATCH_LLM_*` (Ask / Qwen) and `HATCH_AGENT_LLM_*` (agent / Hermes). On Vercel the browser submits a RunPod job and polls it, so a scale-to-zero cold start can finish after the function’s time limit. If those endpoints are down, the chat says the model is offline instead of waiting. Vault items are encrypted with `HATCH_VAULT_KEY` and the secret is not sent to the model or the audit log. Set `HATCH_DEMO_MODE=1` to walk the UI without calling a model.
 
 ## Boundaries Coffee dry-run
 

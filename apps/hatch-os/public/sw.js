@@ -10,6 +10,7 @@ function isCorpusish(url) {
     path.startsWith("/api/search") ||
     path.startsWith("/api/ingest") ||
     path.startsWith("/api/chat") ||
+    path.startsWith("/api/chat/step") ||
     path.startsWith("/api/files") ||
     path.startsWith("/api/threads") ||
     path.startsWith("/api/tools") ||

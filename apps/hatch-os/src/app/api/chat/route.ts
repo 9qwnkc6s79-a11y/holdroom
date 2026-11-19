@@ -1,8 +1,10 @@
 import { runChatTurn } from "@/lib/chat";
+import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
+import { demoModeEnabled } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
-// Vercel preview plans cap this at 60s. Demo replies finish immediately.
-// A live RunPod cold start can take longer and should run on the firm box.
+// Each request only submits or checks a RunPod job. The browser polls, so a
+// cold start can outlast this limit without the function sitting on it.
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
@@ -25,6 +27,33 @@ export async function POST(req: Request) {
   const query = (body?.query || "").trim();
   if (!query) {
     return Response.json({ error: "Ask a question." }, { status: 400 });
+  }
+
+  if (!demoModeEnabled() && liveRunpodReady()) {
+    try {
+      const result = await startLiveTurn({
+        query,
+        departmentId: body?.departmentId,
+        roomId: body?.roomId,
+        threadId: body?.threadId,
+        accessibleDepartments: body?.accessibleDepartments,
+        enterprise: body?.enterprise,
+        attachments: body?.attachments,
+        agent: body?.agent,
+        agentId: body?.agentId,
+        actor: body?.actor,
+        defaultDepartmentId: body?.defaultDepartmentId,
+      });
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "The firm model could not be reached.";
+      return Response.json({
+        phase: "done",
+        error: true,
+        modelOffline: true,
+        text: `The model is offline. ${message} Nothing was sent to an outside AI lab.`,
+      });
+    }
   }
 
   const encoder = new TextEncoder();

@@ -16,6 +16,17 @@ interface StatusShape {
   modelState?: "demo" | "offline" | "ready";
 }
 
+interface LivePayload {
+  phase?: "wait" | "done";
+  state?: unknown;
+  note?: string;
+  text?: string;
+  tools?: ToolEvent[];
+  approval?: ApprovalCard;
+  messageId?: string;
+  modelOffline?: boolean;
+}
+
 export function ChatScreen() {
   const params = useSearchParams();
   const router = useRouter();
@@ -153,7 +164,40 @@ export function ChatScreen() {
           attachments,
         }),
       });
-      if (!res.ok || !res.body) throw new Error("offline");
+      if (!res.ok) throw new Error("offline");
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        let payload = (await res.json()) as LivePayload;
+        while (payload.phase === "wait") {
+          const note = payload.note || "The firm model is waking up.";
+          setMessages((prev) => prev.map((item) => (item.id === assistant.id ? { ...item, text: note } : item)));
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+          const next = await fetch("/api/chat/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state: payload.state }),
+          });
+          payload = (await next.json()) as LivePayload;
+        }
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistant.id
+              ? {
+                  ...item,
+                  id: payload.messageId || assistant.id,
+                  text: payload.text || "",
+                  done: true,
+                  tools: payload.tools,
+                  approval: payload.approval,
+                }
+              : item,
+          ),
+        );
+        if (payload.modelOffline) setStatus((prev) => ({ ...prev, modelState: "offline" }));
+        window.dispatchEvent(new Event("hatch-refresh"));
+        return;
+      }
+      if (!res.body) throw new Error("offline");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
