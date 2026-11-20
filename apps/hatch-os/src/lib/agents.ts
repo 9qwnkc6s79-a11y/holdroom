@@ -11,6 +11,8 @@ export interface HatchAgent {
   /** Where drafts land. Enterprise is not a write target. */
   writeDepartmentId: string;
   color: string;
+  /** Bot icon id from the role library. Omitted records fall back by role. */
+  icon?: string;
   model: string;
   notifications: boolean;
   muted: boolean;
@@ -30,6 +32,7 @@ export const AGENTS: HatchAgent[] = [
     departmentId: ENTERPRISE,
     writeDepartmentId: HQ_OPS,
     color: "#18181B",
+    icon: "brackets",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -43,6 +46,7 @@ export const AGENTS: HatchAgent[] = [
     departmentId: HQ_OPS,
     writeDepartmentId: HQ_OPS,
     color: "#27272A",
+    icon: "layers",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -56,6 +60,7 @@ export const AGENTS: HatchAgent[] = [
     departmentId: LEGAL,
     writeDepartmentId: LEGAL,
     color: "#3F3F46",
+    icon: "scale",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -69,6 +74,7 @@ export const AGENTS: HatchAgent[] = [
     departmentId: FINANCE,
     writeDepartmentId: FINANCE,
     color: "#52525B",
+    icon: "trending-up",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,

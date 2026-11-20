@@ -75,6 +75,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
     const dark = value === "dark" || (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#09090B" : "#FFFFFF");
     localStorage.setItem("hatch-theme", value);
     setTheme(value);
   }

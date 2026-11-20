@@ -1,64 +1,142 @@
-/** One geometric agent mark. Same tile, same stroke, different glyph. */
-const NAMED = {
-  hatch: "brackets",
-  general: "brackets",
-  operations: "grid",
-  ops: "grid",
-  legal: "diamond",
-  finance: "ring",
-} as const;
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Briefcase,
+  Building2,
+  Calculator,
+  Calendar,
+  Camera,
+  ClipboardCheck,
+  Clock,
+  Code2,
+  Compass,
+  Cpu,
+  Crown,
+  Database,
+  FileCheck,
+  FlaskConical,
+  FolderKanban,
+  Gavel,
+  Globe,
+  Handshake,
+  Inbox,
+  KeyRound,
+  Landmark,
+  Layers,
+  Lock,
+  Mail,
+  Megaphone,
+  MessageSquare,
+  Package,
+  Palette,
+  PenTool,
+  Phone,
+  PieChart,
+  Radio,
+  Receipt,
+  Scale,
+  ScrollText,
+  Search,
+  Shield,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  Terminal,
+  TrendingUp,
+  Truck,
+  UserCheck,
+  Users,
+  Wallet,
+  Workflow,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { iconForAgent } from "@/lib/bot-icons";
 
-const SHAPES = ["brackets", "grid", "diamond", "ring", "bars", "triangle"] as const;
-type Shape = (typeof SHAPES)[number];
-
-function shapeFor(label: string): Shape {
-  const key = label.trim().toLowerCase();
-  if (key in NAMED) return NAMED[key as keyof typeof NAMED];
-  let hash = 0;
-  for (const char of key) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return SHAPES[hash % SHAPES.length];
-}
-
-const stroke = {
-  fill: "none" as const,
-  stroke: "currentColor",
-  strokeWidth: 1.5,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
+const ICONS: Record<string, LucideIcon> = {
+  briefcase: Briefcase,
+  compass: Compass,
+  target: Target,
+  crown: Crown,
+  shield: Shield,
+  sparkles: Sparkles,
+  "building-2": Building2,
+  layers: Layers,
+  "sliders-horizontal": SlidersHorizontal,
+  wrench: Wrench,
+  package: Package,
+  truck: Truck,
+  "clipboard-check": ClipboardCheck,
+  workflow: Workflow,
+  activity: Activity,
+  scale: Scale,
+  gavel: Gavel,
+  "shield-check": ShieldCheck,
+  "file-check": FileCheck,
+  lock: Lock,
+  "scroll-text": ScrollText,
+  landmark: Landmark,
+  "trending-up": TrendingUp,
+  calculator: Calculator,
+  receipt: Receipt,
+  "pie-chart": PieChart,
+  wallet: Wallet,
+  megaphone: Megaphone,
+  "pen-tool": PenTool,
+  palette: Palette,
+  globe: Globe,
+  radio: Radio,
+  camera: Camera,
+  handshake: Handshake,
+  users: Users,
+  phone: Phone,
+  mail: Mail,
+  calendar: Calendar,
+  "message-square": MessageSquare,
+  search: Search,
+  "book-open": BookOpen,
+  "bar-chart-3": BarChart3,
+  terminal: Terminal,
+  "code-2": Code2,
+  database: Database,
+  cpu: Cpu,
+  "flask-conical": FlaskConical,
+  "user-check": UserCheck,
+  "folder-kanban": FolderKanban,
+  inbox: Inbox,
+  "key-round": KeyRound,
+  clock: Clock,
+  bell: Bell,
 };
 
-function Glyph({ shape }: { shape: Shape }) {
-  if (shape === "grid") {
-    return (
-      <>
-        <rect x="9" y="9" width="5.5" height="5.5" rx="1" {...stroke} />
-        <rect x="17.5" y="9" width="5.5" height="5.5" rx="1" {...stroke} />
-        <rect x="9" y="17.5" width="5.5" height="5.5" rx="1" {...stroke} />
-        <rect x="17.5" y="17.5" width="5.5" height="5.5" rx="1" {...stroke} />
-      </>
-    );
-  }
-  if (shape === "diamond") return <path d="M16 8.5 23 16 16 23.5 9 16Z" {...stroke} />;
-  if (shape === "ring") return <circle cx="16" cy="16" r="6.5" {...stroke} />;
-  if (shape === "bars") return <path d="M9 12h14M9 16h14M9 20h9" {...stroke} />;
-  if (shape === "triangle") return <path d="M16 9.5 23 22.5H9Z" {...stroke} />;
-  return <path d="M12 9.5H9.5V12M20 9.5H22.5V12M12 22.5H9.5V20M20 22.5H22.5V20" {...stroke} />;
+function HatchMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 8H7v2M15 8h2v2M9 16H7v-2M15 16h2v-2" />
+    </svg>
+  );
 }
 
 export function AgentAvatar({
   label,
+  icon,
   size = 48,
   live = false,
 }: {
   label: string;
+  icon?: string | null;
   size?: number;
   live?: boolean;
 }) {
+  const id = iconForAgent({ name: label, icon });
+  const glyph = Math.max(14, Math.round(size * 0.46));
+  const Mark = id === "brackets" ? null : ICONS[id];
   return (
     <span className="blob agent-avatar" style={{ width: size, height: size }} aria-hidden="true">
-      <svg viewBox="0 0 32 32" width={Math.round(size * 0.72)} height={Math.round(size * 0.72)}>
-        <Glyph shape={shapeFor(label)} />
-      </svg>
+      {id === "brackets" || !Mark ? <HatchMark size={glyph} /> : <Mark size={glyph} strokeWidth={1.5} aria-hidden="true" />}
       {live ? <span className="blob-badge" /> : null}
     </span>
   );
@@ -66,6 +144,7 @@ export function AgentAvatar({
 
 export function BlobAvatar({
   label,
+  icon,
   size = 48,
   badge,
 }: {
@@ -73,8 +152,9 @@ export function BlobAvatar({
   size?: number;
   badge?: boolean;
   label?: string;
+  icon?: string | null;
 }) {
-  return <AgentAvatar label={label || "Hatch"} size={size} live={Boolean(badge)} />;
+  return <AgentAvatar label={label || "Hatch"} icon={icon} size={size} live={Boolean(badge)} />;
 }
 
 export function InitialAvatar({ label, size = 36 }: { label: string; size?: number }) {

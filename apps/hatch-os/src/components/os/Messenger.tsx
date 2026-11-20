@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
+import { IconPicker } from "@/components/os/IconPicker";
 import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconMic, IconPlus, IconScan, IconSettings, IconWave, IconX } from "@/components/os/Icons";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
@@ -730,7 +731,7 @@ export function Messenger() {
           <div className="pins">
             {agents.filter((item) => item.pinned).map((item) => (
               <button key={item.id} type="button" className="pin" onClick={() => router.push(`/chat?agent=${item.id}`)}>
-                <BlobAvatar color={item.color} size={72} label={item.name} badge={item.id === "general"} />
+                <BlobAvatar color={item.color} icon={item.icon} size={72} label={item.name} badge={item.id === "general"} />
                 <span>{item.name}</span>
               </button>
             ))}
@@ -767,7 +768,7 @@ export function Messenger() {
                       window.addEventListener("pointercancel", clear, { once: true });
                     }}
                   >
-                    <BlobAvatar color={item.color} size={52} label={item.name} />
+                    <BlobAvatar color={item.color} icon={item.icon} size={52} label={item.name} />
                     <span className="row-copy">
                       <span className="row-name">{item.name}</span>
                       <span className="row-preview">{preview.replace(/\s+/g, " ").slice(0, 80)}</span>
@@ -824,7 +825,7 @@ export function Messenger() {
                   <IconChevronLeft />
                 </button>
                 <button type="button" className="who" onClick={() => setInfoOpen(true)}>
-                  <BlobAvatar color={agent.color} size={28} label={agent.name} />
+                  <BlobAvatar color={agent.color} icon={agent.icon} size={28} label={agent.name} />
                   <span>{agent.name}</span>
                 </button>
                 <button type="button" className="round" aria-label="Send feedback" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
@@ -858,7 +859,7 @@ export function Messenger() {
                         setHold(message.id);
                       }}
                     >
-                      {!mine ? <BlobAvatar color={agent.color} size={22} label={agent.name} /> : null}
+                      {!mine ? <BlobAvatar color={agent.color} icon={agent.icon} size={22} label={agent.name} /> : null}
                       <div>
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
                         <div className={mine ? "bubble user" : "bubble agent"}>
@@ -1067,7 +1068,7 @@ export function Messenger() {
       {voice && agent ? (
         <div className="voice-screen">
           <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice"><IconX /></button>
-          <BlobAvatar color={agent.color} size={120} label={agent.name} />
+          <BlobAvatar color={agent.color} icon={agent.icon} size={120} label={agent.name} />
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
           <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
@@ -1154,7 +1155,7 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
         <button type="button" className="round" onClick={onClose} aria-label="Close"><IconX /></button>
         <button type="button" className="round" onClick={onSettings} aria-label="Agent settings"><IconSettings /></button>
       </header>
-      <BlobAvatar color={agent.color} size={84} label={agent.name} />
+      <BlobAvatar color={agent.color} icon={agent.icon} size={84} label={agent.name} />
       <h2>{agent.name}</h2>
       <p>{agent.description}</p>
       <h3>Routines</h3>
@@ -1196,20 +1197,18 @@ function AgentSettings({
   const [description, setDescription] = useState(agent.description);
   const [model, setModel] = useState(agent.model || FIRM_MODEL);
   const [notifications, setNotifications] = useState(agent.notifications);
-  const [color, setColor] = useState(agent.color);
+  const [color] = useState(agent.color);
+  const [icon, setIcon] = useState(agent.icon || "brackets");
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="Agent settings">
       <header>
         <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>Settings</strong>
-        <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
+        <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color, icon })}>Save</button>
       </header>
-      <BlobAvatar color={color} size={72} label={name} />
-      <div className="swatches">
-        {AGENT_COLORS.map((swatch) => (
-          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
-        ))}
-      </div>
+      <BlobAvatar color={color} icon={icon} size={72} label={name} />
+      <p className="set-label">Bot icon</p>
+      <IconPicker value={icon} onChange={setIcon} />
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Instructions<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
@@ -1233,26 +1232,24 @@ function NewAgent({
 }: {
   error?: string;
   onClose: () => void;
-  onCreate: (input: { name: string; description: string; color: string; model: string }) => Promise<void>;
+  onCreate: (input: { name: string; description: string; color: string; icon: string; model: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [model, setModel] = useState(FIRM_MODEL);
-  const [color, setColor] = useState<string>(AGENT_COLORS[0]);
+  const [color] = useState<string>(AGENT_COLORS[0]);
+  const [icon, setIcon] = useState("brackets");
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
       <header>
         <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>New agent</strong>
-        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
+        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, icon, model })}>Create</button>
       </header>
       {error ? <p className="os-error" role="alert">{error}</p> : null}
-      <BlobAvatar color={color} size={84} label={name || "New"} />
-      <div className="swatches">
-        {AGENT_COLORS.map((swatch) => (
-          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
-        ))}
-      </div>
+      <BlobAvatar color={color} icon={icon} size={72} label={name || "Hatch"} />
+      <p className="set-label">Bot icon</p>
+      <IconPicker value={icon} onChange={setIcon} />
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Research" /></label>
       <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is for" /></label>
       <label>Model
