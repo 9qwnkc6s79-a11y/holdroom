@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { AuditScreen } from "@/components/os/AuditScreen";
 import { InitialAvatar } from "@/components/os/Avatar";
@@ -23,26 +23,19 @@ const RULES = [
   { name: "Use a vault item", detail: "An agent may name a vault item only after Approve. The secret stays hidden." },
 ];
 
-type Page =
-  | "home"
-  | "account"
-  | "usage"
-  | "plan"
-  | "vault"
-  | "connect"
-  | "permissions"
-  | "zone"
-  | "hardware"
-  | "devices"
-  | "memory"
-  | "audit"
-  | "members"
-  | "appearance";
+const PAGES = ["home", "account", "usage", "plan", "vault", "connect", "permissions", "zone", "hardware", "devices", "memory", "audit", "members", "appearance"] as const;
+type Page = (typeof PAGES)[number];
 
-export function SettingsScreen({ onClose }: { onClose?: () => void }) {
+function isPage(value: string | null): value is Page {
+  return Boolean(value && (PAGES as readonly string[]).includes(value));
+}
+
+export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: () => void; initialPage?: Page }) {
   const router = useRouter();
+  const params = useSearchParams();
   const { signOut, session } = useHatch();
-  const [page, setPage] = useState<Page>("home");
+  const requested = params.get("tab");
+  const [page, setPage] = useState<Page>(isPage(requested) ? requested : initialPage);
   const [name, setName] = useState("Partner");
   const [email, setEmail] = useState("demo@this-preview");
   const [theme, setTheme] = useState("system");

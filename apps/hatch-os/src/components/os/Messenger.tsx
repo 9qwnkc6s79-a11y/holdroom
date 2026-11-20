@@ -82,6 +82,7 @@ export function Messenger() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<"home" | "vault" | "audit">("home");
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [hold, setHold] = useState<string | null>(null);
   const [chatSearch, setChatSearch] = useState(false);
@@ -92,7 +93,15 @@ export function Messenger() {
   const [seen, setSeen] = useState<Record<string, string>>({});
   const [account, setAccount] = useState("Partner");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const streamRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const heldRef = useRef(false);
   const shownAgent = useRef<string | null>(null);
+  const busyRef = useRef(false);
+  const queueRef = useRef<{ text: string; userId: string; agentId: string }[]>([]);
+  const announcedRef = useRef(new Set<string>());
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
   const endRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -206,7 +215,7 @@ export function Messenger() {
     setActiveThread(chosen?.id || null);
     setMessages((prev) => {
       const next = chosen?.messages || [];
-      if (!switched && next.length === 0 && prev.length > 0) return prev;
+      if (!switched && next.length < prev.length) return prev;
       return next;
     });
     const next = { ...seenMap(), [agent.id]: new Date().toISOString() };
@@ -215,6 +224,7 @@ export function Messenger() {
   }, [agent, latest, streaming]);
 
   useEffect(() => {
+    if (!stickRef.current) return;
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, streaming, statusNote]);
 
@@ -238,44 +248,87 @@ export function Messenger() {
   });
   const unreadCount = agents.filter(unread).length;
 
+  function threadIdFor(agentId: string) {
+    return readTranscripts().find((item) => item.agentId === agentId)?.id || `local-${agentId}`;
+  }
+
+  function writeMessages(agentId: string, departmentId: string, messages: ChatMessage[], title?: string) {
+    rememberConversation(agentId, threadIdFor(agentId), departmentId, messages, title);
+  }
+
+  function mapMessages(agentId: string, departmentId: string, map: (messages: ChatMessage[]) => ChatMessage[]) {
+    const current = readTranscripts().find((item) => item.agentId === agentId)?.messages || [];
+    writeMessages(agentId, departmentId, map(current));
+  }
+
   async function send(text: string, opts?: { voice?: boolean }) {
     const q = text.trim();
-    if (!q || streaming || !session || !agent) return;
-    setStreaming(true);
-    setStatusNote("");
+    if (!q || !session || !agent) return;
+    stickRef.current = true;
     setAttachOpen(false);
+    if (inputRef.current) inputRef.current.value = "";
+    if (busyRef.current) {
+      const user: ChatMessage = {
+        id: `local-u-${Date.now()}`,
+        role: "user",
+        text: q,
+        done: true,
+        sources: [],
+        replyTo: reply ? { text: reply } : undefined,
+      };
+      mapMessages(agent.id, agent.departmentId, (current) => [...current, user]);
+      queueRef.current.push({ text: q, userId: user.id, agentId: agent.id });
+      setReply(null);
+      return;
+    }
+    await runTurn(agent, q, undefined, opts);
+  }
+
+  async function runTurn(target: HatchAgent, q: string, existingUserId?: string, opts?: { voice?: boolean }) {
+    if (!session) return;
+    busyRef.current = true;
+    setStreaming(true);
+    setStatusNote("Sending…");
     const quote = reply;
     setReply(null);
-    const saved = readTranscripts().find((item) => item.agentId === agent.id);
-    const thread = saved?.id || `local-${agent.id}`;
-    const prior = saved?.messages || [];
-    const user: ChatMessage = {
-      id: `local-u-${Date.now()}`,
-      role: "user",
-      text: q,
-      done: true,
-      sources: [],
-      replyTo: quote ? { text: quote } : undefined,
+    const thread = threadIdFor(target.id);
+    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "Sending…", done: false, sources: [] };
+    if (!existingUserId) {
+      const user: ChatMessage = {
+        id: `local-u-${Date.now()}`,
+        role: "user",
+        text: q,
+        done: true,
+        sources: [],
+        replyTo: quote ? { text: quote } : undefined,
+      };
+      mapMessages(target.id, target.departmentId, (current) => [...current, user, assistant]);
+    } else {
+      mapMessages(target.id, target.departmentId, (current) => [...current, assistant]);
+    }
+    if (!announcedRef.current.has(target.id)) {
+      announcedRef.current.add(target.id);
+      void fetch("/api/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ departmentId: target.departmentId, agentId: target.id, title: q.slice(0, 42) }),
+      }).catch(() => undefined);
+    }
+    const paint = (patch: Partial<ChatMessage>) => {
+      mapMessages(target.id, target.departmentId, (current) =>
+        current.map((item) => (item.id === assistant.id ? { ...item, ...patch } : item)),
+      );
     };
-    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "", done: false, sources: [] };
-    const pending = [...prior, user, assistant];
-    rememberConversation(agent.id, thread, agent.departmentId, pending, q.slice(0, 42));
-    void fetch("/api/threads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ departmentId: agent.departmentId, agentId: agent.id, title: q.slice(0, 42) }),
-    }).catch(() => undefined);
-    if (inputRef.current) inputRef.current.value = "";
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          departmentId: agent.departmentId,
-          defaultDepartmentId: agent.writeDepartmentId,
+          departmentId: target.departmentId,
+          defaultDepartmentId: target.writeDepartmentId,
           threadId: thread,
           query: q,
-          agentId: agent.id,
+          agentId: target.id,
           actor,
           agent: true,
           failFast: true,
@@ -297,12 +350,7 @@ export function Messenger() {
         while (payload.phase === "wait") {
           const note = payload.note || "The firm model is waking up.";
           setStatusNote(note);
-          rememberConversation(
-            agent.id,
-            thread,
-            agent.departmentId,
-            pending.map((item) => (item.id === assistant.id ? { ...item, text: note } : item)),
-          );
+          paint({ text: note });
           await new Promise((resolve) => setTimeout(resolve, 2500));
           const next = await fetch("/api/chat/step", {
             method: "POST",
@@ -334,8 +382,7 @@ export function Messenger() {
             const payload = JSON.parse(line) as LivePayload & { delta?: string; done?: boolean };
             if (payload.delta) {
               streamed += payload.delta;
-              const shown = streamed;
-              setMessages((prev) => prev.map((item) => (item.id === assistant.id ? { ...item, text: shown } : item)));
+              paint({ text: streamed });
             }
             if (payload.done) {
               if (typeof payload.text === "string") finalText = payload.text;
@@ -349,12 +396,7 @@ export function Messenger() {
         finalText = finalText || streamed;
       }
       const shown = finalText || (modelOffline ? "The model is offline. Nothing was sent to an outside AI lab." : "The model returned an empty reply.");
-      rememberConversation(
-        agent.id,
-        thread,
-        agent.departmentId,
-        pending.map((item) => (item.id === assistant.id ? { ...item, id: messageId, text: shown, done: true, tools, approval } : item)),
-      );
+      paint({ id: messageId, text: shown, done: true, tools, approval });
       if (opts?.voice && finalText && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(finalText).body.slice(0, 400)));
@@ -362,17 +404,15 @@ export function Messenger() {
       if (modelOffline) setStatusNote("The model is offline.");
       window.dispatchEvent(new Event("hatch-refresh"));
     } catch {
-      rememberConversation(
-        agent.id,
-        thread,
-        agent.departmentId,
-        pending.map((item) =>
-          item.id === assistant.id
-            ? { ...item, done: true, text: "The model is offline. Nothing was sent to an outside AI lab." }
-            : item,
-        ),
-      );
+      paint({ done: true, text: "The model is offline. Nothing was sent to an outside AI lab." });
     } finally {
+      const next = queueRef.current.shift();
+      if (next) {
+        const found = agentsRef.current.find((item) => item.id === next.agentId) || target;
+        await runTurn(found, next.text, next.userId);
+        return;
+      }
+      busyRef.current = false;
       setStreaming(false);
       setStatusNote("");
     }
@@ -460,7 +500,7 @@ export function Messenger() {
       {showList ? (
         <section className="inbox" aria-label="Agents">
           <header className="inbox-top">
-            <button type="button" className="round" aria-label="Account and settings" onClick={() => setSettingsOpen(true)}>
+            <button type="button" className="round" aria-label="Account and settings" onClick={() => { setSettingsPage("home"); setSettingsOpen(true); }}>
               <InitialAvatar label={account} size={40} />
             </button>
             <button type="button" className="round round-plus" aria-label="New agent" onClick={() => setCreating(true)}>
@@ -486,12 +526,25 @@ export function Messenger() {
                     type="button"
                     className={`row${on ? " is-on" : ""}`}
                     onClick={() => {
+                      if (heldRef.current) {
+                        heldRef.current = false;
+                        return;
+                      }
                       setMenu(null);
                       router.push(`/chat?agent=${item.id}`);
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       setMenu({ id: item.id, x: event.clientX, y: event.clientY });
+                    }}
+                    onPointerDown={() => {
+                      const hold = window.setTimeout(() => {
+                        heldRef.current = true;
+                        setMenu({ id: item.id, x: 24, y: 120 });
+                      }, 480);
+                      const clear = () => window.clearTimeout(hold);
+                      window.addEventListener("pointerup", clear, { once: true });
+                      window.addEventListener("pointercancel", clear, { once: true });
                     }}
                   >
                     <BlobAvatar color={item.color} size={52} />
@@ -534,9 +587,9 @@ export function Messenger() {
           </form>
           {apps ? (
             <div className="popover apps-pop">
-              <button type="button" onClick={() => router.push("/settings")}>Settings</button>
-              <button type="button" onClick={() => router.push("/settings?tab=vault")}>Vault</button>
-              <button type="button" onClick={() => router.push("/settings?tab=audit")}>Audit</button>
+              <button type="button" onClick={() => { setApps(false); setSettingsPage("home"); setSettingsOpen(true); }}>Settings</button>
+              <button type="button" onClick={() => { setApps(false); setSettingsPage("vault"); setSettingsOpen(true); }}>Vault</button>
+              <button type="button" onClick={() => { setApps(false); setSettingsPage("audit"); setSettingsOpen(true); }}>Audit</button>
             </div>
           ) : null}
         </section>
@@ -561,7 +614,14 @@ export function Messenger() {
               {chatSearch ? (
                 <input className="find" value={find} onChange={(event) => setFind(event.target.value)} placeholder="Search in chat" aria-label="Search in chat" />
               ) : null}
-              <div className="stream">
+              <div
+                className="stream"
+                ref={streamRef}
+                onScroll={(event) => {
+                  const el = event.currentTarget;
+                  stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+                }}
+              >
                 {statusNote ? <p className="working">{statusNote}</p> : null}
                 {visibleMessages.map((message) => {
                   const parsed = choicesOf(message.text);
@@ -676,9 +736,11 @@ export function Messenger() {
       ) : null}
 
       {menu ? (
-        <div className="popover" style={{ left: menu.x, top: menu.y }} role="menu">
-          <button type="button" onClick={() => { const item = agents.find((agent) => agent.id === menu.id); const name = window.prompt("Rename", item?.name || ""); if (name && item) void saveAgent({ ...item, name }); setMenu(null); }}>Rename</button>
+        <div className="agent-menu" role="menu">
+          <button type="button" onClick={() => { const item = agents.find((entry) => entry.id === menu.id); if (item) void saveAgent({ ...item, pinned: !item.pinned }); setMenu(null); }}>{agents.find((entry) => entry.id === menu.id)?.pinned ? "Unpin" : "Pin"}</button>
+          <button type="button" onClick={() => { const item = agents.find((entry) => entry.id === menu.id); const name = window.prompt("Rename", item?.name || ""); if (name && item) void saveAgent({ ...item, name }); setMenu(null); }}>Rename</button>
           <button type="button" onClick={() => { if (window.confirm("Remove this agent?")) void fetch(`/api/agents?id=${menu.id}`, { method: "DELETE" }).then(() => load()); setMenu(null); }}>Delete</button>
+          <button type="button" onClick={() => setMenu(null)}>Close</button>
         </div>
       ) : null}
 
@@ -756,7 +818,7 @@ export function Messenger() {
         </div>
       ) : null}
 
-      {settingsOpen ? <SettingsScreen onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <SettingsScreen key={settingsPage} initialPage={settingsPage} onClose={() => setSettingsOpen(false)} /> : null}
 
       {palette ? (
         <div className="sheet" role="dialog" aria-label="Search">
@@ -908,17 +970,18 @@ function NewAgent({
 }: {
   error?: string;
   onClose: () => void;
-  onCreate: (input: { name: string; description: string; color: string }) => Promise<void>;
+  onCreate: (input: { name: string; description: string; color: string; model: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [model, setModel] = useState(FIRM_MODEL);
   const [color, setColor] = useState<string>(AGENT_COLORS[0]);
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
       <header>
         <button type="button" onClick={onClose}>Close</button>
         <strong>New agent</strong>
-        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color })}>Create</button>
+        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
       </header>
       {error ? <p className="os-error" role="alert">{error}</p> : null}
       <BlobAvatar color={color} size={84} />
@@ -929,6 +992,13 @@ function NewAgent({
       </div>
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Research" /></label>
       <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is for" /></label>
+      <label>Model
+        <select value={model} onChange={(event) => setModel(event.target.value)}>
+          <option>{FIRM_MODEL}</option>
+          <option>Qwen</option>
+          <option>Hermes</option>
+        </select>
+      </label>
     </div>
   );
 }

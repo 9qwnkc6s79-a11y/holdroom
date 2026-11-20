@@ -1,7 +1,7 @@
 /* Hatch OS Phase 1 service worker.
    Offline = “can’t reach the room.” Do not cache a corpus. */
 const OFFLINE_URL = "/offline.html";
-const CACHE = "hatch-os-offline-v3";
+const CACHE = "hatch-os-offline-v4";
 
 function isCorpusish(url) {
   const path = url.pathname;

@@ -12,7 +12,9 @@ export function richerThread(a?: ChatThread | null, b?: ChatThread | null): Chat
   if (!b?.agentId || b.archived) return a;
   if (a.agentId !== b.agentId) return count(a) >= count(b) ? a : b;
   if (count(a) !== count(b)) return count(a) > count(b) ? a : b;
-  return a.updatedAt >= b.updatedAt ? a : b;
+  // Same length: keep the copy already on the phone. A newer empty-equal server
+  // thread was replacing the conversation after each reply.
+  return a;
 }
 
 export function mergeThreads(local: ChatThread[], server: ChatThread[]): ChatThread[] {

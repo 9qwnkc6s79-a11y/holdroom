@@ -44,6 +44,13 @@ describe("transcript merge", () => {
     assert.equal(legal?.messages.length, 1);
   });
 
+  it("keeps the local copy when both sides have the same number of messages", () => {
+    const local = thread("general", ["Hello", "Hi"], "2026-11-19T18:00:00.000Z");
+    const server = thread("general", ["Hello", "Server"], "2026-11-19T18:10:00.000Z");
+    const merged = mergeThreads([local], [server]);
+    assert.equal(merged[0]?.messages[1]?.text, "Hi");
+  });
+
   it("does not prefer an empty thread just because it is newer", () => {
     const chosen = richerThread(
       thread("operations", ["One", "Two"], "2026-11-19T18:00:00.000Z"),
