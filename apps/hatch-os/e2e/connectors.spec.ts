@@ -1,5 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 
+function channel(color: string) {
+  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!match) throw new Error(color);
+  return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+}
+
+function linear(value: number) {
+  const s = value / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+function contrast(foreground: string, background: string) {
+  const lum = (color: string) => {
+    const [r, g, b] = channel(color);
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+  };
+  const lighter = Math.max(lum(foreground), lum(background));
+  const darker = Math.min(lum(foreground), lum(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 async function openSettings(page: Page, scheme: "light" | "dark") {
   await page.emulateMedia({ colorScheme: scheme });
   await page.addInitScript((mode) => localStorage.setItem("hatch-theme", mode), scheme);
@@ -21,12 +42,15 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(page.getByRole("heading", { name: "Connect apps" })).toBeVisible();
     const search = page.getByLabel("Search connectors");
     await expect(search).toBeVisible();
-    await search.fill("notion");
-    await expect(page.getByRole("button", { name: /Notion/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /GitHub/ })).toHaveCount(0);
+    await expect(search).toHaveValue("");
+    await expect(page.getByRole("button", { name: /^Google/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Custom MCP/ })).toBeVisible();
     if (testInfo.project.name === "chromium") {
       await page.screenshot({ path: `/opt/cursor/artifacts/hatch-connect-apps-${scheme}.png` });
     }
+    await search.fill("notion");
+    await expect(page.getByRole("button", { name: /Notion/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /GitHub/ })).toHaveCount(0);
     const title = await page.locator(".set-card strong").first().evaluate((el) => getComputedStyle(el).color);
     const card = await page.locator(".set-card").first().evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(title).not.toBe(card);
@@ -41,6 +65,23 @@ for (const scheme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Qwen 3.8 27B" }).click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
+    const reset = page.getByRole("button", { name: "Reset defaults" });
+    await reset.scrollIntoViewIfNeeded();
+    const pill = await reset.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      return {
+        paddingLeft: parseFloat(style.paddingLeft),
+        radius: parseFloat(style.borderRadius),
+        color: style.color,
+        background: style.backgroundColor,
+        height: box.height,
+      };
+    });
+    expect(pill.paddingLeft).toBeGreaterThanOrEqual(10);
+    expect(pill.height).toBeGreaterThanOrEqual(44);
+    expect(pill.radius).toBeGreaterThanOrEqual(16);
+    expect(contrast(pill.color, pill.background)).toBeGreaterThan(4.5);
     if (testInfo.project.name === "chromium") {
       await page.screenshot({ path: `/opt/cursor/artifacts/hatch-model-ethics-${scheme}.png` });
     }
@@ -58,6 +99,12 @@ test("connector forms validate and oauth routes stay healthy", async ({ page }, 
   await page.getByRole("button", { name: /Connect apps/ }).click();
   await page.getByLabel("Search connectors").fill("");
   await page.getByRole("button", { name: /^Email/ }).click();
+  await expect(page.getByRole("button", { name: "Back to connectors" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Google/ })).toHaveCount(0);
+  const backTop = await page.getByRole("button", { name: "Back to connectors" }).evaluate((el) => el.getBoundingClientRect().top);
+  const formTop = await page.getByLabel("Email provider").evaluate((el) => el.getBoundingClientRect().top);
+  expect(backTop).toBeLessThan(220);
+  expect(formTop).toBeLessThan(520);
   await expect(page.getByLabel("IMAP host")).toBeVisible();
   if (testInfo.project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/hatch-connector-setup.png" });

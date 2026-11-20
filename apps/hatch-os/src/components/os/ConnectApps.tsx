@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { IconChevronLeft } from "@/components/os/Icons";
 
 interface CatalogItem {
   kind: string;
@@ -44,6 +45,11 @@ export function ConnectApps({ scope }: { scope: string }) {
   useEffect(() => {
     void load().catch(() => setError("Could not load connectors."));
   }, [scope]);
+
+  useEffect(() => {
+    if (!kind) return;
+    document.querySelector(".set-sheet")?.scrollTo(0, 0);
+  }, [kind]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,40 +121,24 @@ export function ConnectApps({ scope }: { scope: string }) {
     await load();
   }
 
-  return (
-    <div className="connect">
-      <input
-        className="connect-search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search connectors"
-        aria-label="Search connectors"
-      />
-      {error ? <p className="os-error" role="alert">{error}</p> : null}
-      {note ? <p className="set-note" role="status">{note}</p> : null}
-      <section className="set-card">
-        {rows.map((item) => {
-          const on = connected.find((row) => row.kind === item.kind);
-          return (
-            <button key={item.kind} type="button" className="set-row" onClick={() => { setKind(item.kind); setError(""); setNote(""); }}>
-              <span className="set-main">
-                <strong>{item.name}</strong>
-                <span>{on ? on.label : item.blurb}</span>
-              </span>
-              <span className="set-value">{on ? "Connected" : item.auth}</span>
-            </button>
-          );
-        })}
-        {!rows.length ? <p className="set-note">No connectors match that search.</p> : null}
-      </section>
-      {active ? (
+  if (active) {
+    return (
+      <div className="connect">
+        <header className="set-sub">
+          <button type="button" className="round" aria-label="Back to connectors" onClick={() => { setKind(null); setError(""); setNote(""); }}>
+            <IconChevronLeft />
+          </button>
+          <h1>{active.name}</h1>
+        </header>
+        {error ? <p className="os-error" role="alert">{error}</p> : null}
+        {note ? <p className="set-note" role="status">{note}</p> : null}
         <section className="set-card" aria-label={`${active.name} setup`}>
           <div className="set-row is-static">
             <span className="set-main"><strong>{active.name}</strong><span>{live ? live.detail : active.blurb}</span></span>
           </div>
           {live ? (
             <div className="row-actions">
-              <button type="button" onClick={() => void test(active.kind)}>Test</button>
+              <button type="button" className="os-btn" onClick={() => void test(active.kind)}>Test</button>
               <button type="button" className="ghost" onClick={() => void disconnect(active.kind)}>Disconnect</button>
             </div>
           ) : null}
@@ -175,11 +165,42 @@ export function ConnectApps({ scope }: { scope: string }) {
                   <input name="token" type="password" required autoComplete="off" aria-label={`${active.name} token`} />
                 </label>
               ) : null}
-              <button className="os-btn" type="submit" disabled={busy}>{busy ? "Checking…" : "Save connection"}</button>
+              <div className="row-actions">
+                <button className="os-btn" type="submit" disabled={busy}>{busy ? "Checking…" : "Save connection"}</button>
+              </div>
             </form>
           ) : null}
         </section>
-      ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="connect">
+      <input
+        className="connect-search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search connectors"
+        aria-label="Search connectors"
+      />
+      {error ? <p className="os-error" role="alert">{error}</p> : null}
+      {note ? <p className="set-note" role="status">{note}</p> : null}
+      <section className="set-card">
+        {rows.map((item) => {
+          const on = connected.find((row) => row.kind === item.kind);
+          return (
+            <button key={item.kind} type="button" className="set-row" onClick={() => { setKind(item.kind); setError(""); setNote(""); }}>
+              <span className="set-main">
+                <strong>{item.name}</strong>
+                <span>{on ? on.label : item.blurb}</span>
+              </span>
+              <span className="set-value">{on ? "Connected" : item.auth}</span>
+            </button>
+          );
+        })}
+        {!rows.length ? <p className="set-note">No connectors match that search.</p> : null}
+      </section>
     </div>
   );
 }
