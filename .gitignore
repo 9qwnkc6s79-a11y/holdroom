@@ -1,6 +1,12 @@
 node_modules
-.vercel
 .env
 .env.*
 !.env.example
+.vercel
 *.log
+.next
+.DS_Store
+apps/**/node_modules
+apps/**/.next
+apps/**/out
+apps/hatch-os/data

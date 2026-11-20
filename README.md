@@ -49,6 +49,9 @@ Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
 `/app/` is a Hatch OS product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
+The Hatch OS Next.js PWA lives at [`apps/hatch-os/`](apps/hatch-os/). It is a separate app from this static site: login, chat, connectors, and Model & Ethics.
+Do not set `apps/hatch-os` as the holdroom Vercel project root. That project stays static with `framework: null`.
+
 Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: secure in-house AI on your knowledge. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
 
 ## Claims locks

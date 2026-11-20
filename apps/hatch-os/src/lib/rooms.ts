@@ -1,0 +1,18 @@
+export {
+  ALL_ROOMS,
+  ALL_WORKSPACES,
+  DEPARTMENT_IDS,
+  ENTERPRISE,
+  HQ_OPS,
+  LITTLE_ELM,
+  PROSPER,
+  belongsToDepartment,
+  belongsToRoom,
+  isDepartment,
+  isEnterprise,
+  migrateRoomId,
+  migrateWorkspaceId,
+  roomLabel,
+  uxIsolation,
+  workspaceLabel,
+} from "./departments";

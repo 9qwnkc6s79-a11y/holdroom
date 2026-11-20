@@ -1,0 +1,5 @@
+# Dependencies and git metadata. The Next.js app in apps/hatch-os is a
+# separate Vercel project (root directory apps/hatch-os). Ignoring `apps`
+# here deletes that app before its build can see package.json.
+.git
+node_modules
