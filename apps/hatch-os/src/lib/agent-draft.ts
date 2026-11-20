@@ -7,12 +7,12 @@ export const DRAFT_NUDGE =
   "This turn is a draft/write-note. Call write_draft now with departmentId (little-elm, prosper, or hq-ops — not enterprise), a filename, and the note text. Do not answer in prose only.";
 
 export const PROSE_ONLY_DRAFT =
-  "No write_draft ran — this stayed as prose. Name Little Elm, Prosper, or HQ Ops (or /dept) and ask again to save the file.";
+  "No write_draft ran — this stayed as prose. Name North desk, South desk, or Operations (or /dept) and ask again to save the file.";
 
 export function parseMentionedDepartment(text: string): string {
   const raw = text || "";
-  if (/\blittle[\s-]?elm\b/i.test(raw)) return LITTLE_ELM;
-  if (/\bprosper\b/i.test(raw)) return PROSPER;
+  if (/\blittle[\s-]?elm\b/i.test(raw) || /\bnorth desk\b/i.test(raw)) return LITTLE_ELM;
+  if (/\bprosper\b/i.test(raw) || /\bsouth desk\b/i.test(raw)) return PROSPER;
   if (/\bhq[\s-]?ops\b|\bhq ops\b/i.test(raw)) return HQ_OPS;
   const id = migrateWorkspaceId(raw.trim().toLowerCase());
   return (DEPARTMENT_IDS as readonly string[]).includes(id) ? id : "";

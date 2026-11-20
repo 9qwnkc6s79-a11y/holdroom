@@ -47,7 +47,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   useEffect(() => {
     setName(localStorage.getItem("hatch-account") || "Partner");
     setEmail(localStorage.getItem("hatch-email") || "demo@this-preview");
-    const themeStored = localStorage.getItem("hatch-theme") || "system";
+    const themeStored = localStorage.getItem("hatch-theme") || "light";
     setTheme(themeStored);
     applyTheme(themeStored);
     const auto = localStorage.getItem("hatch-tz-auto");
@@ -72,6 +72,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   function applyTheme(value: string) {
     const dark = value === "dark" || (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
     localStorage.setItem("hatch-theme", value);
     setTheme(value);
   }

@@ -52,6 +52,14 @@ export function IconDots({ size = 18 }: { size?: number }) {
   );
 }
 
+export function IconArrowUp({ size = 18 }: { size?: number }) {
+  return (
+    <Mark size={size}>
+      <path d="M12 19V6.5M12 6.5l-5.25 5.25M12 6.5l5.25 5.25" {...stroke} />
+    </Mark>
+  );
+}
+
 export function IconFlag({ size = 16 }: { size?: number }) {
   return (
     <Mark size={size}>

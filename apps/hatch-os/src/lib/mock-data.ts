@@ -6,21 +6,21 @@ export { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER };
 export const INITIAL_DEPARTMENTS: Department[] = [
   {
     id: LITTLE_ELM,
-    name: "Little Elm",
+    name: "North desk",
     kind: "department",
     isolation: uxIsolation(LITTLE_ELM),
     files: [],
   },
   {
     id: PROSPER,
-    name: "Prosper",
+    name: "South desk",
     kind: "department",
     isolation: uxIsolation(PROSPER),
     files: [],
   },
   {
     id: HQ_OPS,
-    name: "HQ Ops",
+    name: "Operations",
     kind: "department",
     isolation: uxIsolation(HQ_OPS),
     files: [],
@@ -59,26 +59,26 @@ function seat(
 }
 
 export const INITIAL_SEATS: Seat[] = [
-  seat("s-daniel", "Daniel", "Partner", [LITTLE_ELM, PROSPER, HQ_OPS], {
+  seat("s-partner", "Partner", "Partner", [LITTLE_ELM, PROSPER, HQ_OPS], {
     enterprise: true,
     homeDepartment: HQ_OPS,
-    device: "Daniel Mac",
+    device: "Office Mac",
   }),
-  seat("s-rafael", "Rafael", "Admin", [LITTLE_ELM], {
+  seat("s-north", "North lead", "Admin", [LITTLE_ELM], {
     enterprise: false,
     homeDepartment: LITTLE_ELM,
-    device: "Little Elm iPad",
+    device: "North desk tablet",
   }),
-  seat("s-heath", "Heath", "Admin", [PROSPER], {
+  seat("s-south", "South lead", "Admin", [PROSPER], {
     enterprise: false,
     homeDepartment: PROSPER,
-    device: "Prosper iPad",
+    device: "South desk tablet",
   }),
 ];
 
 export const INITIAL_DEVICES: Device[] = [
   { id: "d1", name: "This Mac", lastSeen: "This session", current: true },
-  { id: "d2", name: "Little Elm iPad", lastSeen: "Store LAN" },
+  { id: "d2", name: "North desk tablet", lastSeen: "Office network" },
 ];
 
 export const MOCK_STATUS: BoxStatus = {

@@ -61,8 +61,8 @@ const SEED_FOLDERS: Record<string, string[]> = {
 
 const SEED_FILE_FOLDER: Record<string, string> = {
   "DEMO_open_close_checklist.md": "Checklists",
-  "DEMO_gm_rafael.md": "Staff",
-  "DEMO_gm_heath.md": "Staff",
+  "DEMO_north_lead.md": "Staff",
+  "DEMO_south_lead.md": "Staff",
   "DEMO_loyalty.md": "Loyalty",
   "DEMO_catering_protocol.md": "Catering",
   "DEMO_catering_onepager.pdf": "Catering",
@@ -335,13 +335,22 @@ function ensure() {
   }
 }
 
+function seedTextIsStale(raw: Partial<DiskState>) {
+  return (raw.chunks || []).some((chunk) =>
+    /boundaries|prosper|little elm|rafael|heath|\bcoffee\b/i.test(chunk.text || ""),
+  );
+}
+
 function readState(): DiskState {
   ensure();
   try {
     const raw = JSON.parse(readFileSync(STATE, "utf8")) as Partial<DiskState>;
     const ids = (raw.rooms || []).map((r) => r.id);
-    if (!ids.includes(LITTLE_ELM) || !ids.includes(PROSPER)) {
+    if (!ids.includes(LITTLE_ELM) || !ids.includes(PROSPER) || seedTextIsStale(raw)) {
       const fresh = loadSeed();
+      fresh.threads = raw.threads || [];
+      fresh.agents = raw.agents?.length ? raw.agents.map(normalizeAgent) : fresh.agents;
+      fresh.audit = raw.audit || [];
       writeFileSync(STATE, JSON.stringify(fresh, null, 2));
       return fresh;
     }

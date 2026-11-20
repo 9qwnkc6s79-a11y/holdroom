@@ -5,14 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
-import { IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
+import { IconArrowUp, IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
-import { ACCEPT_ATTR } from "@/lib/files";
+import { ACCEPT_ATTR, kindFromFilename } from "@/lib/files";
+import { dropPending, readPending, upsertPending, waitCopy, type PendingJob } from "@/lib/pending";
 import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
-import type { ApprovalCard, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
+import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
 
 interface LivePayload {
   phase?: "wait" | "done";
@@ -30,9 +31,47 @@ type SpeechCtor = new () => {
   interimResults: boolean;
   onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
   onerror: (() => void) | null;
+  onend: (() => void) | null;
   start: () => void;
   stop: () => void;
 };
+
+const DICTATE_HINT =
+  "Use your phone keyboard's mic button to dictate — live voice transcription isn't wired on this test build yet.";
+
+interface DraftChip {
+  id: string;
+  name: string;
+  text?: string;
+  note?: string;
+  fileId?: string;
+}
+
+function composeQuery(text: string, files: DraftChip[]) {
+  const blocks = files.map((file) =>
+    file.text
+      ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
+      : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
+  );
+  return [text.trim(), ...blocks].filter(Boolean).join("\n\n");
+}
+
+function explainFailure(err: unknown, status?: number) {
+  if (status === 401 || status === 403) return "Your sign-in expired. Sign in again to keep chatting.";
+  if (status === 429) return "You've hit today's message cap for this code. Try again tomorrow.";
+  if (err instanceof TypeError) return "The network dropped. Check your connection, then retry.";
+  const message = err instanceof Error ? err.message : "";
+  if (/cap|messages today/i.test(message)) return message;
+  if (/offline/i.test(message)) return "Hatch could not reach the firm model. Nothing was sent to an outside AI lab.";
+  if (/timed out|timeout/i.test(message)) return "The request timed out. The server may still be warming up.";
+  if (status && status >= 500) return `The server returned an error (${status}).`;
+  return message || "The request failed before a reply came back.";
+}
+
+function failureStatus(err: unknown) {
+  if (err && typeof err === "object" && "status" in err && typeof err.status === "number") return err.status;
+  return undefined;
+}
 
 function clock(iso?: string) {
   if (!iso) return "";
@@ -89,6 +128,9 @@ export function Messenger() {
   const [chatSearch, setChatSearch] = useState(false);
   const [find, setFind] = useState("");
   const [voice, setVoice] = useState(false);
+  const [voiceHint, setVoiceHint] = useState("");
+  const [draft, setDraft] = useState("");
+  const [chips, setChips] = useState<DraftChip[]>([]);
   const [apps, setApps] = useState(false);
   const [palette, setPalette] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
@@ -99,8 +141,11 @@ export function Messenger() {
   const heldRef = useRef(false);
   const shownAgent = useRef<string | null>(null);
   const busyRef = useRef(false);
+  const pollsRef = useRef(new Set<string>());
+  const followRef = useRef<(job: PendingJob) => Promise<void>>(async () => undefined);
   const queueRef = useRef<{ text: string; userId: string; agentId: string }[]>([]);
   const announcedRef = useRef(new Set<string>());
+  const recentSend = useRef("");
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
   const endRef = useRef<HTMLDivElement>(null);
@@ -179,6 +224,20 @@ export function Messenger() {
     window.addEventListener("hatch-refresh", onRefresh);
     return () => window.removeEventListener("hatch-refresh", onRefresh);
   }, []);
+
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState === "hidden") return;
+      for (const job of readPending()) void followRef.current(job);
+    };
+    resume();
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+    };
+  }, [agentId]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -262,45 +321,176 @@ export function Messenger() {
     writeMessages(agentId, departmentId, map(current));
   }
 
-  async function send(text: string, opts?: { voice?: boolean }) {
-    const q = text.trim();
-    if (!q || !session || !agent) return;
+  async function send(text: string, opts?: { voice?: boolean; plain?: boolean; files?: DraftChip[] }) {
+    const files = opts?.plain ? [] : (opts?.files ?? chips);
+    const modelQuery = opts?.plain ? text.trim() : composeQuery(text, files);
+    const display = text.trim() || files.map((file) => file.name).join(", ");
+    const context = opts?.plain ? "" : files.map((file) =>
+      file.text
+        ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
+        : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
+    ).join("\n\n");
+    if (!modelQuery || !session || !agent) return;
+    if (recentSend.current === modelQuery) return;
+    recentSend.current = modelQuery;
+    window.setTimeout(() => {
+      if (recentSend.current === modelQuery) recentSend.current = "";
+    }, 500);
     stickRef.current = true;
     setAttachOpen(false);
-    if (inputRef.current) inputRef.current.value = "";
+    if (!opts?.plain) {
+      setDraft("");
+      setChips([]);
+    }
+    const attachments: ChatAttachment[] = files.map((file) => ({
+      fileId: file.fileId || file.id,
+      name: file.name,
+      kind: kindFromFilename(file.name),
+      text: file.text,
+      note: file.note,
+    }));
     if (busyRef.current) {
       const user: ChatMessage = {
         id: `local-u-${Date.now()}`,
         role: "user",
-        text: q,
+        text: display,
         done: true,
         sources: [],
+        attachments,
         replyTo: reply ? { text: reply } : undefined,
       };
       mapMessages(agent.id, agent.departmentId, (current) => [...current, user]);
-      queueRef.current.push({ text: q, userId: user.id, agentId: agent.id });
+      queueRef.current.push({ text: modelQuery, userId: user.id, agentId: agent.id });
       setReply(null);
       return;
     }
-    await runTurn(agent, q, undefined, opts);
+    await runTurn(agent, modelQuery, undefined, { voice: opts?.voice, display, attachments, context });
   }
 
-  async function runTurn(target: HatchAgent, q: string, existingUserId?: string, opts?: { voice?: boolean }) {
+  function releaseTurn(target: HatchAgent) {
+    const next = queueRef.current.shift();
+    if (next) {
+      const found = agentsRef.current.find((item) => item.id === next.agentId) || target;
+      void runTurn(found, next.text, next.userId);
+      return;
+    }
+    busyRef.current = false;
+    setStreaming(false);
+    setStatusNote("");
+  }
+
+  async function followJob(job: PendingJob) {
+    if (pollsRef.current.has(job.assistantId)) return;
+    pollsRef.current.add(job.assistantId);
+    busyRef.current = true;
+    setStreaming(true);
+    let state = job.state;
+    let delay = 2000;
+    let running = false;
+    const paint = (patch: Partial<ChatMessage>) => {
+      mapMessages(job.agentId, job.departmentId as ChatThread["departmentId"], (current) =>
+        current.map((item) => (item.id === job.assistantId ? { ...item, ...patch } : item)),
+      );
+    };
+    const timer = window.setInterval(() => {
+      paint({ text: waitCopy(job.startedAt, running), done: false });
+    }, 1000);
+    try {
+      while (true) {
+        let next: Response;
+        try {
+          next = await fetch("/api/chat/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state }),
+          });
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * 2, 15000);
+          continue;
+        }
+        if (!next.ok) {
+          if (next.status === 401 || next.status === 403) {
+            dropPending(job.assistantId);
+            paint({ done: true, failed: true, retryQuery: job.query, text: explainFailure(null, next.status) });
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * 2, 15000);
+          continue;
+        }
+        delay = 2000;
+        const payload = (await next.json()) as LivePayload;
+        if (payload.phase === "wait" && payload.state) {
+          state = payload.state;
+          running = /running/i.test(payload.note || "");
+          upsertPending({ ...job, state });
+          paint({ text: waitCopy(job.startedAt, running), done: false });
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          continue;
+        }
+        dropPending(job.assistantId);
+        const textOut = payload.text || (payload.modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply.");
+        const failed = !payload.text || Boolean(payload.modelOffline);
+        paint({
+          id: payload.messageId || job.assistantId,
+          text: textOut,
+          done: true,
+          failed,
+          retryQuery: failed ? job.query : undefined,
+          tools: payload.tools || [],
+          approval: payload.approval,
+        });
+        if (job.voice && textOut && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(textOut).body.slice(0, 400)));
+        }
+        window.dispatchEvent(new Event("hatch-refresh"));
+        break;
+      }
+    } finally {
+      window.clearInterval(timer);
+      pollsRef.current.delete(job.assistantId);
+      const owner = agentsRef.current.find((item) => item.id === job.agentId);
+      if (owner) releaseTurn(owner);
+      else {
+        busyRef.current = false;
+        setStreaming(false);
+      }
+    }
+  }
+  followRef.current = followJob;
+
+  async function runTurn(
+    target: HatchAgent,
+    q: string,
+    existingUserId?: string,
+    opts?: { voice?: boolean; display?: string; attachments?: ChatAttachment[]; context?: string },
+  ) {
     if (!session) return;
     busyRef.current = true;
     setStreaming(true);
-    setStatusNote("Warming up…");
+    const startedAt = Date.now();
+    setStatusNote(waitCopy(startedAt, false));
     const quote = reply;
     setReply(null);
     const thread = threadIdFor(target.id);
-    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "Warming up…", done: false, sources: [] };
+    const assistant: ChatMessage = {
+      id: `local-a-${Date.now()}`,
+      role: "assistant",
+      text: waitCopy(startedAt, false),
+      done: false,
+      sources: [],
+    };
+    const display = opts?.display || q;
     if (!existingUserId) {
       const user: ChatMessage = {
         id: `local-u-${Date.now()}`,
         role: "user",
-        text: q,
+        text: display,
         done: true,
         sources: [],
+        attachments: opts?.attachments,
         replyTo: quote ? { text: quote } : undefined,
       };
       mapMessages(target.id, target.departmentId, (current) => [...current, user, assistant]);
@@ -312,7 +502,7 @@ export function Messenger() {
       void fetch("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ departmentId: target.departmentId, agentId: target.id, title: q.slice(0, 42) }),
+        body: JSON.stringify({ departmentId: target.departmentId, agentId: target.id, title: display.slice(0, 42) }),
       }).catch(() => undefined);
     }
     const paint = (patch: Partial<ChatMessage>) => {
@@ -320,6 +510,12 @@ export function Messenger() {
         current.map((item) => (item.id === assistant.id ? { ...item, ...patch } : item)),
       );
     };
+    const fail = (err: unknown, status?: number) => {
+      const textOut = explainFailure(err, status);
+      paint({ done: true, failed: true, retryQuery: q, text: textOut });
+      setStatusNote(textOut);
+    };
+    let handed = false;
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -328,7 +524,8 @@ export function Messenger() {
           departmentId: target.departmentId,
           defaultDepartmentId: target.writeDepartmentId,
           threadId: thread,
-          query: q,
+          query: opts?.display || q,
+          context: opts?.context || "",
           agentId: target.id,
           actor,
           agent: true,
@@ -340,26 +537,35 @@ export function Messenger() {
           testerCode: session.inviteCode || "staff",
         }),
       });
-      if (!res.ok) throw new Error("offline");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        const error = new Error(data?.error || `Request failed (${res.status})`) as Error & { status?: number };
+        error.status = res.status;
+        throw error;
+      }
       const contentType = res.headers.get("content-type") || "";
       let finalText = "";
       let tools: ToolEvent[] = [];
       let approval: ApprovalCard | undefined;
       let messageId = assistant.id;
       let modelOffline = false;
-      if (contentType.includes("application/json")) {
-        let payload = (await res.json()) as LivePayload;
-        while (payload.phase === "wait") {
-          const note = payload.note || "The firm model is waking up.";
-          setStatusNote(note);
-          paint({ text: note });
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-          const next = await fetch("/api/chat/step", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ state: payload.state }),
-          });
-          payload = (await next.json()) as LivePayload;
+      if (!contentType.includes("text/event-stream")) {
+        const payload = JSON.parse(await res.text()) as LivePayload;
+        if (payload.phase === "wait" && payload.state) {
+          const job: PendingJob = {
+            assistantId: assistant.id,
+            agentId: target.id,
+            departmentId: target.departmentId,
+            query: q,
+            startedAt,
+            voice: opts?.voice,
+            state: payload.state,
+          };
+          upsertPending(job);
+          paint({ text: waitCopy(startedAt, /running/i.test(payload.note || "")), done: false });
+          handed = true;
+          await followJob(job);
+          return;
         }
         finalText = payload.text || "";
         tools = payload.tools || [];
@@ -367,7 +573,7 @@ export function Messenger() {
         messageId = payload.messageId || assistant.id;
         modelOffline = Boolean(payload.modelOffline);
       } else {
-        if (!res.body) throw new Error("offline");
+        if (!res.body) throw new Error("The reply stream closed before any text arrived.");
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -397,84 +603,95 @@ export function Messenger() {
         }
         finalText = finalText || streamed;
       }
-      const shown = finalText || (modelOffline ? "The model is offline. Nothing was sent to an outside AI lab." : "The model returned an empty reply.");
-      paint({ id: messageId, text: shown, done: true, tools, approval });
+      const shown = finalText || (modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply.");
+      const failed = !finalText || modelOffline;
+      paint({ id: messageId, text: shown, done: true, tools, approval, failed, retryQuery: failed ? q : undefined });
       if (opts?.voice && finalText && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(finalText).body.slice(0, 400)));
       }
-      if (modelOffline) setStatusNote("The model is offline.");
+      if (failed) setStatusNote(shown);
       window.dispatchEvent(new Event("hatch-refresh"));
-    } catch {
-      paint({ done: true, text: "The model is offline. Nothing was sent to an outside AI lab." });
+    } catch (err) {
+      fail(err, failureStatus(err));
     } finally {
-      const next = queueRef.current.shift();
-      if (next) {
-        const found = agentsRef.current.find((item) => item.id === next.agentId) || target;
-        await runTurn(found, next.text, next.userId);
-        return;
-      }
-      busyRef.current = false;
-      setStreaming(false);
-      setStatusNote("");
+      if (!handed) releaseTurn(target);
     }
   }
 
   async function attach(file?: File | null) {
-    if (!file || !agent || !session) return;
+    if (!file || !agent) return;
     setAttachOpen(false);
-    const form = new FormData();
-    form.set("file", file);
-    form.set("departmentId", agent.writeDepartmentId);
-    form.set("inLibrary", "1");
-    form.set("accessibleDepartments", accessible.filter(Boolean).join(","));
-    const res = await fetch("/api/ingest", { method: "POST", body: form });
-    const data = (await res.json().catch(() => null)) as { file?: { name: string }; error?: string };
-    setReply(data?.file ? `Attached ${data.file.name}` : data?.error || "Could not attach that file.");
+    const chip: DraftChip = { id: `chip-${Date.now()}`, name: file.name };
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const res = await fetch("/api/extract", { method: "POST", body: form });
+      const data = (await res.json().catch(() => null)) as { text?: string; note?: string; error?: string } | null;
+      if (!res.ok) chip.note = data?.error || "Could not read this file. The model will only see the filename.";
+      else {
+        chip.text = data?.text || "";
+        chip.note = data?.note || "";
+      }
+    } catch {
+      chip.note = "Could not read this file. The model will only see the filename.";
+    }
+    setChips((current) => [...current, chip]);
+    if (!session) return;
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      form.set("departmentId", agent.writeDepartmentId);
+      form.set("inLibrary", "1");
+      form.set("accessibleDepartments", accessible.filter(Boolean).join(","));
+      const res = await fetch("/api/ingest", { method: "POST", body: form });
+      const data = (await res.json().catch(() => null)) as { file?: { id?: string; name: string }; error?: string };
+      if (data?.file?.id) {
+        const fileId = data.file.id;
+        setChips((current) => current.map((item) => (item.id === chip.id ? { ...item, fileId } : item)));
+      }
+    } catch {
+      /* The chip still goes with the next message even if the file room upload fails. */
+    }
+  }
+
+  function showDictateHint() {
+    setStatusNote(DICTATE_HINT);
+    setVoiceHint(DICTATE_HINT);
   }
 
   function dictate(intoVoice = false) {
     const w = window as Window & { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (Ctor) {
+    if (!Ctor) {
+      showDictateHint();
+      return;
+    }
+    try {
       const rec = new Ctor();
       rec.lang = "en-US";
       rec.interimResults = false;
       rec.onresult = (event) => {
-        const text = event.results[0][0].transcript;
-        if (intoVoice) void send(text, { voice: true });
-        else if (inputRef.current) inputRef.current.value = text;
+        try {
+          const spoken = event.results?.[0]?.[0]?.transcript || "";
+          if (!spoken) {
+            showDictateHint();
+            return;
+          }
+          if (intoVoice) void send(spoken, { voice: true });
+          else setDraft(spoken);
+        } catch {
+          showDictateHint();
+        }
       };
+      rec.onerror = () => showDictateHint();
+      rec.onend = () => undefined;
       rec.start();
-      return;
+      setStatusNote("Listening…");
+      setVoiceHint("");
+    } catch {
+      showDictateHint();
     }
-    void recordFallback(intoVoice);
-  }
-
-  async function recordFallback(intoVoice: boolean) {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatusNote("This phone has no speech service, and the microphone is unavailable.");
-      return;
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (event) => chunks.push(event.data);
-    recorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
-      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-      const form = new FormData();
-      form.set("audio", blob, "note.webm");
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const data = (await res.json().catch(() => null)) as { text?: string; note?: string };
-      const text = data?.text || "";
-      if (text && intoVoice) void send(text, { voice: true });
-      else if (text && inputRef.current) inputRef.current.value = text;
-      else setStatusNote(data?.note || "Whisper is not connected on this box.");
-    };
-    recorder.start();
-    setStatusNote("Listening… tap the mic again is not required. Recording for 4 seconds.");
-    window.setTimeout(() => recorder.state !== "inactive" && recorder.stop(), 4000);
   }
 
   async function saveAgent(patch: Partial<HatchAgent> & { name: string }) {
@@ -488,7 +705,7 @@ export function Messenger() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    void send(inputRef.current?.value || "");
+    void send(draft);
   }
 
   const showList = wide || !agent;
@@ -645,8 +862,20 @@ export function Messenger() {
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
                         <div className={mine ? "bubble user" : "bubble agent"}>
                           {mine ? parsed.body : parsed.body ? <MarkdownPreview text={parsed.body} /> : null}
+                          {(message.attachments || []).map((file) => (
+                            <span key={`${message.id}-${file.name}`} className="file-chip">{file.name}</span>
+                          ))}
                           {!message.done && !parsed.body ? <span className="os-caret" /> : null}
                         </div>
+                        {message.failed ? (
+                          <div className="retry">
+                            {/sign-in expired/i.test(message.text) ? (
+                              <button type="button" onClick={() => router.push("/signin")}>Sign in</button>
+                            ) : (
+                              <button type="button" onClick={() => void send(message.retryQuery || parsed.body, { plain: true })}>Retry</button>
+                            )}
+                          </div>
+                        ) : null}
                         {(message.tools || []).map((tool, index) => (
                           <details key={`${message.id}-t-${index}`} className="tool-row">
                             <summary>{actionTitle(tool.name)}</summary>
@@ -699,25 +928,48 @@ export function Messenger() {
                 </p>
               ) : null}
               <form className="composer" onSubmit={onSubmit}>
-                <button type="button" className="round" aria-label="Attach" onClick={() => setAttachOpen((value) => !value)}><IconPlus /></button>
-                <textarea
-                  ref={inputRef}
-                  rows={1}
-                  placeholder={`Ask ${agent.name}`}
-                  aria-label={`Ask ${agent.name}`}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void send(event.currentTarget.value);
-                    }
-                  }}
-                />
-                <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
-                  <MicIcon />
-                </button>
-                <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
-                  <WaveIcon />
-                </button>
+                {chips.length ? (
+                  <div className="file-chips">
+                    {chips.map((chip) => (
+                      <span key={chip.id} className="file-chip">
+                        <span>{chip.name}</span>
+                        {chip.note ? <span>{chip.note}</span> : null}
+                        <button type="button" aria-label={`Remove ${chip.name}`} onClick={() => setChips((current) => current.filter((item) => item.id !== chip.id))}>
+                          <IconX size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="composer-row">
+                  <button type="button" className="round" aria-label="Attach" onClick={() => setAttachOpen((value) => !value)}><IconPlus /></button>
+                  <textarea
+                    ref={inputRef}
+                    rows={1}
+                    value={draft}
+                    placeholder={`Ask ${agent.name}`}
+                    aria-label={`Ask ${agent.name}`}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void send(draft);
+                      }
+                    }}
+                  />
+                  <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
+                    <MicIcon />
+                  </button>
+                  {draft.trim() || chips.length ? (
+                    <button type="submit" className="send" aria-label="Send">
+                      <IconArrowUp />
+                    </button>
+                  ) : (
+                    <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
+                      <WaveIcon />
+                    </button>
+                  )}
+                </div>
               </form>
               {attachOpen ? (
                 <div className="popover attach" role="menu">
@@ -819,7 +1071,7 @@ export function Messenger() {
           <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
             <WaveIcon />
           </button>
-          <p className="fine">Talk, then Hatch answers aloud. Demo uses this phone’s voice.</p>
+          <p className="fine">{voiceHint || "Talk uses this browser’s speech recognition, then Hatch answers aloud. If that isn’t available here, use the keyboard mic."}</p>
         </div>
       ) : null}
 

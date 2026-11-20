@@ -18,11 +18,11 @@ export const TELEGRAM_POLL_BACKOFF_MS = 2000;
 export const TELEGRAM_CONFLICT_BACKOFF_MS_MIN = 10_000;
 export const TELEGRAM_CONFLICT_BACKOFF_MS_MAX = 30_000;
 
-export const WELCOME_TEXT = `Hatch OS — Boundaries dogfood.
+export const WELCOME_TEXT = `Hatch OS — sample firm dogfood.
 
 This is the same Ask / agent stack as Chat: Qwen for Ask, Hermes when a tool is needed. Department ACL and write rules stay as they are.
 
-Pair the OS UI with invite BOUNDARIES + any six digits.
+Pair the OS UI with a staff invite + any six digits.
 
 Send a text question here. /help for commands.`;
 
@@ -40,7 +40,7 @@ export const HELP_TEXT = `Hatch Telegram (${BOT_HANDLE})
 
 Auto routes to Agent for: draft/write/save a note, use tools, search the library, read file, list files, handoff, or snake_case tool names. Plain chat stays on Ask.
 
-Enterprise is a view — drafts write via write_draft to the sticky department (default Little Elm unless you /dept or name a store). Voice notes and group chats are not on yet.`;
+Enterprise is a view — drafts write via write_draft to the sticky department (default North desk unless you /dept or name a desk). Voice notes and group chats are not on yet.`;
 
 export const ASK_MODE_TEXT = "Ask mode on (Qwen). /agent or /auto to change.";
 export const AGENT_MODE_TEXT = "Agent mode on (Hermes + tools). /ask or /auto to change.";

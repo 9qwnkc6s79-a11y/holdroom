@@ -95,8 +95,8 @@ export default function AdminPage() {
               <div className="grant-row" style={{ gridColumn: "1 / -1" }}>
                 {(
                   [
-                    [LITTLE_ELM, "Little Elm"],
-                    [PROSPER, "Prosper"],
+                    [LITTLE_ELM, "North desk"],
+                    [PROSPER, "South desk"],
                     [HQ_OPS, "HQ Ops"],
                   ] as [DepartmentId, string][]
                 ).map(([id, label]) => (

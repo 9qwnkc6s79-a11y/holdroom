@@ -1,12 +1,10 @@
-# DEMO — Store GM roster (HQ / Ops)
+# DEMO — Meridian Advisory desk roster
 
-Label: DEMO.
+Label: DEMO. Sample people, not real staff.
 
-| Store | Address | GM |
+| Desk | Place | Lead |
 | --- | --- | --- |
-| Little Elm | 27078 East University Drive, Little Elm, TX 76227 | Rafael |
-| Prosper | 1450 Frontier Pkwy., Prosper, TX 75078 | Heath |
+| North desk | Sample north building | North lead |
+| South desk | Sample south building | South lead |
 
-Shared voice: 940.510.8067. HQ email: Info@boundariescoffee.com.
-
-Do not cross-assign a GM to the other store’s room without an Ops note.
+Operations keeps the shared calendar. This file is for the beta only.

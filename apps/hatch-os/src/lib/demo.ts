@@ -35,6 +35,21 @@ export function planDemoReply(input: {
   const agent = resolveAgent(input.agentId);
   const query = input.query.trim();
   const sources = input.sources;
+  const attached = query.match(/Attached file [^\n]*\n([\s\S]+)/);
+  if (attached) {
+    return {
+      text: `From the attached file:\n\n${attached[1].slice(0, 500)}`,
+      tools: [
+        {
+          name: "search_library",
+          ok: true,
+          detail: "Read the text attached to this message.",
+          input: query.slice(0, 200),
+        },
+      ],
+      sources,
+    };
+  }
   const tools: ToolEvent[] = [
     {
       name: "search_library",

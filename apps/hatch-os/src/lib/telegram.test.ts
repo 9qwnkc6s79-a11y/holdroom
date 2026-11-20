@@ -111,9 +111,9 @@ describe("planTelegramMessage", () => {
     assert.equal(plan.type, "reply");
     if (plan.type !== "reply") return;
     assert.equal(plan.lock, true);
-    assert.match(plan.text, /BOUNDARIES/);
+    assert.match(plan.text, /sample firm/);
     assert.match(plan.text, new RegExp(LOCKED_HINT));
-    assert.match(WELCOME_TEXT, /BOUNDARIES/);
+    assert.match(WELCOME_TEXT, /sample firm/);
   });
 
   it("rejects strangers politely and asks unpaired users to /start", () => {
@@ -163,7 +163,7 @@ describe("planTelegramMessage", () => {
     assert.equal(dept.type, "reply");
     if (dept.type === "reply") {
       assert.equal(dept.setDepartment, "prosper");
-      assert.match(dept.text, /Prosper/);
+      assert.match(dept.text, /South desk/);
     }
     assert.match(HELP_TEXT, /\/ask/);
     assert.match(HELP_TEXT, /search the library/);

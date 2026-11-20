@@ -244,7 +244,7 @@ export default function FilesPage() {
             <p className="screen-kicker">Google Drive</p>
             <h2 id="drive-title">Connect stub</h2>
             <p className="muted">
-              OAuth is not wired. Import the sample Boundaries Drive folder into this department’s
+              OAuth is not wired. Import the sample firm library folder into this department’s
               Files, then Add to Library if Ask should cite them.
             </p>
             <div className="btn-row">

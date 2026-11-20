@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     departmentId?: string;
     threadId?: string;
     query?: string;
+    context?: string;
     accessibleDepartments?: string[];
     enterprise?: boolean;
     attachments?: { fileId: string; name: string; kind: "PDF" | "Office" | "Markdown" | "Image" }[];
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
     try {
       const result = await startLiveTurn({
         query,
+        context: body?.context,
         departmentId: body?.departmentId,
         roomId: body?.roomId,
         threadId: body?.threadId,
@@ -90,6 +92,7 @@ export async function POST(req: Request) {
         const result = await runChatTurn(
           {
             query,
+            context: body?.context,
             departmentId: body?.departmentId,
             roomId: body?.roomId,
             threadId: body?.threadId,

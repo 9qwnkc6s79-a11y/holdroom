@@ -25,7 +25,7 @@ export default function DepartmentsPage() {
           <p className="screen-kicker">Departments</p>
           <h1>No departments.</h1>
           <p className="lede">
-            Admin grants Little Elm, Prosper, HQ Ops, and Enterprise. Users land in their home
+            Admin grants North desk, South desk, Operations, and Enterprise. Users land in their home
             department. Ask is still firm-capable.
           </p>
           <button className="btn btn-outline" type="button" onClick={() => setEmptyDepartmentsDemo(false)}>
@@ -45,7 +45,7 @@ export default function DepartmentsPage() {
         <p className="screen-kicker">Workspaces</p>
         <h1>Enterprise and departments.</h1>
         <p className="lede">
-          Most people live in a department (Little Elm, Prosper, HQ Ops). Enterprise is the
+          Most people live in a department (North desk, South desk, Operations). Enterprise is the
           firm-wide layer for executives (and anyone admin grants). UX spaces do not leak; Ask may
           still use firm-wide knowledge.
         </p>

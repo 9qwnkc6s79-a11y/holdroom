@@ -27,6 +27,8 @@ export function newChatMessage(role: ChatMessage["role"], text: string, extra?: 
 
 export interface ChatTurnInput {
   query: string;
+  /** File text for the model. Kept out of the saved user bubble. */
+  context?: string;
   departmentId?: string;
   roomId?: string;
   threadId?: string;
@@ -68,6 +70,7 @@ export interface ChatTurnHooks {
 export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {}): Promise<ChatTurnResult> {
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   const query = (input.query || "").trim();
+  const modelQuery = [query, (input.context || "").trim()].filter(Boolean).join("\n\n");
   const accessibleDepartments = input.accessibleDepartments || [];
   if (!query) {
     throw new Error("Ask a question.");
@@ -102,7 +105,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
 
   if (demoModeEnabled()) {
     const demoSources = retrieveFirm(query, 4);
-    const plan = planDemoReply({ query, agentId: hatchAgent.id, sources: demoSources });
+    const plan = planDemoReply({ query: modelQuery, agentId: hatchAgent.id, sources: demoSources });
     await streamText(plan.text, hooks.onDelta);
     const demoMessage: ChatMessage = {
       ...assistantMsg,
@@ -171,7 +174,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
 
   const promptInput = {
     workspaceId,
-    query,
+    query: modelQuery,
     sources,
     fileListing: listing,
     toolResults,

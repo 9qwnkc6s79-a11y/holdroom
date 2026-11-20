@@ -61,6 +61,7 @@ export interface LiveTurnResult {
 
 export interface LiveTurnInput {
   query: string;
+  context?: string;
   departmentId?: string;
   roomId?: string;
   threadId?: string;
@@ -88,6 +89,7 @@ export function liveRunpodReady(): boolean {
 export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   const query = input.query.trim();
+  const modelQuery = [query, (input.context || "").trim()].filter(Boolean).join("\n\n");
   const agent = resolveAgent(input.agentId);
   const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
   const active = thread || createThread(workspaceId, query.slice(0, 42), agent.id);
@@ -113,7 +115,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const lane = input.agent === false ? "ask" : "agent";
   const prompt = {
     workspaceId,
-    query,
+    query: modelQuery,
     sources,
     fileListing: fileListing(workspaceId),
     toolResults: tools,
@@ -154,7 +156,7 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
       const note =
         job.status === "IN_PROGRESS"
           ? "The firm model is running."
-          : "Warming up… A cold start can take a minute.";
+          : "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.";
       return { phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId };
     }
     state.job = undefined;
@@ -211,7 +213,7 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   return {
     phase: "wait",
     state,
-    note: "Warming up… A cold start can take a minute.",
+    note: "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.",
     threadId: state.threadId,
     messageId: state.messageId,
   };

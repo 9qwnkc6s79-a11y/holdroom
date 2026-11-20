@@ -29,7 +29,7 @@ function BrandMark({ large }: { large?: boolean }) {
       <Image
         className={`brand-logo${large ? " is-large" : ""}`}
         src="/brand/boundaries-logo.svg"
-        alt="Boundaries Coffee"
+        alt="Hatch"
         width={180}
         height={36}
         unoptimized
@@ -75,7 +75,7 @@ export function Shell({
       <div className="dry-banner" role="status">
         Software dry-run — appliance not connected
       </div>
-      <aside className="desktop-nav" aria-label="Boundaries Coffee">
+      <aside className="desktop-nav" aria-label="Hatch">
         <BrandMark large />
         {DESKTOP.map((item) => (
           <span key={item.href}>

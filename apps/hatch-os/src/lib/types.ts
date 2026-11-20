@@ -114,6 +114,10 @@ export interface ChatAttachment {
   fileId: string;
   name: string;
   kind: FileKind;
+  /** Extracted text included in the turn. Omitted for images and other binaries. */
+  text?: string;
+  /** Why the file was not read, when text is empty. */
+  note?: string;
 }
 
 export interface ChatMessage {
@@ -124,6 +128,10 @@ export interface ChatMessage {
   sources: Source[];
   tools?: ToolEvent[];
   attachments?: ChatAttachment[];
+  /** Set when this assistant turn failed and can be retried. */
+  failed?: boolean;
+  /** The user text to send again when Retry is tapped. */
+  retryQuery?: string;
   approval?: ApprovalCard;
   reactions?: string[];
   replyTo?: { text: string };

@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0B3B32",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -53,6 +54,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("hatch-theme")||"light";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${fraunces.variable}`}>
         <a className="skip" href="#stage">
           Skip to content

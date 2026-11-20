@@ -7,16 +7,19 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   use: {
     baseURL: "http://127.0.0.1:3015",
-    browserName: "chromium",
-    channel: "chrome",
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
     deviceScaleFactor: 2,
   },
+  projects: [
+    { name: "chromium", use: { browserName: "chromium", channel: "chrome" } },
+    { name: "webkit", use: { browserName: "webkit" } },
+  ],
   webServer: {
     command: "npx next build --turbopack && npx next start -p 3015",
     url: "http://127.0.0.1:3015/signin",
@@ -28,6 +31,7 @@ export default defineConfig({
       HATCH_TESTER_CODES: "HATCH-TEST:Playwright",
       HATCH_ADMIN_CODE: "playwright-admin",
       HATCH_DAILY_MESSAGE_CAP: "50",
+      HATCH_DATA_DIR: "/tmp/hatch-os-e2e",
     },
   },
 });
