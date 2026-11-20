@@ -270,7 +270,7 @@
   border-radius: 16px; box-shadow: var(--shadow); padding: 6px; min-width: 180px;
 }
 .attach { right: 16px; bottom: 78px; width: min(280px, calc(100% - 32px)); }
-.attach button, .popover button, .sheet button:not(.os-btn):not(.round):not(.ghost) {
+:where(.attach button, .popover button, .sheet button:not(.os-btn):not(.round):not(.ghost):not(.icon-library button)) {
   display: flex; width: 100%; justify-content: space-between; align-items: center;
   background: transparent; color: var(--ink); box-shadow: none; border-radius: 12px; padding: 12px;
   min-height: 44px; border: 0;
@@ -284,13 +284,29 @@
   box-sizing: border-box;
 }
 .sheet > header, .info > header, .settings-sheet > header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   min-height: 44px;
   margin-bottom: 12px;
   background: var(--bg);
+}
+.sheet > header strong, .sheet > header h2,
+.settings-sheet > header strong, .settings-sheet > header h2,
+.set-sheet > header strong, .set-sheet > header h2 {
+  white-space: nowrap;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sheet > header button:not(.round),
+.settings-sheet > header button:not(.round),
+.set-sheet > header button:not(.round) {
+  width: auto;
+  flex: none;
+  justify-self: end;
+  white-space: nowrap;
 }
 .msg.is-wide .info { left: auto; width: min(420px, 100%); border-left: 1px solid var(--line); box-shadow: none; }
 .settings-sheet header button:not(.round) {
@@ -308,11 +324,21 @@
 @keyframes pulse { 50% { transform: scaleY(0.4); } }
 .icon-library { margin: 4px 0 12px; }
 .icon-cats { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; }
-.icon-cats button {
-  flex: none; min-height: 36px; padding: 8px 12px; border-radius: 999px;
+.icon-cats button,
+.sheet .icon-cats button,
+.settings-sheet .icon-cats button,
+.set-sheet .icon-cats button {
+  width: auto; flex: none; white-space: nowrap;
+  min-height: 36px; padding: 8px 12px; border-radius: 999px;
   border: 1px solid var(--line); background: transparent; color: var(--secondary);
+  box-shadow: none; justify-content: center;
 }
-.icon-cats button.is-on { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+.icon-cats button.is-on,
+.sheet .icon-cats button.is-on,
+.settings-sheet .icon-cats button.is-on,
+.set-sheet .icon-cats button.is-on {
+  background: var(--primary); color: var(--on-primary); border-color: transparent; box-shadow: none;
+}
 .icon-grid {
   display: grid; grid-template-columns: repeat(auto-fill, 44px); gap: 8px;
   max-height: min(62dvh, 520px); overflow: auto; padding: 2px;
@@ -322,20 +348,18 @@
   border-radius: 12px; border: 1px solid transparent; background: transparent;
   color: var(--title); display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-grid button.is-on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.sheet .icon-grid button, .set-sheet .icon-grid button, .settings-sheet .icon-grid button {
-  width: 44px; min-width: 44px; max-width: 44px; padding: 0; margin: 0;
+.icon-grid button,
+.sheet .icon-grid button,
+.settings-sheet .icon-grid button,
+.set-sheet .icon-grid button {
+  width: 44px; min-width: 44px; max-width: 44px; height: 44px; padding: 0; margin: 0;
   justify-content: center; background: transparent; box-shadow: none; border-radius: 12px;
 }
-.sheet .icon-grid button.is-on, .settings-sheet .icon-grid button.is-on {
+.icon-grid button.is-on,
+.sheet .icon-grid button.is-on,
+.settings-sheet .icon-grid button.is-on,
+.set-sheet .icon-grid button.is-on {
   background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent);
-}
-.sheet .icon-cats button, .settings-sheet .icon-cats button {
-  width: auto; display: inline-flex; justify-content: center; background: transparent; color: var(--secondary);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.sheet .icon-cats button.is-on, .settings-sheet .icon-cats button.is-on {
-  background: var(--primary); color: var(--on-primary); box-shadow: none;
 }
 .swatches { display: flex; gap: 8px; margin: 12px 0; }
 .swatches button { width: 28px; height: 28px; border-radius: 8px; border: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
