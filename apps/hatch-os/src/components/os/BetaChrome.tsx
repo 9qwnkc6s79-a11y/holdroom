@@ -93,7 +93,7 @@ export function BetaChrome() {
         </div>
       ) : null}
       {open ? (
-        <div className="sheet" role="dialog" aria-label="Send feedback">
+        <div className="sheet feedback-sheet" role="dialog" aria-label="Send feedback">
           <header>
             <button type="button" onClick={() => setOpen(false)}>Close</button>
             <strong>Send feedback</strong>
