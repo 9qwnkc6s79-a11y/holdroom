@@ -26,7 +26,7 @@ export function ServiceWorker() {
       navigator.serviceWorker.addEventListener("controllerchange", onChange);
       removeController = () => navigator.serviceWorker.removeEventListener("controllerchange", onChange);
       navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((reg) => {
-        void reg.update();
+        void reg.update().catch(() => undefined);
       }).catch(() => {
         /* demo / file:// ignore */
       });
