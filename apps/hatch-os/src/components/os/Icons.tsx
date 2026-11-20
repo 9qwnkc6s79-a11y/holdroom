@@ -1,69 +1,97 @@
-import type { ReactNode } from "react";
+import {
+  ArrowUp,
+  AudioLines,
+  Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  File,
+  Flag,
+  Folder,
+  Image,
+  LayoutGrid,
+  Menu,
+  MessageSquare,
+  Mic,
+  MoreHorizontal,
+  Paperclip,
+  Plus,
+  Scan,
+  Settings,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
-function Mark({ children, size = 18 }: { children: ReactNode; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {children}
-    </svg>
-  );
+/** Every toolbar glyph is a 24-grid Lucide icon at the same 1.5 stroke. */
+function Glyph({ icon: Icon, size = 18 }: { icon: LucideIcon; size?: number }) {
+  return <Icon className="hatch-icon" size={size} strokeWidth={1.5} absoluteStrokeWidth={false} aria-hidden="true" />;
 }
 
-const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2.25, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-
-export function IconX({ size = 16 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" {...stroke} />
-    </Mark>
-  );
+export function IconX({ size = 18 }: { size?: number }) {
+  return <Glyph icon={X} size={size} />;
 }
-
-export function IconChevronLeft({ size = 20 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M14.5 5.25L7.75 12l6.75 6.75" {...stroke} />
-    </Mark>
-  );
+export function IconChevronLeft({ size = 18 }: { size?: number }) {
+  return <Glyph icon={ChevronLeft} size={size} />;
 }
-
 export function IconChevronRight({ size = 18 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M9.5 5.25L16.25 12 9.5 18.75" {...stroke} />
-    </Mark>
-  );
+  return <Glyph icon={ChevronRight} size={size} />;
 }
-
-export function IconPlus({ size = 20 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M12 5.5v13M5.5 12h13" {...stroke} />
-    </Mark>
-  );
+export function IconChevronDown({ size = 16 }: { size?: number }) {
+  return <Glyph icon={ChevronDown} size={size} />;
 }
-
+export function IconPlus({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Plus} size={size} />;
+}
 export function IconDots({ size = 18 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <circle cx="6" cy="12" r="1.35" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.35" fill="currentColor" />
-      <circle cx="18" cy="12" r="1.35" fill="currentColor" />
-    </Mark>
-  );
+  return <Glyph icon={MoreHorizontal} size={size} />;
 }
-
 export function IconArrowUp({ size = 18 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M12 19V6.5M12 6.5l-5.25 5.25M12 6.5l5.25 5.25" {...stroke} />
-    </Mark>
-  );
+  return <Glyph icon={ArrowUp} size={size} />;
 }
-
-export function IconFlag({ size = 16 }: { size?: number }) {
-  return (
-    <Mark size={size}>
-      <path d="M7 4.5v15M7 5.5h9.5l-2 3.25 2 3.25H7" {...stroke} />
-    </Mark>
-  );
+export function IconFlag({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Flag} size={size} />;
+}
+export function IconGrid({ size = 18 }: { size?: number }) {
+  return <Glyph icon={LayoutGrid} size={size} />;
+}
+export function IconMic({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Mic} size={size} />;
+}
+export function IconWave({ size = 18 }: { size?: number }) {
+  return <Glyph icon={AudioLines} size={size} />;
+}
+export function IconImage({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Image} size={size} />;
+}
+export function IconCamera({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Camera} size={size} />;
+}
+export function IconScan({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Scan} size={size} />;
+}
+export function IconFile({ size = 18 }: { size?: number }) {
+  return <Glyph icon={File} size={size} />;
+}
+export function IconSettings({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Settings} size={size} />;
+}
+export function IconPaperclip({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Paperclip} size={size} />;
+}
+export function IconMenu({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Menu} size={size} />;
+}
+export function IconMessage({ size = 18 }: { size?: number }) {
+  return <Glyph icon={MessageSquare} size={size} />;
+}
+export function IconFolder({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Folder} size={size} />;
+}
+export function IconCopy({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Copy} size={size} />;
+}
+export function IconDownload({ size = 18 }: { size?: number }) {
+  return <Glyph icon={Download} size={size} />;
 }

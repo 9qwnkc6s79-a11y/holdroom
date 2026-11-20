@@ -17,7 +17,7 @@ export interface HatchAgent {
   pinned: boolean;
 }
 
-export const AGENT_COLORS = ["#18181B", "#27272A", "#3F3F46", "#0F766E", "#115E59", "#1C1C21"] as const;
+export const AGENT_COLORS = ["#18181B", "#27272A", "#3F3F46", "#52525B", "#1F1F23", "#2A2A2E"] as const;
 
 export const FIRM_MODEL = "Firm model";
 
@@ -68,7 +68,7 @@ export const AGENTS: HatchAgent[] = [
     description: "Close, cash, and the figures partners ask about. Drafts stay in Finance until you approve them.",
     departmentId: FINANCE,
     writeDepartmentId: FINANCE,
-    color: "#0F766E",
+    color: "#52525B",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,

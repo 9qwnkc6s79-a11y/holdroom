@@ -102,7 +102,9 @@
   box-shadow: none;
   color: var(--icon);
 }
-.round svg, .voice svg, .icon svg, .chev svg { display: block; color: inherit; }
+.round svg, .voice svg, .icon svg, .chev svg, .hatch-icon {
+  display: block; color: inherit; flex: none;
+}
 .icon { background: transparent; border-color: transparent; color: var(--icon); }
 .chev { width: 22px; height: 22px; min-width: 22px; min-height: 22px; background: transparent; border: 0; color: var(--muted); }
 .sheet .round, .info .round, .settings-sheet .round, .set-sheet .round, .voice-screen .round {
@@ -111,19 +113,21 @@
   background: var(--chip); color: var(--icon); border: 1px solid var(--line); box-shadow: none;
 }
 .initials {
-  display: grid; place-items: center; border-radius: 30%;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; text-align: center; border-radius: 28%;
   background: #18181b; color: #fafafa; font-weight: 560;
   font-family: var(--mono);
   letter-spacing: -0.04em;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 [data-theme="dark"] .initials { background: #27272a; }
-.blob {
-  position: relative; display: inline-grid; place-items: center; flex: none;
-  border-radius: 30%; color: #fafafa;
-  font-family: var(--mono); font-weight: 560; letter-spacing: -0.04em;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+.blob, .agent-avatar {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  flex: none; line-height: 0; text-align: center;
+  border-radius: 28%; color: #fafafa; background: #18181b;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
+.blob svg, .agent-avatar svg { display: block; flex: none; }
 .blob-badge {
   position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px;
   border-radius: 999px; background: var(--accent); border: 2px solid var(--bg);
@@ -131,8 +135,14 @@
 }
 
 .pins { display: flex; gap: 16px; overflow-x: auto; padding: 12px 20px 8px; }
-.pin { width: 84px; text-align: center; color: var(--ink); background: transparent; }
-.pin span { display: block; margin-top: 6px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pin {
+  width: 84px; display: flex; flex-direction: column; align-items: center;
+  text-align: center; color: var(--ink); background: transparent;
+}
+.pin > span:not(.blob) {
+  display: block; margin-top: 6px; font-size: 13px; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 .rows { list-style: none; margin: 0; padding: 8px 8px 120px; }
 .row {

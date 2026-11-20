@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { IconArrowUp, IconPaperclip } from "@/components/os/Icons";
 import { OsShell } from "@/components/os/OsShell";
 import { actionTitle } from "@/lib/action-cards";
 import { agentById } from "@/lib/agents";
@@ -411,7 +412,7 @@ export function ChatScreen() {
           ) : null}
           <div className="os-compose-row">
             <button className="os-icon-btn" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}>
-              <Paperclip />
+              <IconPaperclip />
             </button>
             <input
               ref={fileRef}
@@ -444,7 +445,7 @@ export function ChatScreen() {
               }}
             />
             <button className="os-send" type="submit" aria-label="Send" disabled={streaming}>
-              <SendMark />
+              <IconArrowUp />
             </button>
           </div>
           <p className="os-fine">
@@ -459,18 +460,3 @@ export function ChatScreen() {
   );
 }
 
-function Paperclip() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 12.5 14.2 6.3a3 3 0 1 1 4.2 4.2l-7.8 7.8a4.5 4.5 0 0 1-6.4-6.4l7.1-7.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SendMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}

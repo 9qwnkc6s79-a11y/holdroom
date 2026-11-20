@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
-import { IconArrowUp, IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
+import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconMic, IconPlus, IconScan, IconSettings, IconWave, IconX } from "@/components/os/Icons";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
@@ -791,12 +791,12 @@ export function Messenger() {
               }}
             >
               {unreadCount} unread
-              <span aria-hidden="true">⌄</span>
+              <IconChevronDown size={14} />
             </button>
           ) : null}
           <form className="dock" onSubmit={(event) => event.preventDefault()}>
             <button type="button" className="round" aria-label="Apps" onClick={() => setApps((value) => !value)}>
-              <GridIcon />
+              <IconGrid />
             </button>
             <input
               value={query}
@@ -959,7 +959,7 @@ export function Messenger() {
                     }}
                   />
                   <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
-                    <MicIcon />
+                    <IconMic />
                   </button>
                   {draft.trim() || chips.length ? (
                     <button type="submit" className="send" aria-label="Send">
@@ -967,17 +967,17 @@ export function Messenger() {
                     </button>
                   ) : (
                     <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
-                      <WaveIcon />
+                      <IconWave />
                     </button>
                   )}
                 </div>
               </form>
               {attachOpen ? (
                 <div className="popover attach" role="menu">
-                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><ImageIcon /></button>
-                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><CameraIcon /></button>
-                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><ScanIcon /></button>
-                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><FileIcon /></button>
+                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><IconImage /></button>
+                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><IconCamera /></button>
+                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><IconScan /></button>
+                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><IconFile /></button>
                 </div>
               ) : null}
               <input ref={photoRef} hidden type="file" accept="image/*,video/*" onChange={(event) => void attach(event.target.files?.[0])} />
@@ -1071,7 +1071,7 @@ export function Messenger() {
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
           <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
-            <WaveIcon />
+            <IconWave />
           </button>
           <p className="fine">{voiceHint || "Talk uses this browser’s speech recognition, then Hatch answers aloud. If that isn’t available here, use the keyboard mic."}</p>
         </div>
@@ -1152,7 +1152,7 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
     <aside className="info" role="dialog" aria-label={`${agent.name} info`}>
       <header>
         <button type="button" className="round" onClick={onClose} aria-label="Close"><IconX /></button>
-        <button type="button" className="round" onClick={onSettings} aria-label="Agent settings">⚙</button>
+        <button type="button" className="round" onClick={onSettings} aria-label="Agent settings"><IconSettings /></button>
       </header>
       <BlobAvatar color={agent.color} size={84} label={agent.name} />
       <h2>{agent.name}</h2>
@@ -1266,24 +1266,3 @@ function NewAgent({
   );
 }
 
-function GridIcon() {
-  return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="currentColor" d="M2 2h5v5H2V2zm9 0h5v5h-5V2zM2 11h5v5H2v-5zm9 0h5v5h-5v-5z" /></svg>;
-}
-function MicIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.7" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
-}
-function WaveIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
-}
-function ImageIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" /><circle cx="9" cy="10" r="1.4" fill="currentColor" /><path d="m7 16 3.5-3.5L14 16l2-2 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
-}
-function CameraIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7 9.5 5h5L16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="13" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>;
-}
-function ScanIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4H5a1 1 0 0 0-1 1v2M17 4h2a1 1 0 0 1 1 1v2M7 20H5a1 1 0 0 1-1-1v-2M17 20h2a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
-}
-function FileIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.6" /><path d="M14 3v6h6" stroke="currentColor" strokeWidth="1.6" /></svg>;
-}
