@@ -17,7 +17,7 @@ export interface HatchAgent {
   pinned: boolean;
 }
 
-export const AGENT_COLORS = ["#0B3B32", "#244D7A", "#A77B3F", "#142B3A", "#3E6B5A", "#6E4E2E"] as const;
+export const AGENT_COLORS = ["#18181B", "#27272A", "#3F3F46", "#0F766E", "#115E59", "#1C1C21"] as const;
 
 export const FIRM_MODEL = "Firm model";
 
@@ -29,7 +29,7 @@ export const AGENTS: HatchAgent[] = [
     description: "Reads the firm file room and asks before anything is sent, changed, or deleted.",
     departmentId: ENTERPRISE,
     writeDepartmentId: HQ_OPS,
-    color: "#0B3B32",
+    color: "#18181B",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -42,7 +42,7 @@ export const AGENTS: HatchAgent[] = [
     description: "Day-to-day running of the firm: vendors, checklists, and handoffs between desks.",
     departmentId: HQ_OPS,
     writeDepartmentId: HQ_OPS,
-    color: "#244D7A",
+    color: "#27272A",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -55,7 +55,7 @@ export const AGENTS: HatchAgent[] = [
     description: "Contracts and engagement notes. Keeps counsel’s file room separate from the rest of the firm.",
     departmentId: LEGAL,
     writeDepartmentId: LEGAL,
-    color: "#A77B3F",
+    color: "#3F3F46",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -68,7 +68,7 @@ export const AGENTS: HatchAgent[] = [
     description: "Close, cash, and the figures partners ask about. Drafts stay in Finance until you approve them.",
     departmentId: FINANCE,
     writeDepartmentId: FINANCE,
-    color: "#142B3A",
+    color: "#0F766E",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,

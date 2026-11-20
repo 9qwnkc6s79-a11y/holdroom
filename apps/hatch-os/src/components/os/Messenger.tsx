@@ -730,7 +730,7 @@ export function Messenger() {
           <div className="pins">
             {agents.filter((item) => item.pinned).map((item) => (
               <button key={item.id} type="button" className="pin" onClick={() => router.push(`/chat?agent=${item.id}`)}>
-                <BlobAvatar color={item.color} size={72} badge={item.id === "general"} />
+                <BlobAvatar color={item.color} size={72} label={item.name} badge={item.id === "general"} />
                 <span>{item.name}</span>
               </button>
             ))}
@@ -767,7 +767,7 @@ export function Messenger() {
                       window.addEventListener("pointercancel", clear, { once: true });
                     }}
                   >
-                    <BlobAvatar color={item.color} size={52} />
+                    <BlobAvatar color={item.color} size={52} label={item.name} />
                     <span className="row-copy">
                       <span className="row-name">{item.name}</span>
                       <span className="row-preview">{preview.replace(/\s+/g, " ").slice(0, 80)}</span>
@@ -824,7 +824,7 @@ export function Messenger() {
                   <IconChevronLeft />
                 </button>
                 <button type="button" className="who" onClick={() => setInfoOpen(true)}>
-                  <BlobAvatar color={agent.color} size={28} />
+                  <BlobAvatar color={agent.color} size={28} label={agent.name} />
                   <span>{agent.name}</span>
                 </button>
                 <button type="button" className="round" aria-label="Send feedback" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
@@ -858,7 +858,7 @@ export function Messenger() {
                         setHold(message.id);
                       }}
                     >
-                      {!mine ? <BlobAvatar color={agent.color} size={22} /> : null}
+                      {!mine ? <BlobAvatar color={agent.color} size={22} label={agent.name} /> : null}
                       <div>
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
                         <div className={mine ? "bubble user" : "bubble agent"}>
@@ -891,10 +891,10 @@ export function Messenger() {
                             {message.approval.status === "pending" ? (
                               <div className="row-actions">
                                 <button type="button" onClick={() => void decide(message, "approved")}>Approve</button>
-                                <button type="button" className="ghost" onClick={() => void decide(message, "cancelled")}>Cancel</button>
+                                <button type="button" className="ghost" onClick={() => void decide(message, "cancelled")}>Deny</button>
                               </div>
                             ) : (
-                              <p>{message.approval.status === "approved" ? "Approved" : "Cancelled"}</p>
+                              <p>{message.approval.status === "approved" ? "Approved" : "Denied"}</p>
                             )}
                           </div>
                         ) : null}
@@ -1067,7 +1067,7 @@ export function Messenger() {
       {voice && agent ? (
         <div className="voice-screen">
           <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice"><IconX /></button>
-          <BlobAvatar color={agent.color} size={120} />
+          <BlobAvatar color={agent.color} size={120} label={agent.name} />
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
           <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
@@ -1154,7 +1154,7 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
         <button type="button" className="round" onClick={onClose} aria-label="Close"><IconX /></button>
         <button type="button" className="round" onClick={onSettings} aria-label="Agent settings">⚙</button>
       </header>
-      <BlobAvatar color={agent.color} size={84} />
+      <BlobAvatar color={agent.color} size={84} label={agent.name} />
       <h2>{agent.name}</h2>
       <p>{agent.description}</p>
       <h3>Routines</h3>
@@ -1204,7 +1204,7 @@ function AgentSettings({
         <strong>Settings</strong>
         <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
       </header>
-      <BlobAvatar color={color} size={72} />
+      <BlobAvatar color={color} size={72} label={name} />
       <div className="swatches">
         {AGENT_COLORS.map((swatch) => (
           <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
@@ -1247,7 +1247,7 @@ function NewAgent({
         <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
       </header>
       {error ? <p className="os-error" role="alert">{error}</p> : null}
-      <BlobAvatar color={color} size={84} />
+      <BlobAvatar color={color} size={84} label={name || "New"} />
       <div className="swatches">
         {AGENT_COLORS.map((swatch) => (
           <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />

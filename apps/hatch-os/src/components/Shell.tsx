@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -25,16 +24,8 @@ const PHONE = [
 
 function BrandMark({ large }: { large?: boolean }) {
   return (
-    <Link className="brand" href="/chat">
-      <Image
-        className={`brand-logo${large ? " is-large" : ""}`}
-        src="/brand/boundaries-logo.svg"
-        alt="Hatch"
-        width={180}
-        height={36}
-        unoptimized
-        priority
-      />
+    <Link className={`brand${large ? " is-large" : ""}`} href="/chat">
+      Hatch
     </Link>
   );
 }

@@ -3,35 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hatch — Secure in-house AI on your knowledge</title>
+  <title>Hatch OS — Private AI assistants for your firm</title>
   <link rel="canonical" href="https://hatchsystems.ai/" />
-  <meta name="description" content="Secure in-house AI on your knowledge. A private AI box for your office. Your files stay with you. The model runs on your network." />
-  <meta property="og:title" content="Hatch — Secure in-house AI on your knowledge" />
-  <meta property="og:description" content="A private AI box for your office. Your files stay with you. The model runs on your knowledge." />
+  <meta name="description" content="Hatch OS is a private AI assistant for your firm. A messaging app on iPhone and desktop, connected to your email, calendar, files, and tools, on dedicated single-tenant infrastructure." />
+  <meta property="og:title" content="Hatch OS — Private AI assistants for your firm" />
+  <meta property="og:description" content="A fast messaging-style AI app for your firm. Your knowledge, your vault, your charter. Private by default." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://hatchsystems.ai/" />
-  <meta name="theme-color" content="#111111" />
+  <meta name="theme-color" content="#09090B" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/css/site.css" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="/">Hatch<span class="dot">.</span></a>
+      <a class="brand" href="/">Hatch</a>
       <nav class="nav-links" id="site-nav" aria-label="Primary">
         <a href="/product/">Product</a>
-        <a href="/how-it-works/">How it works</a>
-        <a href="/pricing/">Pricing</a>
         <a href="/security/">Security</a>
-        <a href="/for/">For</a>
+        <a href="/pricing/">Pricing</a>
         <a href="/faq/">FAQ</a>
-        <a class="btn btn-ghost nav-cta-in-menu" href="/inquire/">Inquire</a>
+        <a class="btn btn-primary nav-cta-in-menu" href="/beta/">Request Beta Access</a>
       </nav>
-      <a class="btn btn-ghost nav-cta" href="/inquire/">Inquire</a>
+      <a class="btn btn-primary nav-cta" href="/beta/">Request Beta Access</a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
         <span class="nav-toggle-bars" aria-hidden="true"></span>
       </button>
@@ -40,161 +38,213 @@
 
   <main id="main">
     <section class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <p class="hero-tag">A private AI box for your office</p>
-          <h1>Secure in-house AI<br>on your knowledge<span class="dot">.</span></h1>
-          <p class="lede">Your files stay with you. The model runs in your office, on the knowledge you already have — not in a lab tab that learns from your work.</p>
-          <div class="hero-actions">
-            <a class="btn btn-dark" href="/inquire/">Inquire</a>
-            <a class="btn btn-outline" href="/beta/">Request beta access</a>
-            <a class="btn btn-outline" href="/pricing/">See pricing</a>
-          </div>
-          <p class="fine">We’re pre-launch. If you write us, a person reads it.</p>
-        </div>
-        <div class="appliance" data-reveal>
-          <div class="appliance-face" aria-hidden="true">
-            <div class="appliance-top">
-              <div class="appliance-brand">Hatch<span class="dot">.</span></div>
-              <div class="appliance-sku">In-house</div>
-            </div>
-            <div class="appliance-stats">
-              <div class="appliance-stat"><span>Data</span><span>Stays with you</span></div>
-              <div class="appliance-stat"><span>Model</span><span>In-house</span></div>
-              <div class="appliance-stat"><span>Files</span><span>Your knowledge</span></div>
-              <div class="appliance-stat"><span>Remote</span><span>Your VPN</span></div>
-            </div>
-          </div>
-          <div class="appliance-meta">
-            <span>The box sits in your office</span>
-            <span>You log into Hatch OS</span>
-          </div>
-        </div>
-      </div>
       <div class="wrap">
-        <p class="lede" data-reveal style="max-width:40em;margin:36px 0 0">You keep the data. The model runs on your network. It works on the files you already have — the memo, the deck, the sheet you would not upload. From the road, you use the same system over your VPN. We do not host a Hatch cloud model.</p>
+        <p class="eyebrow"><span class="pip"></span>Hatch OS</p>
+        <h1>Private AI assistants for your firm.</h1>
+        <p class="lede">Hatch gives your team a fast messaging-style AI app on iPhone and desktop. It connects to your email, calendar, files, and tools. Your knowledge stays inside a private boundary: dedicated single-tenant infrastructure by default, with optional on-site hardware in your own server room.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/beta/">Request Beta Access</a>
+          <a class="btn btn-ghost" href="#product">Explore the product</a>
+          <a class="btn btn-ghost" href="/inquire/">Inquire</a>
+        </div>
+
+        <div class="frame-switch" role="tablist" aria-label="Product frame">
+          <button type="button" role="tab" data-frame="desk" aria-selected="true">Desktop</button>
+          <button type="button" role="tab" data-frame="phone" aria-selected="false">iPhone</button>
+        </div>
+        <div class="showcase" data-frame="desk">
+          <div class="desk" aria-label="Hatch OS desktop workspace">
+            <div class="desk-bar"><i class="on"></i><i></i><i></i><span>Hatch OS · Private</span></div>
+            <div class="desk-body">
+              <aside class="rail">
+                <div class="rail-top"><span>Hatch</span><span class="badge live">Live</span></div>
+                <div class="search">Search agents</div>
+                <div class="pins" aria-hidden="true">
+                  <div class="pin"><div class="mono">H<span class="live"></span></div>Hatch</div>
+                  <div class="pin"><div class="mono">Op</div>Ops</div>
+                  <div class="pin"><div class="mono">Lg</div>Legal</div>
+                  <div class="pin"><div class="mono em">Fi</div>Finance</div>
+                </div>
+                <div class="agent-row on">
+                  <div class="mono">H<span class="live"></span></div>
+                  <div><b>Hatch</b><span>Closest note is the visitor protocol.</span></div>
+                  <span class="when">09:41</span>
+                </div>
+                <div class="agent-row">
+                  <div class="mono">Op</div>
+                  <div><b>Operations</b><span>North desk is held.</span></div>
+                  <span class="when">09:12</span>
+                </div>
+                <div class="agent-row">
+                  <div class="mono">Lg</div>
+                  <div><b>Legal</b><span>Engagement notes stay in counsel.</span></div>
+                  <span class="when">Yesterday</span>
+                </div>
+              </aside>
+              <div class="thread">
+                <div class="thread-top">
+                  <span>Hatch</span>
+                  <span class="badge">Model &amp; Ethics · Balanced</span>
+                </div>
+                <div class="bubble user"><p>Say hello from the desk. What is in the visitor file?</p></div>
+                <div class="bubble agent">
+                  <p>From the file room, the visitor protocol is the closest note. Guests email the sample inbox. You confirm headcount, date, and which desk.</p>
+                  <div class="card-approve">
+                    <strong>Hold the room</strong>
+                    <p>Draft only. Nothing is sent until you approve it.</p>
+                    <div class="row">
+                      <button class="mock-btn mock-yes" type="button">Approve</button>
+                      <button class="mock-btn mock-no" type="button">Deny</button>
+                    </div>
+                  </div>
+                  <span class="chip"><i></i>Encrypted Vault · desk calendar</span>
+                </div>
+                <div class="composer"><span>Message Hatch</span><span class="send" aria-hidden="true">↑</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="phone" aria-label="Hatch OS on iPhone">
+            <div class="phone-screen">
+              <div class="notch" aria-hidden="true"></div>
+              <div class="phone-bar"><span>9:41</span><span>Hatch</span></div>
+              <div class="thread">
+                <div class="thread-top"><span>Hatch</span><span class="badge live">Private</span></div>
+                <div class="bubble user"><p>Hold the South desk for Thursday.</p></div>
+                <div class="bubble agent">
+                  <p>Drafted. The calendar write is waiting on you.</p>
+                  <div class="card-approve">
+                    <strong>Calendar · South desk</strong>
+                    <p>Thursday, 14:00. Approve to write it.</p>
+                    <div class="row">
+                      <button class="mock-btn mock-yes" type="button">Approve</button>
+                      <button class="mock-btn mock-no" type="button">Deny</button>
+                    </div>
+                  </div>
+                  <span class="chip"><i></i>Vault</span>
+                </div>
+                <div class="composer"><span>Message</span><span class="send">↑</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <hr class="rule" />
-
-    <section class="bg-white" id="problem">
+    <section class="section" id="product">
       <div class="wrap">
-        <div class="section-head" data-reveal>
-          <p class="eyebrow">The problem</p>
-          <h2>People already paste the file.</h2>
-          <p class="lede">Frontier chat is useful. It is the wrong room for client work, a live deal file, or the pricing sheet. If you would not upload it, you should not paste it.</p>
+        <div class="section-head">
+          <p class="eyebrow">01 · Workspace</p>
+          <h2>A familiar messaging workspace.</h2>
+          <p class="lede">Pinned firm agents, file and photo attachments, voice dictation, routines, and a file room. On iPhone and on desktop. If you can message a colleague, you can use Hatch.</p>
         </div>
         <div class="grid g3">
-          <div class="card" data-reveal>
-            <div class="kicker">The memo</div>
-            <h3>Client work</h3>
-            <p class="muted">Drafts should stay with you, not with a data company.</p>
-          </div>
-          <div class="card" data-reveal>
-            <div class="kicker">The deck</div>
-            <h3>The deal file</h3>
-            <p class="muted">Cloud chat is fine for news. Not for the file that is the firm.</p>
-          </div>
-          <div class="card" data-reveal>
-            <div class="kicker">The sheet</div>
-            <h3>Pricing and source</h3>
-            <p class="muted">If you won’t email it out, don’t put it in a lab tab.</p>
-          </div>
+          <article class="bento" data-reveal>
+            <strong>iPhone PWA</strong>
+            <h3>The same thread in your pocket.</h3>
+            <p>Install Hatch on iPhone. Agents, files, and approvals stay in one conversation.</p>
+          </article>
+          <article class="bento" data-reveal>
+            <strong>Desktop</strong>
+            <h3>Roster on the left. Work on the right.</h3>
+            <p>Search, pin, and move between Hatch, Operations, Legal, and Finance without a new interface to learn.</p>
+          </article>
+          <article class="bento" data-reveal>
+            <strong>Files &amp; voice</strong>
+            <h3>Attach the note. Dictate the ask.</h3>
+            <p>Drop a file or a photo into the composer. Speak when typing is the slower path.</p>
+          </article>
         </div>
-        <a class="more" href="/for/">Who it’s for</a>
       </div>
     </section>
 
-    <hr class="rule" />
-
-    <section class="bg-cream" id="product">
+    <section class="section" id="connectors">
       <div class="wrap">
-        <div class="section-head" data-reveal>
-          <p class="eyebrow">What you get</p>
-          <h2>A box you own, and software you log into.</h2>
-          <p class="lede">The cluster sits in your environment. Hatch OS is the login — chat, files, seats. The house model works on your knowledge. Remote is over your VPN, not a Hatch-hosted frontier model.</p>
+        <div class="section-head">
+          <p class="eyebrow">02 · Connectors</p>
+          <h2>Real workplace tools. You approve every write.</h2>
+          <p class="lede">Built-in connections for Gmail, Outlook and Microsoft 365, Google Drive and Calendar, Slack, and Notion, plus IMAP/SMTP and custom MCP. Agents draft and prepare. Every outbound message or write pauses on an explicit Approve / Deny card.</p>
         </div>
-        <a class="more" href="/product/" style="margin-top:0">What ships</a>
+        <div class="grid g2">
+          <article class="card" data-reveal>
+            <p class="kicker">Reads</p>
+            <h3>Your mail, calendar, and files.</h3>
+            <p>Hatch can look up what you already keep in those tools, inside your firm’s boundary.</p>
+          </article>
+          <article class="card" data-reveal>
+            <p class="kicker">Writes</p>
+            <h3>Nothing leaves without you.</h3>
+            <p>A send, a post, a page, or a calendar change waits on the card. Deny it and nothing is sent.</p>
+          </article>
+        </div>
       </div>
     </section>
 
-    <hr class="rule" />
+    <section class="section" id="vault">
+      <div class="wrap split">
+        <div>
+          <p class="eyebrow">03 · Vault</p>
+          <h2>An encrypted firm vault.</h2>
+          <p class="lede">Logins, API keys, and payment cards stay encrypted inside your firm’s private boundary. Hatch can fill them into an authorized tool. The secret does not appear in the chat.</p>
+        </div>
+        <article class="card" data-reveal>
+          <p class="kicker">Encrypted Vault</p>
+          <h3>Named. Never pasted.</h3>
+          <ul class="list">
+            <li><strong>Login</strong> — desk mailbox, referenced by name</li>
+            <li><strong>Key</strong> — an API token the agent may use, not display</li>
+            <li><strong>Card</strong> — last four only, after you approve the use</li>
+          </ul>
+        </article>
+      </div>
+    </section>
 
-    <section class="bg-white" id="compare">
+    <section class="section" id="charter">
       <div class="wrap">
-        <div class="section-head" data-reveal>
-          <p class="eyebrow">Compared simply</p>
-          <h2>A lab tab is a different job.</h2>
-          <p class="lede">Labs still win the hardest open-ended reasoning. Hatch is for the file that should stay with you.</p>
+        <div class="section-head">
+          <p class="eyebrow">04 · Charter</p>
+          <h2>Your open-weight model and ethics charter.</h2>
+          <p class="lede">You set refusal posture, the worldview in the charter, communication style, and behavior. Open-weight models let your firm do that. Frontier labs will not. Zero firm data is sent to frontier AI APIs or to their training runs.</p>
         </div>
-        <div class="compare">
-          <div class="compare-row" data-reveal>
-            <h3>What it is</h3>
-            <div class="compare-sides">
-              <div class="compare-side typical">
-                <div class="kicker">Typical path</div>
-                <p>A lab tab, a DIY box, or a hardware kit you still have to finish.</p>
-              </div>
-              <div class="compare-side hold">
-                <div class="kicker">Hatch</div>
-                <p>A private AI box and Hatch OS for your office.</p>
-              </div>
-            </div>
-          </div>
-          <div class="compare-row" data-reveal>
-            <h3>Where the text goes</h3>
-            <div class="compare-sides">
-              <div class="compare-side typical">
-                <div class="kicker">Typical path</div>
-                <p>OpenAI, Anthropic, or Bedrock process it.</p>
-              </div>
-              <div class="compare-side hold">
-                <div class="kicker">Hatch</div>
-                <p>It stays with you, on your network.</p>
-              </div>
-            </div>
-          </div>
-          <div class="compare-row" data-reveal>
-            <h3>Away from the desk</h3>
-            <div class="compare-sides">
-              <div class="compare-side typical">
-                <div class="kicker">Typical path</div>
-                <p>Another lab login on your phone.</p>
-              </div>
-              <div class="compare-side hold">
-                <div class="kicker">Hatch</div>
-                <p>The same OS, over your VPN.</p>
-              </div>
-            </div>
-          </div>
-          <div class="compare-row" data-reveal>
-            <h3>Available now</h3>
-            <div class="compare-sides">
-              <div class="compare-side typical">
-                <div class="kicker">Typical path</div>
-                <p>Cloud seats, today.</p>
-              </div>
-              <div class="compare-side hold">
-                <div class="kicker">Hatch</div>
-                <p>Pre-launch. Inquiries only.</p>
-              </div>
-            </div>
-          </div>
+        <div class="grid g3">
+          <article class="bento"><strong>Posture</strong><h3>Strict, balanced, or direct.</h3><p>The refusal line is yours. It is saved with the firm, not borrowed from a lab default.</p></article>
+          <article class="bento"><strong>Voice</strong><h3>How the answer should sound.</h3><p>Concise, warm, blunt, or a formal memo. Length is a setting, not a surprise.</p></article>
+          <article class="bento"><strong>Weights</strong><h3>Open models on your boundary.</h3><p>Ask and tools run on the models you choose. Firm text does not train someone else’s model.</p></article>
         </div>
-        <a class="more" href="/pricing/">See pricing</a>
       </div>
     </section>
 
-    <section class="bg-dark" id="cta">
-      <div class="wrap" data-reveal>
-        <p class="eyebrow">Next</p>
-        <h2>If this sounds like the job, write us.</h2>
-        <p class="lede">No checkout. No spam list. Built in North Texas.</p>
-        <div class="hero-actions">
-          <a class="btn btn-light" href="/inquire/">Inquire</a>
-          <a class="btn btn-outline-light" href="/beta/">Request beta access</a>
-          <a class="btn btn-outline-light" href="/pricing/">See pricing</a>
+    <section class="section" id="deployment">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">05 · Deployment</p>
+          <h2>Private hosted by default. Hardware if you need it.</h2>
+          <p class="lede">Most firms start on dedicated infrastructure Hatch hosts for them. Firms that require physical custody of compute and data can put Hatch hardware in their own server room.</p>
+        </div>
+        <div class="deploy">
+          <article data-reveal>
+            <div class="tag">Default</div>
+            <h3>Private dedicated cloud</h3>
+            <p class="muted">Single-tenant Hatch infrastructure, hosted and managed for your firm.</p>
+            <ul>
+              <li>Fast rollout, without a server room project.</li>
+              <li>Isolated encrypted logs.</li>
+              <li>A firm-controlled boundary. Not a shared frontier API.</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <div class="tag">Optional</div>
+            <h3>On-site hardware</h3>
+            <p class="muted">Dedicated Hatch hardware in your firm’s own server room.</p>
+            <ul>
+              <li>Physical custody of compute and data.</li>
+              <li>Reached only over your existing VPN or WireGuard.</li>
+              <li>Same Hatch OS app. Same approvals. Same vault.</li>
+            </ul>
+          </article>
+        </div>
+        <div class="hero-actions" style="margin-top:22px">
+          <a class="btn btn-primary" href="/beta/">Request Beta Access</a>
+          <a class="btn btn-ghost" href="/inquire/">Inquire</a>
         </div>
       </div>
     </section>
@@ -204,22 +254,21 @@
     <div class="wrap">
       <div class="footer-top">
         <div>
-          <a class="brand" href="/">Hatch<span class="dot">.</span></a>
-          <p class="fine">A private AI box. Your files stay yours.</p>
+          <a class="brand" href="/">Hatch</a>
+          <p class="fine">Private AI assistants for your firm.</p>
         </div>
         <nav class="footer-links" aria-label="Footer">
           <a href="/product/">Product</a>
           <a href="/how-it-works/">How it works</a>
-          <a href="/pricing/">Pricing</a>
           <a href="/security/">Security</a>
+          <a href="/pricing/">Pricing</a>
           <a href="/for/">For</a>
           <a href="/faq/">FAQ</a>
           <a href="/inquire/">Inquire</a>
           <a href="/beta/">Beta</a>
         </nav>
       </div>
-      <p>Hatch is a private AI box for your office. Live: <a href="https://hatchsystems.ai/">hatchsystems.ai</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
-      <p class="fine" style="margin-top:16px"><a href="/app/" style="color:rgba(255,255,255,0.38);font-size:12px">Product wireframe (internal)</a></p>
+      <p>Hatch OS at <a href="https://hatchsystems.ai/">hatchsystems.ai</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA, SOC 2, or ISO 27001 claim. © 2026</p>
     </div>
   </footer>
   <script src="/assets/js/site.js"></script>

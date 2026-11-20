@@ -386,7 +386,7 @@ export function ChatScreen() {
                               Approve
                             </button>
                             <button className="os-btn-ghost" type="button" onClick={() => void decide(message, "cancelled")}>
-                              Cancel
+                              Deny
                             </button>
                           </div>
                         ) : (

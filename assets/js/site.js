@@ -1,4 +1,16 @@
 (function () {
+  var showcase = document.querySelector(".showcase");
+  var frameButtons = document.querySelectorAll(".frame-switch button");
+  frameButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      var frame = button.getAttribute("data-frame") || "desk";
+      if (showcase) showcase.setAttribute("data-frame", frame);
+      frameButtons.forEach(function (item) {
+        item.setAttribute("aria-selected", item === button ? "true" : "false");
+      });
+    });
+  });
+
   var nav = document.querySelector(".nav");
   var toggle = document.querySelector(".nav-toggle");
   if (nav && toggle) {

@@ -116,7 +116,16 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
           </div>
           <p className="fine">{profile.model === "qwen" ? "Plain drafting uses Qwen. Turns that need tools still run on Hermes." : "Agent turns, including tools, run on Hermes."}</p>
           <label className="set-field">Temperature {profile.temperature.toFixed(1)}
-            <input aria-label="Temperature" type="range" min={0} max={0.9} step={0.1} value={profile.temperature} onChange={(event) => patch({ temperature: Number(event.target.value) })} />
+            <input
+              aria-label="Temperature"
+              type="range"
+              min={0}
+              max={0.9}
+              step={0.1}
+              value={profile.temperature}
+              style={{ ["--range" as string]: `${Math.round((profile.temperature / 0.9) * 100)}%` }}
+              onChange={(event) => patch({ temperature: Number(event.target.value) })}
+            />
           </label>
           <p className="fine">Private weight tuning (LoRA / post-training) is available on Firm and Enterprise hardware. This test build does not train weights.</p>
         </>

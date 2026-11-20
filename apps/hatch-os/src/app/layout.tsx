@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { AppProvider } from "@/components/AppProvider";
 import { AuthGate } from "@/components/AuthGate";
 import { BetaChrome } from "@/components/os/BetaChrome";
@@ -13,9 +13,9 @@ const inter = Inter({
   display: "swap",
 });
 
-const fraunces = Fraunces({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -40,8 +40,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0B3B32",
-  colorScheme: "light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090B" },
+  ],
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -61,7 +64,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} ${fraunces.variable}`}>
+      <body className={`${inter.variable} ${mono.variable}`}>
         <a className="skip" href="#stage">
           Skip to content
         </a>

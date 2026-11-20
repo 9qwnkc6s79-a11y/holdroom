@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function page(title: string, body: string, status = 200) {
-  return new NextResponse(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:Inter,sans-serif;background:#f5f1e8;color:#111816;padding:32px"><h1>${title}</h1><p>${body}</p><p><a href="/chat">Back to Hatch</a></p></body>`, {
+  return new NextResponse(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:Inter,sans-serif;background:#09090b;color:#fafafa;padding:32px"><h1>${title}</h1><p>${body}</p><p><a href="/chat" style="color:#fafafa">Back to Hatch</a></p></body>`, {
     status,
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
