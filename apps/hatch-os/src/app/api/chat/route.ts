@@ -1,3 +1,4 @@
+import { consumeDailyMessage, saveRecord } from "@/lib/beta-store";
 import { runChatTurn } from "@/lib/chat";
 import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
@@ -23,12 +24,28 @@ export async function POST(req: Request) {
     approvals?: "wait" | "immediate";
     defaultDepartmentId?: string;
     replyTo?: { text: string };
+    testerCode?: string;
   } | null;
 
   const query = (body?.query || "").trim();
   if (!query) {
     return Response.json({ error: "Ask a question." }, { status: 400 });
   }
+
+  const testerCode = (body?.testerCode || "staff").slice(0, 40);
+  const slot = await consumeDailyMessage(testerCode);
+  if (!slot.ok) {
+    return Response.json({
+      phase: "done",
+      error: true,
+      text: `This code has sent ${slot.used} messages today. The daily cap is ${slot.cap}. Try again tomorrow.`,
+    });
+  }
+  void saveRecord(`events/${new Date().toISOString().slice(0, 10)}`, `${Date.now()}-msg`, {
+    kind: "message",
+    code: testerCode,
+    at: new Date().toISOString(),
+  }).catch(() => undefined);
 
   if (!demoModeEnabled() && liveRunpodReady()) {
     try {
@@ -45,6 +62,8 @@ export async function POST(req: Request) {
         actor: body?.actor,
         defaultDepartmentId: body?.defaultDepartmentId,
         replyTo: body?.replyTo,
+        testerCode,
+        startedAt: Date.now(),
       });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {

@@ -36,9 +36,9 @@ export function isDepartment(id: string): boolean {
 export function workspaceLabel(id: string): string {
   const rid = migrateWorkspaceId(id);
   if (rid === ENTERPRISE) return "Enterprise";
-  if (rid === LITTLE_ELM) return "Little Elm";
-  if (rid === PROSPER) return "Prosper";
-  if (rid === HQ_OPS) return "HQ Ops";
+  if (rid === LITTLE_ELM) return "North desk";
+  if (rid === PROSPER) return "South desk";
+  if (rid === HQ_OPS) return "Operations";
   if (rid === LEGAL) return "Legal";
   if (rid === FINANCE) return "Finance";
   return id;
@@ -66,13 +66,13 @@ export function uxIsolation(id: string): string {
     return "Firm-wide workspace. Files and Library show every department plus HQ. Ask may use firm-wide knowledge. Writes still follow your department membership.";
   }
   if (rid === LITTLE_ELM) {
-    return "UX space for the Little Elm store team. Chat, Files, and Library are this department’s. Ask may use firm-wide knowledge. Writes stay in departments you can open.";
+    return "Sample desk. Chat and files here belong to this desk. Ask may use the sample library. Writes stay in desks you can open.";
   }
   if (rid === PROSPER) {
-    return "UX space for the Prosper store team. Chat, Files, and Library are this department’s. Ask may use firm-wide knowledge. Writes stay in departments you can open.";
+    return "Sample desk. Chat and files here belong to this desk. Ask may use the sample library. Writes stay in desks you can open.";
   }
   if (rid === HQ_OPS) {
-    return "UX space for HQ Ops. Chat, Files, and Library are this department’s. Ask may use firm-wide knowledge. Writes stay in departments you can open.";
+    return "Sample operations desk. Chat and files here belong to this desk.";
   }
   if (rid === LEGAL) {
     return "File room for the Legal agent. Reads may use the firm library. Writes stay in Legal.";

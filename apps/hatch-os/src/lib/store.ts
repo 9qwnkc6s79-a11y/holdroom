@@ -448,7 +448,8 @@ export function fileListing(workspaceId: DepartmentId): string {
     .map((f) => {
       const lib = f.inLibrary ? "library" : "files";
       const folder = f.folderPath ? `${f.folderPath}/` : "";
-      return `- ${workspaceLabel(f.departmentId)} / ${folder}${f.name} [${lib}] id=${f.id}`;
+      const shown = f.name.replace(/^DEMO_/i, "");
+      return `- ${workspaceLabel(f.departmentId)} / ${folder}${shown} [${lib}] id=${f.id}`;
     })
     .join("\n");
 }
@@ -517,7 +518,7 @@ function pushFile(
           kind: "Office",
           status: "failed",
           progress: 0,
-          error: "Unknown department. Enterprise is a view — pick Little Elm, Prosper, or HQ Ops.",
+          error: "Unknown desk. Pick North desk, South desk, or Operations.",
           departmentId,
           roomId: departmentId,
           inLibrary: false,
@@ -716,7 +717,7 @@ export function importDriveStub(input: {
 }): { files: HatchFile[]; events: ToolEvent[]; error?: string; note: string } {
   const acl = canWriteDepartment(input);
   const note =
-    "Google Drive OAuth is not wired. Sample Boundaries Drive files landed in this department’s Files. Add to Library to cite them in Ask.";
+    "Google Drive is not connected. Sample firm files landed in this desk’s Files.";
   if (!acl.ok) {
     const event: ToolEvent = { name: "drive_import", ok: false, detail: acl.error, departmentId: migrateWorkspaceId(input.departmentId) };
     recordAudit(event);
@@ -845,7 +846,7 @@ export function createHandoff(input: {
     const event: ToolEvent = {
       name: "handoff_to_department",
       ok: false,
-      detail: "Handoff target must be Little Elm, Prosper, or HQ Ops — not Enterprise.",
+      detail: "Handoff target must be North desk, South desk, or Operations.",
     };
     recordAudit(event);
     return { event };

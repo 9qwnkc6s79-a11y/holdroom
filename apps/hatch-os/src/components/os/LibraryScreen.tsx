@@ -9,8 +9,8 @@ function roomName(id: string) {
   if (id === "hq-ops") return "Operations";
   if (id === "legal") return "Legal";
   if (id === "finance") return "Finance";
-  if (id === "little-elm") return "Little Elm";
-  if (id === "prosper") return "Prosper";
+  if (id === "little-elm") return "North desk";
+  if (id === "prosper") return "South desk";
   return id;
 }
 

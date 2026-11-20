@@ -131,6 +131,8 @@ function asSession(data: {
   rooms?: DepartmentId[];
   enterprise?: boolean;
   homeDepartment?: DepartmentId;
+  inviteCode?: string;
+  testerLabel?: string;
 }): Session {
   const departments = (data.departments || data.rooms || [LITTLE_ELM]).map(migrateWorkspaceId).filter((id) => !isEnterprise(id));
   const role = data.role || "Partner";
@@ -143,6 +145,8 @@ function asSession(data: {
     enterprise: data.enterprise ?? role === "Partner",
     homeDepartment: migrateWorkspaceId(data.homeDepartment || (role === "Partner" ? HQ_OPS : departments[0] || LITTLE_ELM)),
     pairedAt: new Date().toISOString(),
+    inviteCode: data.inviteCode || "",
+    testerLabel: data.testerLabel || "",
   };
 }
 
@@ -383,6 +387,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           rooms?: DepartmentId[];
           enterprise?: boolean;
           homeDepartment?: DepartmentId;
+          inviteCode?: string;
+          testerLabel?: string;
         };
         if (!res.ok) {
           setPairError(data.error || "Pairing failed.");

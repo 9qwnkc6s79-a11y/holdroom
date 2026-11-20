@@ -25,6 +25,9 @@ export default defineConfig({
     env: {
       HATCH_DEMO_MODE: "1",
       HATCH_VAULT_KEY: vaultKey,
+      HATCH_TESTER_CODES: "HATCH-TEST:Playwright",
+      HATCH_ADMIN_CODE: "playwright-admin",
+      HATCH_DAILY_MESSAGE_CAP: "50",
     },
   },
 });

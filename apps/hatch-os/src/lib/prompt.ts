@@ -42,7 +42,7 @@ function sharedContext(input: PromptInput) {
   const workspace = workspaceLabel(input.workspaceId);
   const passages = input.sources.length
     ? input.sources.map((s, i) => `[${i + 1}] ${s.file} (${s.room})\n${s.snippet}`).join("\n\n")
-    : "(no library passages matched — you may still use general café knowledge, but do not invent prices or Toast numbers)";
+    : "(no library passages matched — you may still use general sample-firm knowledge, but do not invent prices or account numbers)";
   const prior = (input.toolResults || [])
     .map((t) => `- ${t.name}: ${t.ok ? "ok" : "denied"} — ${t.detail}`)
     .join("\n");
@@ -51,16 +51,16 @@ function sharedContext(input: PromptInput) {
     passages,
     prior,
     firmRules: [
-      "You are the in-house assistant for Boundaries Coffee, running on Hatch OS.",
+      "You are an assistant for a sample firm, running on Hatch OS during a beta. The files are sample material, not a real client.",
       `Active workspace: ${workspace}. This is UX context (which Chat / Files / Library view the user is in), not an LLM firewall.`,
       "Read / retrieve / reason is firm-capable. Use library passages from any department when they help.",
       "Write / create / update documents only in departments the user can open. Never silently edit another department’s Files (example: do not update a P&L the user cannot open).",
       "If work belongs in a department the user cannot write, hand off — notify + learn — do not pretend you wrote the file.",
       aclPreview(input.accessibleDepartments),
       "Do not call or pretend to call OpenAI, Anthropic, or any public lab.",
-      "Do not invent prices or Toast numbers. DEMO files are labeled DEMO.",
+      "Do not invent prices or account numbers. Sample files are labeled DEMO.",
       "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
-      "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are café facts, not a substitute for thread memory.",
+      "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are sample-firm notes, not a substitute for thread memory.",
       "Be concise. After the answer, mention the filename(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
     ],
     corpus: [
@@ -97,7 +97,7 @@ export function buildAgentMessages(input: PromptInput) {
     "This is an agent turn. Use tools when you need to search, read, write a draft, or hand off.",
     "If the user asks to draft, write, create, or save a note/file/memo, you MUST call write_draft. Do not leave the note as prose only.",
     input.defaultDepartmentId
-      ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names Little Elm, Prosper, or HQ Ops. Enterprise is not a write target.`
+      ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names North desk, South desk, or Operations. Enterprise is not a write target.`
       : "write_draft requires little-elm, prosper, or hq-ops — never enterprise.",
     "Prefer native tool calls (OpenAI tools / Hermes <tool_call>). Fallback trailer if tools are unavailable:",
     tools,

@@ -211,6 +211,12 @@ input, textarea, select { font-size: 16px; }
   position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom) + var(--kb, 0px));
   z-index: 30; background: #fff; border-radius: 18px; box-shadow: var(--shadow); padding: 8px;
 }
+.beta-banner {
+  position: sticky; top: 0; z-index: 50; display: flex; gap: 12px; align-items: center;
+  padding: 10px 14px; background: #142b3a; color: #f5f1e8; font-size: 14px;
+}
+.beta-banner p { margin: 0; flex: 1; }
+.beta-banner button { background: #f5f1e8; color: #142b3a; border-radius: 999px; padding: 8px 12px; width: auto; }
 .agent-menu button {
   display: flex; width: 100%; background: transparent; color: var(--ink); box-shadow: none;
   border-radius: 12px; padding: 14px; font-size: 16px; text-align: left;

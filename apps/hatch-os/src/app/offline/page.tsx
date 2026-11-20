@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 
@@ -11,9 +10,7 @@ export default function OfflinePage() {
   return (
     <div className="gate">
       <div className="gate-inner">
-        <p className="brand">
-          <Image className="brand-logo is-large" src="/brand/boundaries-logo.svg" alt="Boundaries Coffee" width={200} height={40} unoptimized priority />
-        </p>
+        <p className="brand">Hatch</p>
         <h1>Can’t reach Hatch.</h1>
         <p className="lede">
           Join the office network or the firm VPN, then retry. This phone does not keep a local

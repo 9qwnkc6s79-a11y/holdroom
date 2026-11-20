@@ -107,4 +107,4 @@ export const VALID_INVITES = {
   noseat: ["HATCH-NOSEAT"],
 };
 
-export const SEAT_LINE = { used: 3, cap: 8, label: "Boundaries dry-run" };
+export const SEAT_LINE = { used: 3, cap: 8, label: "Sample firm" };

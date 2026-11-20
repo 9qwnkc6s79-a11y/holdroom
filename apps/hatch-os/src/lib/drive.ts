@@ -1,7 +1,7 @@
 import type { DepartmentId } from "./types.ts";
 
 export const DRIVE_STUB_NOTE =
-  "Google Drive OAuth is not wired. This is a connect stub — pick the sample Boundaries folder to land files in this department’s Files. Add to Library when you want Ask to cite them.";
+  "Google Drive is not connected. These are sample files for the test firm, not a live account.";
 
 export interface DriveStubItem {
   id: string;
@@ -14,42 +14,37 @@ export interface DriveStubItem {
 export const DRIVE_STUB_ITEMS: DriveStubItem[] = [
   {
     id: "drv-le-hours",
-    name: "Boundaries_Drive_Little_Elm_hours.md",
-    path: "Boundaries Drive / Little Elm / hours.md",
+    name: "Sample_firm_north_desk_hours.md",
+    path: "Sample firm Drive / North desk / hours.md",
     departmentHint: "little-elm",
     text: [
-      "# DEMO — Little Elm hours (Drive import stub)",
+      "# Sample firm — North desk hours",
       "",
-      "Label: DEMO. Imported from Google Drive stub — not a live OAuth pull.",
+      "Sample file for the beta. Not a client record.",
       "",
-      "Little Elm café hours: 6:30a–6p weekdays, 7a–5p weekend.",
-      "GM: Rafael. Shared voice: 940.510.8067.",
+      "North desk hours: weekdays and a shorter weekend.",
     ].join("\n"),
   },
   {
     id: "drv-hq-notes",
-    name: "Boundaries_Drive_HQ_ops_notes.md",
-    path: "Boundaries Drive / HQ Ops / Q3_notes.md",
+    name: "Sample firm_Drive_HQ_ops_notes.md",
+    path: "Sample firm Drive / HQ Ops / Q3_notes.md",
     departmentHint: "hq-ops",
     text: [
-      "# DEMO — HQ Ops notes (Drive import stub)",
+      "# Sample firm — operations notes",
       "",
-      "Label: DEMO. Imported from Google Drive stub — not a live OAuth pull.",
-      "",
-      "Daniel / ops: keep store Files in Little Elm and Prosper. Do not silently edit the other store’s P&L from HQ Chat — hand off.",
+      "Sample file for the beta. Keep each desk’s files in that desk.",
     ].join("\n"),
   },
   {
     id: "drv-prosper-close",
-    name: "Boundaries_Drive_Prosper_close.md",
-    path: "Boundaries Drive / Prosper / close_notes.md",
+    name: "Sample_firm_south_desk_close.md",
+    path: "Sample firm Drive / South desk / close_notes.md",
     departmentHint: "prosper",
     text: [
-      "# DEMO — Prosper close notes (Drive import stub)",
+      "# Sample firm — South desk close",
       "",
-      "Label: DEMO. Imported from Google Drive stub — not a live OAuth pull.",
-      "",
-      "Prosper close: Heath confirms drawer, lobby lights, and TapMango iPad before lockup.",
+      "Sample file for the beta. Close the desk after the checklist.",
     ].join("\n"),
   },
 ];

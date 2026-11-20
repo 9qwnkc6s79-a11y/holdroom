@@ -40,6 +40,8 @@ export interface LiveTurnState {
   sources: Source[];
   job?: { id: string; endpointId: string; lane: "ask" | "agent" };
   turnsLeft: number;
+  testerCode?: string;
+  startedAt?: number;
 }
 
 export interface LiveTurnResult {
@@ -70,6 +72,8 @@ export interface LiveTurnInput {
   actor?: string;
   defaultDepartmentId?: string;
   replyTo?: { text: string };
+  testerCode?: string;
+  startedAt?: number;
 }
 
 export function liveRunpodReady(): boolean {
@@ -135,6 +139,8 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     tools,
     sources,
     turnsLeft: MAX_MODEL_TURNS,
+    testerCode: input.testerCode,
+    startedAt: input.startedAt || Date.now(),
   };
   return advanceLiveTurn(state);
 }
@@ -148,7 +154,7 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
       const note =
         job.status === "IN_PROGRESS"
           ? "The firm model is running."
-          : "The firm model is waking up. A cold start can take a few minutes.";
+          : "Warming up… A cold start can take a minute.";
       return { phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId };
     }
     state.job = undefined;
@@ -205,7 +211,7 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   return {
     phase: "wait",
     state,
-    note: "The firm model is waking up. A cold start can take a few minutes.",
+    note: "Warming up… A cold start can take a minute.",
     threadId: state.threadId,
     messageId: state.messageId,
   };

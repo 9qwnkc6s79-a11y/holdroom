@@ -12,6 +12,8 @@ export const KEYS = {
   room: `${PREFIX}room`,
   enterprise: `${PREFIX}enterprise`,
   home: `${PREFIX}home`,
+  invite: `${PREFIX}invite`,
+  tester: `${PREFIX}tester`,
   thread: `${PREFIX}thread`,
   threads: `${PREFIX}threads`,
 } as const;
@@ -46,6 +48,8 @@ export function readSession() {
     rooms: departments,
     enterprise,
     homeDepartment: isEnterprise(homeDepartment) ? HQ_OPS : homeDepartment,
+    inviteCode: localStorage.getItem(KEYS.invite) || "",
+    testerLabel: localStorage.getItem(KEYS.tester) || "",
   };
 }
 
@@ -57,6 +61,8 @@ export function writeSession(input: {
   rooms?: DepartmentId[];
   enterprise?: boolean;
   homeDepartment?: DepartmentId;
+  inviteCode?: string;
+  testerLabel?: string;
 }) {
   const departments = migrateDepartments(input.departments || input.rooms || DEFAULT_DEPARTMENTS);
   const enterprise = input.enterprise ?? input.role === "Partner";
@@ -70,6 +76,10 @@ export function writeSession(input: {
     KEYS.home,
     migrateWorkspaceId(input.homeDepartment || departments[0] || LITTLE_ELM),
   );
+  if (input.inviteCode) localStorage.setItem(KEYS.invite, input.inviteCode);
+  else localStorage.removeItem(KEYS.invite);
+  if (input.testerLabel) localStorage.setItem(KEYS.tester, input.testerLabel);
+  else localStorage.removeItem(KEYS.tester);
 }
 
 export function clearSession() {
@@ -80,6 +90,8 @@ export function clearSession() {
   localStorage.removeItem(KEYS.rooms);
   localStorage.removeItem(KEYS.enterprise);
   localStorage.removeItem(KEYS.home);
+  localStorage.removeItem(KEYS.invite);
+  localStorage.removeItem(KEYS.tester);
 }
 
 export function readWorkspace(): DepartmentId {

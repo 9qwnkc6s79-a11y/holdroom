@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { VALID_INVITES } from "@/lib/mock-data";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { testerByCode } from "@/lib/testers";
 
 export const dynamic = "force-dynamic";
 
@@ -28,18 +29,20 @@ export async function POST(req: Request) {
     );
   }
 
-  if (method === "totp" && !/^\d{6}$/.test(totp)) {
+  const tester = testerByCode(invite);
+  // The six-digit box code is only for the staff preview. Tester codes are the whole sign-in.
+  if (!tester && method === "totp" && !/^\d{6}$/.test(totp)) {
     return NextResponse.json(
-      { error: "Enter the six-digit authenticator code from the box." },
+      { error: "That code was not recognized. Use the code you were sent." },
       { status: 400 },
     );
   }
 
   const associate = VALID_INVITES.associate.includes(invite);
   const known =
+    Boolean(tester) ||
     VALID_INVITES.partner.includes(invite) ||
     associate ||
-    /^HATCH-[A-Z0-9]{3,}$/.test(invite) ||
     invite === "BOUNDARIES" ||
     invite === "COFFEE";
 
@@ -63,6 +66,8 @@ export async function POST(req: Request) {
     rooms: departments,
     enterprise,
     homeDepartment,
-    note: "Session lives on this box. The device stores a pointer, not the corpus.",
+    note: "Session lives on this phone.",
+    inviteCode: tester?.code || invite,
+    testerLabel: tester?.label || "",
   });
 }

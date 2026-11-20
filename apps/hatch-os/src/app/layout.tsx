@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import { AppProvider } from "@/components/AppProvider";
 import { AuthGate } from "@/components/AuthGate";
+import { BetaChrome } from "@/components/os/BetaChrome";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 import "./os.css";
@@ -58,6 +59,7 @@ export default function RootLayout({
         </a>
         <AppProvider>
           <ServiceWorker />
+          <BetaChrome />
           <AuthGate>{children}</AuthGate>
         </AppProvider>
       </body>

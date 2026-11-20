@@ -288,11 +288,11 @@ export function Messenger() {
     if (!session) return;
     busyRef.current = true;
     setStreaming(true);
-    setStatusNote("Sending…");
+    setStatusNote("Warming up…");
     const quote = reply;
     setReply(null);
     const thread = threadIdFor(target.id);
-    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "Sending…", done: false, sources: [] };
+    const assistant: ChatMessage = { id: `local-a-${Date.now()}`, role: "assistant", text: "Warming up…", done: false, sources: [] };
     if (!existingUserId) {
       const user: ChatMessage = {
         id: `local-u-${Date.now()}`,
@@ -336,6 +336,7 @@ export function Messenger() {
           accessibleDepartments: accessible.filter(Boolean),
           enterprise: session.enterprise,
           replyTo: quote ? { text: quote } : undefined,
+          testerCode: session.inviteCode || "staff",
         }),
       });
       if (!res.ok) throw new Error("offline");
@@ -606,6 +607,9 @@ export function Messenger() {
                 <button type="button" className="who" onClick={() => setInfoOpen(true)}>
                   <BlobAvatar color={agent.color} size={28} />
                   <span>{agent.name}</span>
+                </button>
+                <button type="button" className="round" aria-label="Send feedback" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
+                  !
                 </button>
                 <button type="button" className="round" aria-label="More" onClick={() => setMoreOpen(true)}>
                   ···

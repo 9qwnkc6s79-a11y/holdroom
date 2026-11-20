@@ -195,6 +195,8 @@ export interface Session {
   enterprise: boolean;
   homeDepartment: DepartmentId;
   pairedAt: string;
+  inviteCode?: string;
+  testerLabel?: string;
 }
 
 export type EgressResult = "FAIL=blocked" | "PASS=reachable" | null;

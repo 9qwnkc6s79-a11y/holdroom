@@ -31,7 +31,7 @@ export function canWriteDepartment(input: {
     return {
       ok: false,
       error:
-        "Enterprise is a firm-wide view, not a write target. Pick Little Elm, Prosper, or HQ Ops — or hand off to that department.",
+        "Enterprise is a firm-wide view, not a write target. Pick North desk, South desk, or Operations — or hand off to that desk.",
     };
   }
   const allowed = normalizeDepartments(input.accessibleDepartments);

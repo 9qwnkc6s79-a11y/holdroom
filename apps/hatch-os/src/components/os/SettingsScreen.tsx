@@ -179,6 +179,12 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
               <span className="chev" aria-hidden="true">›</span>
             </button>
           </section>
+          <section className="set-card">
+            <button type="button" className="set-row" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
+              <span className="set-main"><strong>Send feedback</strong><span>A note, and a screenshot if you have one</span></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </button>
+          </section>
           <button type="button" className="set-signout" onClick={leave}>Sign out</button>
         </>
       ) : (
