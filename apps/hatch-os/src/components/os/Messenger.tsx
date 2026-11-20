@@ -144,9 +144,9 @@ export function Messenger() {
       updatedAt: now,
       messages,
     };
-    const next = mergeThreads(readTranscripts(), [thread]);
+    const next = [thread, ...readTranscripts().filter((item) => item.agentId !== agentId)].slice(0, 30);
     writeTranscripts(next);
-    setThreads((current) => mergeThreads(current, next));
+    setThreads((current) => [thread, ...current.filter((item) => item.agentId !== agentId)]);
     setActiveThread(thread.id);
     setMessages(messages);
   }
@@ -209,7 +209,7 @@ export function Messenger() {
       return;
     }
     const saved = readTranscripts().find((item) => item.agentId === agent.id);
-    const chosen = richerThread(latest.get(agent.id), saved);
+    const chosen = richerThread(saved, latest.get(agent.id));
     const switched = shownAgent.current !== agent.id;
     shownAgent.current = agent.id;
     setActiveThread(chosen?.id || null);
