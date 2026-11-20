@@ -2,7 +2,7 @@
 
 In-house AI. Secure data that stays with you. Customized to the firm’s needs and knowledge base. Encrypted cluster + Hatch OS so employees work without feeding frontier labs (OpenAI / Anthropic / Bedrock).
 
-- Live: https://holdroom.vercel.app (legacy project host)
+- Live: https://hatchsystems.ai
 - Working name: **Hatch** / **Hatch OS**
 - Visual system inspired by go.ai (cream, dark nav, violet period, Inter, pills). Not affiliated. Do not copy their claims or copy.
 
@@ -40,14 +40,17 @@ Static multi-page HTML. No build step. No paid APIs.
 | `/security/` | What we will / will not claim (incl. remote) |
 | `/for/` | Firms that will not leak the file — law, PE/deal, operators as beachheads |
 | `/faq/` | Straight answers |
-| `/inquire/` | Locked form |
+| `/beta/` | Beta access request. Same form as inquire, preset to beta |
+| `/inquire/` | Beta access or general / firm inquiry |
+| `/admin/requests/` | Private review queue. Not linked in the nav |
 | `/app/` | Internal Phase 1 UI wireframe (clickable HTML/CSS/JS, fake Fund A / Fund B data, not live) |
 
 Shared sticky nav, footer, mobile menu, subtle scroll reveal.
 
 `/app/` is a Hatch OS product wireframe (hash routes, PWA manifest). It is not a production box, not Open WebUI, and not indexed as a marketing page.
 
-The Phase 1 Hatch OS Next.js app lives at [`apps/hatch-os/`](apps/hatch-os/). It is a separate app (login, departments, chat, files, library, status). Do **not** set it as the holdroom Vercel project root — that project stays static with `framework: null`. See `apps/hatch-os/README.md` to run it, including the Telegram dogfood bridge (`npm run telegram`, [@Hatchboundariesbot](https://t.me/Hatchboundariesbot)).
+The Hatch OS Next.js PWA lives at [`apps/hatch-os/`](apps/hatch-os/). It is a separate app from this static site: login, chat, connectors, and Model & Ethics.
+Do not set `apps/hatch-os` as the holdroom Vercel project root. That project stays static with `framework: null`.
 
 Copy prefers ownership / room language (“stays with you”, “in the room”, “not to the labs”). Tagline: secure in-house AI on your knowledge. Do not use: Holdroom (live brand), Stillroom, Airlock, Strongroom, inCamera, or Palantir.
 
@@ -55,7 +58,7 @@ Copy prefers ownership / room language (“stays with you”, “in the room”,
 
 Do not add: HIPAA, SOC 2, “beats Claude/GPT”, invented customers, checkout, paid APIs, or cold-outreach copy.
 
-Inquiry form: `localStorage` key `hatch_inquiries` + `mailto:daniel.keene223@gmail.com`. Fields stay as on `/inquire/` (name, firm, role, email, phone, headcount, tier, secret, message).
+Inquiry form posts JSON to `/api/inquire`. Fields: name, work email, firm, role, firm size, notes, plus a honeypot. Records are private Blob objects under `site-requests/`. `/admin/requests` is gated by the `HATCH_SITE_ADMIN_CODE` environment variable.
 
 ## Local
 
@@ -67,7 +70,7 @@ Open http://127.0.0.1:4173/
 
 ## Deploy
 
-The Vercel project `holdroom` is linked to this repo with **no framework** (`framework: null`). Push to `main` updates https://holdroom.vercel.app. Keep the site static — do not add a build unless you also set a Vercel build command.
+The Vercel project `holdroom` is linked to this repo with **no framework** (`framework: null`) and the repo root as the project root. Push to `main` updates https://hatchsystems.ai. Keep the marketing pages static — do not add a build command. Files in `/api` are zero-config Node functions on that same project, and `package.json` only supplies their dependencies.
 
 `vercel.json` uses clean URLs and trailing slashes so `/product` and `/product/` both resolve.
 

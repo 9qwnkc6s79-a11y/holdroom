@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Inquire — Hatch</title>
-  <link rel="canonical" href="https://holdroom.ai/inquire/" />
-  <meta name="description" content="Request a Hatch conversation. Pre-launch inquiries. The form saves a copy in your browser and opens an email draft. Nothing is sent to a frontier lab." />
+  <link rel="canonical" href="https://hatchsystems.ai/inquire/" />
+  <meta name="description" content="Request Hatch beta access or a general conversation. Pre-launch. A person reviews what you send. Nothing is sent to a frontier lab." />
   <meta name="theme-color" content="#111111" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -45,11 +45,26 @@
 
     <section class="bg-white" style="padding-top:8px">
       <div class="wrap-narrow wrap">
-        <form class="inquiry" id="inq" novalidate>
+        <form class="inquiry" id="inq" method="post" action="/api/inquire/" novalidate>
+          <fieldset class="type-pick">
+            <legend>What is this?</legend>
+            <label class="type-option">
+              <input type="radio" name="requestType" value="beta" />
+              <span>Request beta access</span>
+            </label>
+            <label class="type-option">
+              <input type="radio" name="requestType" value="inquiry" checked />
+              <span>General / firm inquiry</span>
+            </label>
+          </fieldset>
           <div class="grid g2">
             <div>
               <label for="name">Name</label>
               <input id="name" name="name" autocomplete="name" required />
+            </div>
+            <div>
+              <label for="email">Work email</label>
+              <input id="email" name="email" type="email" autocomplete="email" inputmode="email" required />
             </div>
             <div>
               <label for="firm">Firm</label>
@@ -57,44 +72,33 @@
             </div>
             <div>
               <label for="role">Role</label>
-              <input id="role" name="role" placeholder="Partner, associate, founder…" />
+              <input id="role" name="role" autocomplete="organization-title" placeholder="Partner, associate, founder…" />
             </div>
             <div>
-              <label for="email">Email</label>
-              <input id="email" name="email" type="email" autocomplete="email" required />
-            </div>
-            <div>
-              <label for="phone">Phone (optional)</label>
-              <input id="phone" name="phone" type="tel" autocomplete="tel" />
-            </div>
-            <div>
-              <label for="headcount">People in your firm</label>
-              <select id="headcount" name="headcount">
+              <label for="firmSize">Firm size</label>
+              <select id="firmSize" name="firmSize">
+                <option value="">Select</option>
                 <option>Under 50</option>
-                <option selected>50–250</option>
+                <option>50–250</option>
                 <option>250–1000</option>
                 <option>1000+</option>
               </select>
             </div>
           </div>
-          <label for="tier">Which tier are you asking about?</label>
-          <select id="tier" name="tier">
-            <option selected>Firm — $18k + $24k/yr</option>
-            <option>Enterprise — $28k + $48k/yr</option>
-            <option>Corporation — talk to us</option>
-            <option>Not sure</option>
-          </select>
-          <label for="secret">What will you not paste into ChatGPT?</label>
-          <input id="secret" name="secret" placeholder="Client memos, IC deck, source, pricing…" />
-          <label for="message">Anything else</label>
-          <textarea id="message" name="message"></textarea>
+          <label for="notes" id="notes-label">Notes</label>
+          <textarea id="notes" name="notes" maxlength="2000"></textarea>
+          <div class="hp" aria-hidden="true">
+            <label for="hp_field">Leave this blank</label>
+            <input id="hp_field" name="hp_field" type="text" tabindex="-1" autocomplete="off" value="" />
+          </div>
           <div class="hero-actions" style="margin-top:20px">
             <button class="btn btn-dark" type="submit">Send inquiry</button>
           </div>
-          <p class="fine" style="margin-top:14px">This form stores a copy in your browser and opens an email draft to daniel.keene223@gmail.com. Nothing is sent to a frontier lab or a data company. Required: name, firm, email.</p>
-          <div class="form-ok" id="ok" role="status">Inquiry saved in this browser. An email draft should have opened.</div>
+          <p class="fine" style="margin-top:14px">Saved for a person to review. Nothing is sent to a frontier lab. Required: name, firm, and work email.</p>
+          <div class="form-ok" id="ok" role="status">Request received. We review each inquiry personally and will email you.</div>
           <div class="form-err" id="err" role="alert"></div>
         </form>
+        <noscript><p class="form-err is-shown">JavaScript is required to send this request.</p></noscript>
       </div>
     </section>
   </main>
@@ -114,9 +118,10 @@
           <a href="/for/">For</a>
           <a href="/faq/">FAQ</a>
           <a href="/inquire/">Inquire</a>
+          <a href="/beta/">Beta</a>
         </nav>
       </div>
-      <p>Hatch is a private AI clean room. Live: <a href="https://holdroom.vercel.app/">holdroom.vercel.app</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
+      <p>Hatch is a private AI clean room. Live: <a href="https://hatchsystems.ai/">hatchsystems.ai</a>. Not affiliated with OpenAI, Anthropic, xAI, Google, or NVIDIA. Not a law firm. Not a medical device. No HIPAA or SOC 2 claims. © 2026</p>
     </div>
   </footer>
   <script src="/assets/js/site.js"></script>
