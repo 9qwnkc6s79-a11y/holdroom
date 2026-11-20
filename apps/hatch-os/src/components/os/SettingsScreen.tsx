@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { AuditScreen } from "@/components/os/AuditScreen";
 import { InitialAvatar } from "@/components/os/Avatar";
+import { IconChevronLeft, IconChevronRight, IconX } from "@/components/os/Icons";
 import { VaultScreen } from "@/components/os/VaultScreen";
 
 const ZONES = [
@@ -89,7 +90,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
     <div className="set-sheet" role="dialog" aria-label="Settings">
       {page === "home" ? (
         <>
-          <button type="button" className="round set-x" aria-label="Close settings" onClick={close}>×</button>
+          <button type="button" className="round set-x" aria-label="Close settings" onClick={close}><IconX /></button>
           <section className="set-card">
             <button type="button" className="set-row" onClick={() => setPage("account")}>
               <InitialAvatar label={name} size={44} />
@@ -97,33 +98,33 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
                 <strong>{name}</strong>
                 <span>{email}</span>
               </span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("usage")}>
               <span className="set-main"><strong>Usage</strong></span>
               <span className="set-value">Demo</span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("plan")}>
               <span className="set-main"><strong>Plan</strong><span>Firm</span></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("vault")}>
               <span className="set-main"><strong>Vault</strong><span>Logins, cards and keys your agents can use</span></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
           <section className="set-card">
             <button type="button" className="set-row" onClick={() => setPage("connect")}>
               <span className="set-main"><strong>Connect apps</strong><span>Search connectors</span></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
           <p className="set-label">Workspace</p>
           <section className="set-card">
             <button type="button" className="set-row" onClick={() => setPage("permissions")}>
               <span className="set-main"><strong>Permissions</strong><span>Approvals on · {RULES.length} rules</span></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <div className="set-row is-static">
               <span className="set-main">
@@ -152,37 +153,37 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
             <button type="button" className="set-row" onClick={() => setPage("zone")}>
               <span className="set-main"><strong>Time zone</strong></span>
               <span className="set-value">{zone.replace(/_/g, " ")}</span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("hardware")}>
               <span className="set-main"><strong>Hatch hardware</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("devices")}>
               <span className="set-main"><strong>Manage your devices</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("memory")}>
               <span className="set-main"><strong>Import memory</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("audit")}>
               <span className="set-main"><strong>Audit log</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("members")}>
               <span className="set-main"><strong>Members</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("appearance")}>
               <span className="set-main"><strong>Appearance</strong></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
           <section className="set-card">
             <button type="button" className="set-row" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
               <span className="set-main"><strong>Send feedback</strong><span>A note, and a screenshot if you have one</span></span>
-              <span className="chev" aria-hidden="true">›</span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
           <button type="button" className="set-signout" onClick={leave}>Sign out</button>
@@ -307,7 +308,7 @@ function Subpage({ title, onBack, children }: { title: string; onBack: () => voi
   return (
     <div>
       <header className="set-sub">
-        <button type="button" className="round" aria-label="Back" onClick={onBack}>‹</button>
+        <button type="button" className="round" aria-label="Back" onClick={onBack}><IconChevronLeft /></button>
         <h1>{title}</h1>
       </header>
       {children}

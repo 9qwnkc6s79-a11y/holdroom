@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
+import { IconX } from "@/components/os/Icons";
 import { APP_VERSION } from "@/lib/version";
 
 const ERRORS_KEY = "hatch-console-errors";
@@ -95,7 +96,7 @@ export function BetaChrome() {
       {open ? (
         <div className="sheet feedback-sheet" role="dialog" aria-label="Send feedback">
           <header>
-            <button type="button" className="round" aria-label="Close" onClick={() => setOpen(false)}>×</button>
+            <button type="button" className="round" aria-label="Close" onClick={() => setOpen(false)}><IconX /></button>
             <strong>Send feedback</strong>
             <span className="sheet-balance" aria-hidden="true" />
           </header>

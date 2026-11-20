@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
+import { IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
@@ -504,8 +505,8 @@ export function Messenger() {
             <button type="button" className="round" aria-label="Account and settings" onClick={() => { setSettingsPage("home"); setSettingsOpen(true); }}>
               <InitialAvatar label={account} size={40} />
             </button>
-            <button type="button" className="round round-plus" aria-label="New agent" onClick={() => setCreating(true)}>
-              +
+            <button type="button" className="round" aria-label="New agent" onClick={() => setCreating(true)}>
+              <IconPlus />
             </button>
           </header>
           <div className="pins">
@@ -602,17 +603,17 @@ export function Messenger() {
             <>
               <header className="chat-top">
                 <button type="button" className="round" aria-label="Back" onClick={() => router.push("/chat")}>
-                  ‹
+                  <IconChevronLeft />
                 </button>
                 <button type="button" className="who" onClick={() => setInfoOpen(true)}>
                   <BlobAvatar color={agent.color} size={28} />
                   <span>{agent.name}</span>
                 </button>
                 <button type="button" className="round" aria-label="Send feedback" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
-                  !
+                  <IconFlag />
                 </button>
                 <button type="button" className="round" aria-label="More" onClick={() => setMoreOpen(true)}>
-                  ···
+                  <IconDots />
                 </button>
               </header>
               {chatSearch ? (
@@ -694,11 +695,11 @@ export function Messenger() {
               {reply ? (
                 <p className="replying">
                   {reply}
-                  <button type="button" onClick={() => setReply(null)} aria-label="Clear reply">×</button>
+                  <button type="button" className="icon" onClick={() => setReply(null)} aria-label="Clear reply"><IconX size={14} /></button>
                 </p>
               ) : null}
               <form className="composer" onSubmit={onSubmit}>
-                <button type="button" className="round" aria-label="Attach" onClick={() => setAttachOpen((value) => !value)}>+</button>
+                <button type="button" className="round" aria-label="Attach" onClick={() => setAttachOpen((value) => !value)}><IconPlus /></button>
                 <textarea
                   ref={inputRef}
                   rows={1}
@@ -811,7 +812,7 @@ export function Messenger() {
 
       {voice && agent ? (
         <div className="voice-screen">
-          <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice">×</button>
+          <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice"><IconX /></button>
           <BlobAvatar color={agent.color} size={120} />
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
@@ -895,7 +896,7 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
   return (
     <aside className="info" role="dialog" aria-label={`${agent.name} info`}>
       <header>
-        <button type="button" className="round" onClick={onClose} aria-label="Close">×</button>
+        <button type="button" className="round" onClick={onClose} aria-label="Close"><IconX /></button>
         <button type="button" className="round" onClick={onSettings} aria-label="Agent settings">⚙</button>
       </header>
       <BlobAvatar color={agent.color} size={84} />
@@ -942,7 +943,7 @@ function AgentSettings({
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="Agent settings">
       <header>
-        <button type="button" className="round" aria-label="Close" onClick={onClose}>×</button>
+        <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>Settings</strong>
         <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
       </header>
@@ -983,7 +984,7 @@ function NewAgent({
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
       <header>
-        <button type="button" className="round" aria-label="Close" onClick={onClose}>×</button>
+        <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>New agent</strong>
         <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
       </header>

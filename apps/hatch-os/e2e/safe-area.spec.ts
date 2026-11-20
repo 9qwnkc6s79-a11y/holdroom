@@ -49,11 +49,22 @@ test("headers clear a 59px status bar and Send is a filled button", async ({ pag
   const box = await close.boundingBox();
   expect(box && box.width).toBeGreaterThanOrEqual(44);
   expect(box && box.height).toBeGreaterThanOrEqual(44);
+  const delta = await close.evaluate((el) => {
+    const button = el.getBoundingClientRect();
+    const mark = el.querySelector("svg")?.getBoundingClientRect();
+    if (!mark) return { dx: 99, dy: 99 };
+    return {
+      dx: Math.abs(mark.left + mark.width / 2 - (button.left + button.width / 2)),
+      dy: Math.abs(mark.top + mark.height / 2 - (button.top + button.height / 2)),
+    };
+  });
+  expect(delta.dx).toBeLessThan(1);
+  expect(delta.dy).toBeLessThan(1);
 
   const send = page.getByRole("dialog", { name: "Send feedback" }).getByRole("button", { name: "Send" });
   const bg = await send.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe("rgb(11, 59, 50)");
-  await page.screenshot({ path: "/opt/cursor/artifacts/hatch-feedback-safe.png" });
+  await page.screenshot({ path: "/opt/cursor/artifacts/hatch-feedback-centered.png" });
 
   await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Back", exact: true }).click();
