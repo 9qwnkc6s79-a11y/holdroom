@@ -811,7 +811,7 @@ export function Messenger() {
 
       {voice && agent ? (
         <div className="voice-screen">
-          <button type="button" className="round" onClick={() => setVoice(false)} aria-label="Close voice">×</button>
+          <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice">×</button>
           <BlobAvatar color={agent.color} size={120} />
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
@@ -895,8 +895,8 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
   return (
     <aside className="info" role="dialog" aria-label={`${agent.name} info`}>
       <header>
-        <button type="button" onClick={onClose} aria-label="Close">×</button>
-        <button type="button" onClick={onSettings} aria-label="Agent settings">⚙</button>
+        <button type="button" className="round" onClick={onClose} aria-label="Close">×</button>
+        <button type="button" className="round" onClick={onSettings} aria-label="Agent settings">⚙</button>
       </header>
       <BlobAvatar color={agent.color} size={84} />
       <h2>{agent.name}</h2>
@@ -942,7 +942,7 @@ function AgentSettings({
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="Agent settings">
       <header>
-        <button type="button" onClick={onClose}>Close</button>
+        <button type="button" className="round" aria-label="Close" onClick={onClose}>×</button>
         <strong>Settings</strong>
         <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
       </header>
@@ -983,7 +983,7 @@ function NewAgent({
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
       <header>
-        <button type="button" onClick={onClose}>Close</button>
+        <button type="button" className="round" aria-label="Close" onClick={onClose}>×</button>
         <strong>New agent</strong>
         <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
       </header>

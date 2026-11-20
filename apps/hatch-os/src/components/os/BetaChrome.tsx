@@ -95,9 +95,9 @@ export function BetaChrome() {
       {open ? (
         <div className="sheet feedback-sheet" role="dialog" aria-label="Send feedback">
           <header>
-            <button type="button" onClick={() => setOpen(false)}>Close</button>
+            <button type="button" className="round" aria-label="Close" onClick={() => setOpen(false)}>×</button>
             <strong>Send feedback</strong>
-            <span />
+            <span className="sheet-balance" aria-hidden="true" />
           </header>
           <form className="os-form" onSubmit={onSubmit}>
             <label>What happened<textarea value={text} onChange={(event) => setText(event.target.value)} required placeholder="A sentence or two" /></label>
