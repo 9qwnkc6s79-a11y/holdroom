@@ -1,0 +1,14 @@
+{
+  "name": "hatch-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "test": "node --test lib/*.test.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.3.1"
+  }
+}
