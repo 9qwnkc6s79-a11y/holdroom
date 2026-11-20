@@ -8,6 +8,7 @@ export interface RunpodChatBody {
   messages: { role: string; content: string }[];
   tools?: OpenAiTool[];
   extras?: Record<string, unknown>;
+  temperature?: number;
 }
 
 export function runpodEndpointId(rawBase: string): string | null {
@@ -41,7 +42,7 @@ export async function submitRunpodChat(endpoint: LlmEndpoint, body: RunpodChatBo
         openai_input: {
           model: body.model,
           messages: body.messages,
-          temperature: 0.2,
+          temperature: typeof body.temperature === "number" ? body.temperature : 0.2,
           stream: false,
           ...(body.extras || {}),
           ...(body.tools?.length ? { tools: body.tools, tool_choice: "auto" } : {}),

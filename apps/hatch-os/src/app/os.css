@@ -262,7 +262,24 @@
 .set-sub { display: flex; align-items: center; gap: 10px; }
 .set-sub h1 { font-size: 20px; margin: 0; font-weight: 650; color: var(--title); }
 .set-field { display: grid; gap: 6px; padding: 12px 14px; font-size: 13px; color: var(--muted); }
-.set-field input { border: 0; background: color-mix(in srgb, var(--card) 70%, var(--sheet)); border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--title); }
+.set-field input, .set-field textarea, .set-field select, .connect-search {
+  border: 0; background: color-mix(in srgb, var(--card) 70%, var(--sheet)); border-radius: 12px;
+  padding: 10px 12px; font-size: 16px; color: var(--title); width: 100%; box-sizing: border-box;
+}
+.set-field textarea { min-height: 96px; resize: vertical; }
+.connect-search { margin: 0 0 12px; }
+.segmented { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.segmented button {
+  background: var(--card); color: var(--title); border-radius: 999px; padding: 8px 12px;
+  box-shadow: inset 0 0 0 1px var(--line); min-height: 40px;
+}
+.segmented button.is-on { background: var(--green); color: #ffffff; box-shadow: none; }
+.sheet .segmented button, .set-sheet .segmented button {
+  width: auto; display: inline-flex; background: var(--card); color: var(--title);
+  box-shadow: inset 0 0 0 1px var(--line); min-height: 40px;
+}
+.sheet .segmented button.is-on, .set-sheet .segmented button.is-on { background: var(--green); color: #ffffff; box-shadow: none; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 16px; }
 .set-note { padding: 12px 14px; margin: 0; }
 input, textarea, select { font-size: 16px; }
 .agent-menu {

@@ -2,6 +2,7 @@ import { consumeDailyMessage, saveRecord } from "@/lib/beta-store";
 import { runChatTurn } from "@/lib/chat";
 import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
+import { loadEthics } from "@/lib/ethics";
 
 export const dynamic = "force-dynamic";
 // Each request only submits or checks a RunPod job. The browser polls, so a
@@ -34,6 +35,12 @@ export async function POST(req: Request) {
   }
 
   const testerCode = (body?.testerCode || "staff").slice(0, 40);
+  const ethics = await loadEthics(testerCode, body?.agentId);
+  const ethicsHeaders = {
+    "x-hatch-model": ethics.model,
+    "x-hatch-temperature": String(ethics.temperature),
+    "Cache-Control": "no-store",
+  };
   const slot = await consumeDailyMessage(testerCode);
   if (!slot.ok) {
     return Response.json({
@@ -67,7 +74,7 @@ export async function POST(req: Request) {
         testerCode,
         startedAt: Date.now(),
       });
-      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+      return Response.json(result, { headers: ethicsHeaders });
     } catch (err) {
       const message = err instanceof Error ? err.message : "The firm model could not be reached.";
       return Response.json({
@@ -75,14 +82,14 @@ export async function POST(req: Request) {
         error: true,
         modelOffline: true,
         text: `The model is offline. ${message} Nothing was sent to an outside AI lab.`,
-      });
+      }, { headers: ethicsHeaders });
     }
   }
 
   const encoder = new TextEncoder();
   const headers = {
     "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-store",
+    ...ethicsHeaders,
   };
 
   const stream = new ReadableStream({

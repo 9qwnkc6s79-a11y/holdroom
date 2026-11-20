@@ -3,6 +3,7 @@ import { toolNeedsApproval } from "./action-cards.ts";
 import { resolveAgent } from "./store.ts";
 import { workspaceLabel } from "./departments.ts";
 import { getThread, recordAuditEntry, removeFile, replaceThreadMessage } from "./store.ts";
+import { connectorToolNeedsApproval, runConnectorTool } from "./connectors.ts";
 import { executeTool, type ToolCall, type ToolContext } from "./tools.ts";
 import type { ApprovalCard, ChatMessage, ToolEvent } from "./types.ts";
 import { findVaultByName, scrubVaultSecrets, secretStrings } from "./vault.ts";
@@ -34,6 +35,18 @@ function approvalCopy(name: string): { title: string; summary: string } {
         summary:
           "The agent may reference this item by name. The secret stays in the vault and is not sent to the model.",
       };
+    case "email_send":
+      return { title: "Send an email", summary: "This sends an email from the connected mailbox. Nothing is sent until you approve." };
+    case "calendar_create":
+      return { title: "Create a calendar event", summary: "This writes to the connected calendar. Nothing is created until you approve." };
+    case "slack_post_message":
+      return { title: "Post to Slack", summary: "This posts a message. Nothing is posted until you approve." };
+    case "notion_create_page":
+      return { title: "Create a Notion page", summary: "This creates a page. Nothing is created until you approve." };
+    case "github_create_issue":
+      return { title: "Create a GitHub issue", summary: "This opens an issue. Nothing is created until you approve." };
+    case "linear_create_issue":
+      return { title: "Create a Linear issue", summary: "This opens an issue. Nothing is created until you approve." };
     default:
       return {
         title: "Approve this action",
@@ -160,14 +173,15 @@ function publicInput(args: Record<string, string>) {
     .slice(0, 500);
 }
 
-export function applyApprovalDecision(input: {
+export async function applyApprovalDecision(input: {
   threadId: string;
   messageId: string;
   decision: "approved" | "cancelled";
   actor?: string;
   accessibleDepartments?: string[];
   enterprise?: boolean;
-}): { ok: true; message: ChatMessage; event?: ToolEvent } | { ok: false; error: string } {
+  testerCode?: string;
+}): Promise<{ ok: true; message: ChatMessage; event?: ToolEvent } | { ok: false; error: string }> {
   const thread = getThread(input.threadId);
   if (!thread) return { ok: false, error: "Unknown thread." };
   const message = thread.messages.find((item) => item.id === input.messageId);
@@ -197,13 +211,22 @@ export function applyApprovalDecision(input: {
     return { ok: true, message: next };
   }
 
-  const event = executeApprovedCall(message.approval.call, {
-    workspaceId: agent.departmentId,
-    accessibleDepartments: input.accessibleDepartments || [],
-    enterprise: input.enterprise,
-    defaultDepartmentId: agent.writeDepartmentId,
-    vaultApproved: true,
-  });
+  const call = message.approval.call;
+  const connector = /^(email_|calendar_|cloud_files_|slack_|notion_|github_|linear_|mcp_)/.test(call.name);
+  const event = connector
+    ? (await runConnectorTool(
+        input.testerCode || "staff",
+        call.name,
+        call.arguments,
+        input.decision === "approved" && (toolNeedsApproval(call.name) || connectorToolNeedsApproval(call.name, call.arguments)),
+      )).event
+    : executeApprovedCall(call, {
+        workspaceId: agent.departmentId,
+        accessibleDepartments: input.accessibleDepartments || [],
+        enterprise: input.enterprise,
+        defaultDepartmentId: agent.writeDepartmentId,
+        vaultApproved: true,
+      });
   event.detail = scrubVaultSecrets(event.detail);
   const next: ChatMessage = {
     ...message,

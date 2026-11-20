@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     actor?: string;
     accessibleDepartments?: string[];
     enterprise?: boolean;
+    testerCode?: string;
   } | null;
   if (!body?.threadId || !body.messageId) {
     return NextResponse.json({ error: "Missing approval." }, { status: 400 });
@@ -18,13 +19,14 @@ export async function POST(req: Request) {
   if (body.decision !== "approved" && body.decision !== "cancelled") {
     return NextResponse.json({ error: "Choose approve or cancel." }, { status: 400 });
   }
-  const result = applyApprovalDecision({
+  const result = await applyApprovalDecision({
     threadId: body.threadId,
     messageId: body.messageId,
     decision: body.decision,
     actor: body.actor,
     accessibleDepartments: body.accessibleDepartments,
     enterprise: body.enterprise,
+    testerCode: body.testerCode,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, message: result.message, event: result.event || null });

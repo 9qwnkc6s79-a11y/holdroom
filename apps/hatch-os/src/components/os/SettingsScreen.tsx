@@ -6,6 +6,8 @@ import { useHatch } from "@/components/AppProvider";
 import { AuditScreen } from "@/components/os/AuditScreen";
 import { InitialAvatar } from "@/components/os/Avatar";
 import { IconChevronLeft, IconChevronRight, IconX } from "@/components/os/Icons";
+import { ConnectApps } from "@/components/os/ConnectApps";
+import { ModelEthics } from "@/components/os/ModelEthics";
 import { VaultScreen } from "@/components/os/VaultScreen";
 
 const ZONES = [
@@ -24,7 +26,7 @@ const RULES = [
   { name: "Use a vault item", detail: "An agent may name a vault item only after Approve. The secret stays hidden." },
 ];
 
-const PAGES = ["home", "account", "usage", "plan", "vault", "connect", "permissions", "zone", "hardware", "devices", "memory", "audit", "members", "appearance"] as const;
+const PAGES = ["home", "account", "usage", "plan", "vault", "connect", "ethics", "permissions", "zone", "hardware", "devices", "memory", "audit", "members", "appearance"] as const;
 type Page = (typeof PAGES)[number];
 
 function isPage(value: string | null): value is Page {
@@ -118,6 +120,10 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
           <section className="set-card">
             <button type="button" className="set-row" onClick={() => setPage("connect")}>
               <span className="set-main"><strong>Connect apps</strong><span>Search connectors</span></span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
+            </button>
+            <button type="button" className="set-row" onClick={() => setPage("ethics")}>
+              <span className="set-main"><strong>Model & Ethics</strong><span>Charter, voice, and which open model answers</span></span>
               <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
@@ -218,20 +224,8 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
             </section>
           ) : null}
           {page === "vault" ? <VaultScreen embedded /> : null}
-          {page === "connect" ? (
-            <section className="set-card">
-              {[
-                ["File room", "Connected on this Hatch system"],
-                ["Google Drive", "Not connected"],
-                ["Microsoft 365", "Not connected"],
-                ["Slack", "Not connected"],
-              ].map(([title, state]) => (
-                <div key={title} className="set-row is-static">
-                  <span className="set-main"><strong>{title}</strong><span>{state}</span></span>
-                </div>
-              ))}
-            </section>
-          ) : null}
+          {page === "connect" ? <ConnectApps scope={session?.inviteCode || "staff"} /> : null}
+          {page === "ethics" ? <ModelEthics scope={session?.inviteCode || "staff"} /> : null}
           {page === "permissions" ? (
             <section className="set-card">
               {RULES.map((rule) => (
@@ -325,6 +319,7 @@ function titleFor(page: Page) {
     plan: "Plan",
     vault: "Vault",
     connect: "Connect apps",
+    ethics: "Model & Ethics",
     permissions: "Permissions",
     zone: "Time zone",
     hardware: "Hatch hardware",

@@ -6,6 +6,7 @@ import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
 import { IconArrowUp, IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
+import { ModelEthics } from "@/components/os/ModelEthics";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
@@ -1022,6 +1023,7 @@ export function Messenger() {
       {agentSettings && agent ? (
         <AgentSettings
           agent={agent}
+          scope={session?.inviteCode || "staff"}
           onClose={() => setAgentSettings(false)}
           onSave={async (patch) => {
             await saveAgent(patch);
@@ -1102,6 +1104,7 @@ export function Messenger() {
         actor,
         accessibleDepartments: accessible.filter(Boolean),
         enterprise: session?.enterprise,
+        testerCode: session?.inviteCode || "staff",
       }),
     });
     const data = (await res.json().catch(() => null)) as { message?: ChatMessage };
@@ -1179,10 +1182,12 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
 
 function AgentSettings({
   agent,
+  scope,
   onClose,
   onSave,
 }: {
   agent: HatchAgent;
+  scope: string;
   onClose: () => void;
   onSave: (patch: HatchAgent) => Promise<void>;
 }) {
@@ -1216,6 +1221,7 @@ function AgentSettings({
         </select>
       </label>
       <label className="check"><input type="checkbox" checked={notifications} onChange={(event) => setNotifications(event.target.checked)} /> Notifications</label>
+      <ModelEthics scope={scope} agentId={agent.id} />
     </div>
   );
 }

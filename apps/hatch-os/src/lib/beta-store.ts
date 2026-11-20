@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { get, list, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 import { dailyMessageCap, safeCode } from "./testers.ts";
 
 const ROOT = "hatch-beta";
@@ -44,6 +44,18 @@ async function writeText(pathname: string, body: string) {
   const file = path.join(localRoot(), pathname);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, body);
+}
+
+export async function deleteRecord(folder: string, name: string) {
+  if (blobEnabled()) {
+    await del(`${ROOT}/${folder}/${name}.json`);
+    return;
+  }
+  try {
+    unlinkSync(path.join(localRoot(), folder, `${name}.json`));
+  } catch {
+    /* already gone */
+  }
 }
 
 export async function saveRecord(folder: string, name: string, data: unknown) {

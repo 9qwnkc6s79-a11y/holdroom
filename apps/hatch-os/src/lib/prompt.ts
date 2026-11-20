@@ -23,6 +23,7 @@ export interface PromptInput {
   accessibleDepartments: string[];
   history?: ThreadHistoryTurn[];
   defaultDepartmentId?: string;
+  ethics?: string;
 }
 
 function vaultPromptLine() {
@@ -51,6 +52,7 @@ function sharedContext(input: PromptInput) {
     passages,
     prior,
     firmRules: [
+      input.ethics || "",
       "You are an assistant for a sample firm, running on Hatch OS during a beta. The files are sample material, not a real client.",
       `Active workspace: ${workspace}. This is UX context (which Chat / Files / Library view the user is in), not an LLM firewall.`,
       "Read / retrieve / reason is firm-capable. Use library passages from any department when they help.",

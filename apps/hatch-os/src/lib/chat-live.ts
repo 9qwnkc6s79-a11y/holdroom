@@ -1,4 +1,7 @@
 import { toolNeedsApproval } from "./action-cards.ts";
+import { wantsAgentTurn } from "./agent-intent.ts";
+import { connectorToolNeedsApproval, listConnectors, runConnectorTool } from "./connectors.ts";
+import { compileEthics, loadEthics } from "./ethics.ts";
 import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
@@ -16,7 +19,7 @@ import {
 } from "./store.ts";
 import { thinkingOffExtras } from "./think.ts";
 import { inspectThreadHistory } from "./thread-history.ts";
-import { executeTool, mentionedReads, openaiToolSchemas, type ToolCall } from "./tools.ts";
+import { connectorSchemas, executeTool, mentionedReads, openaiToolSchemas, type ToolCall } from "./tools.ts";
 import type { ApprovalCard, ChatAttachment, Source, ToolEvent } from "./types.ts";
 import { scrubVaultSecrets } from "./vault.ts";
 
@@ -42,6 +45,8 @@ export interface LiveTurnState {
   turnsLeft: number;
   testerCode?: string;
   startedAt?: number;
+  temperature?: number;
+  connectorKinds?: string[];
 }
 
 export interface LiveTurnResult {
@@ -112,10 +117,14 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     { actor: input.actor || "signed-in", agentId: agent.id, kind: "ask" },
   );
   const history = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query }).turns;
-  const lane = input.agent === false ? "ask" : "agent";
+  const ethics = await loadEthics(input.testerCode || "staff", agent.id);
+  const connected = await listConnectors(input.testerCode || "staff");
+  const toolTurn = ethics.model === "hermes" || wantsAgentTurn(query, false);
+  const lane = input.agent === false || !toolTurn ? "ask" : "agent";
   const prompt = {
     workspaceId,
     query: modelQuery,
+    ethics: compileEthics(ethics, { toolTurn: lane === "agent" }),
     sources,
     fileListing: fileListing(workspaceId),
     toolResults: tools,
@@ -143,6 +152,8 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     turnsLeft: MAX_MODEL_TURNS,
     testerCode: input.testerCode,
     startedAt: input.startedAt || Date.now(),
+    temperature: ethics.temperature,
+    connectorKinds: connected.map((item) => item.kind),
   };
   return advanceLiveTurn(state);
 }
@@ -163,12 +174,15 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
     state.turnsLeft -= 1;
     if (job.failed) return finishError(state, job.error || "The firm model failed.");
     state.visible = [state.visible, job.text].filter(Boolean).join("\n\n");
-    const held = job.toolCalls.find((call) => toolNeedsApproval(call.name));
-    const safe = job.toolCalls.filter((call) => !toolNeedsApproval(call.name));
+    const needsApproval = (call: ToolCall) => toolNeedsApproval(call.name) || connectorToolNeedsApproval(call.name, call.arguments);
+    const held = job.toolCalls.find(needsApproval);
+    const safe = job.toolCalls.filter((call) => !needsApproval(call));
     if (state.lane === "agent") {
       const extras: string[] = [];
       for (const call of safe) {
-        const result = executeTool(call, toolContext(state));
+        const result: { event: ToolEvent; sources?: Source[]; extra?: string } = /^(email_|calendar_|cloud_files_|slack_|notion_|github_|linear_|mcp_)/.test(call.name)
+          ? await runConnectorTool(state.testerCode || "staff", call.name, stringifyArgs(call.arguments), false)
+          : executeTool(call, toolContext(state));
         state.tools.push(result.event);
         if (result.sources?.length) state.sources.push(...result.sources);
         if (result.extra) extras.push(result.extra);
@@ -206,7 +220,8 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   const jobId = await submitRunpodChat(endpoint, {
     model: endpoint.model,
     messages: state.llmMessages,
-    tools: lane === "agent" ? openaiToolSchemas() : undefined,
+    tools: lane === "agent" ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
+    temperature: state.temperature,
     extras: thinkingOffExtras(true),
   });
   state.job = { id: jobId, endpointId, lane };
@@ -223,6 +238,14 @@ function endpointFor(lane: "ask" | "agent", endpointId: string): LlmEndpoint | n
   const endpoint = lane === "agent" ? agentLlmConfig().primary : llmConfig().primary;
   if (runpodEndpointId(endpoint.rawBase) !== endpointId) return null;
   return endpoint;
+}
+
+function stringifyArgs(args: Record<string, unknown> | undefined) {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(args || {})) {
+    out[key] = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
+  }
+  return out;
 }
 
 function toolContext(state: LiveTurnState) {
