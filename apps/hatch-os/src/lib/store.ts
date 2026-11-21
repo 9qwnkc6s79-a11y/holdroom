@@ -515,6 +515,7 @@ function pushFile(
     folderId?: string | null;
     origin: FileOrigin;
     demo?: boolean;
+    extracted?: string;
   },
 ): { file: HatchFile; error?: string } {
   const departmentId = migrateWorkspaceId(input.departmentId);
@@ -566,7 +567,10 @@ function pushFile(
   mkdirSync(dest, { recursive: true });
   const buf = typeof input.body === "string" ? Buffer.from(input.body, "utf8") : input.body;
   writeFileSync(path.join(dest, `${id}-${input.filename}`), buf);
-  const text = extractText(kind, input.filename, buf);
+  const text =
+    kind === "Image" && input.extracted?.trim()
+      ? imageAssetPassage(input.filename, input.extracted)
+      : extractText(kind, input.filename, buf);
   const file = normalizeFile(
     {
       id,
@@ -600,6 +604,7 @@ export function persistUpload(input: {
   folderId?: string | null;
   origin?: FileOrigin;
   accessibleDepartments?: string[];
+  extracted?: string;
 }): { file: HatchFile; error?: string } {
   const departmentId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   if (input.accessibleDepartments) {
@@ -631,6 +636,7 @@ export function persistUpload(input: {
       inLibrary: Boolean(input.inLibrary),
       folderId: input.folderId,
       origin: input.origin || "upload",
+      extracted: input.extracted,
     }),
   );
 }

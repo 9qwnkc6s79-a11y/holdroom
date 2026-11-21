@@ -181,6 +181,25 @@ export function agentLlmConfig() {
   return { primary, fallback, provider, dedicated, usingAskFallback: !dedicated };
 }
 
+/**
+ * Open-weight vision on an OpenAI-compatible endpoint.
+ * Off unless HATCH_VISION_MODEL is set. Pictures then stay on the phone and
+ * only the OCR text is sent to the text model.
+ */
+export function visionLlmConfig(): { enabled: boolean; endpoint: LlmEndpoint | null } {
+  const model = (process.env.HATCH_VISION_MODEL || "").trim();
+  if (!model) return { enabled: false, endpoint: null };
+  const raw = stripSlash((process.env.HATCH_VISION_BASE_URL || process.env.HATCH_LLM_BASE_URL || "").trim());
+  if (!raw) return { enabled: false, endpoint: null };
+  const apiKey = (process.env.HATCH_VISION_API_KEY || process.env.HATCH_LLM_API_KEY || "").trim();
+  if (needsApiKey(raw) && !apiKey) return { enabled: false, endpoint: null };
+  const provider = process.env.HATCH_VISION_PROVIDER || "openai-compatible";
+  return {
+    enabled: true,
+    endpoint: buildEndpoint(raw, model, apiKey, provider, "ask", "HATCH_VISION_API_KEY"),
+  };
+}
+
 export function connectHelp(probe: LlmProbe) {
   const { primary } = llmConfig();
   const agent = agentLlmConfig();
@@ -205,6 +224,11 @@ export function connectHelp(probe: LlmProbe) {
     "  3. HATCH_LLM_BASE_URL=http://127.0.0.1:11434",
     `  4. HATCH_LLM_MODEL=${DEFAULT_MODEL}`,
     "  RunPod / keyed remotes do not auto-hop to Ollama (set HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1 to opt in).",
+    "",
+    "Vision (optional, open-weight only). Unset = OCR on the phone:",
+    "  HATCH_VISION_MODEL=Qwen/Qwen2.5-VL-7B-Instruct",
+    "  HATCH_VISION_BASE_URL=https://api.runpod.ai/v2/<vision-endpoint>/openai/v1",
+    "  HATCH_VISION_API_KEY=<key for that endpoint>",
     "",
     `Ask now: ${primary.kind} · ${primary.host} · model ${primary.model}.`,
     agent.dedicated
@@ -555,9 +579,16 @@ export async function probeAgentLlm(): Promise<LlmProbe> {
   return probeLane("agent");
 }
 
+export type LlmContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    >;
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: LlmContent;
   name?: string;
   tool_call_id?: string;
 }
@@ -607,6 +638,32 @@ export async function streamAgentLlm(
   return streamLane("agent", messages, onDelta, tools);
 }
 
+/** One turn against HATCH_VISION_*. Does not fall through to the text model. */
+export async function streamVisionLlm(
+  messages: ChatMessage[],
+  onDelta: (text: string) => void,
+): Promise<StreamLlmResult> {
+  const cfg = visionLlmConfig();
+  if (!cfg.enabled || !cfg.endpoint) throw new Error("No vision model is configured (set HATCH_VISION_MODEL).");
+  const result = await streamEndpoint(cfg.endpoint, messages, onDelta);
+  return { ...result, text: visibleStreamText(result.text, true) };
+}
+
+function asOllamaMessages(messages: ChatMessage[]) {
+  return messages.map((message) => {
+    if (typeof message.content === "string") return { role: message.role, content: message.content };
+    const text = message.content
+      .filter((part) => part.type === "text")
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n");
+    const images = message.content
+      .filter((part) => part.type === "image_url")
+      .map((part) => (part.type === "image_url" ? part.image_url.url.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "") : ""))
+      .filter(Boolean);
+    return images.length ? { role: message.role, content: text, images } : { role: message.role, content: text };
+  });
+}
+
 async function streamEndpoint(
   endpoint: LlmEndpoint,
   messages: ChatMessage[],
@@ -644,7 +701,7 @@ async function streamEndpoint(
       headers,
       body: JSON.stringify({
         model: endpoint.model,
-        messages,
+        messages: messages.some((message) => typeof message.content !== "string") ? asOllamaMessages(messages) : messages,
         stream: true,
         think: false,
         options: { temperature: 0.2 },

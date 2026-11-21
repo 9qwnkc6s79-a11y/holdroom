@@ -37,6 +37,21 @@ Same four vars → box vLLM OpenAI-compatible `/v1`. Preferred local-box model r
 5. Cite sources
 6. If nothing is up: env / `ollama pull` commands. No invented answer
 
+## Pictures
+
+`HATCH_VISION_MODEL` is optional. When it is unset, the phone OCRs the photo with tesseract.js and the text model only sees that text, plus a line that it cannot see the picture. No new endpoint is required.
+
+Full vision, still open-weight and OpenAI-compatible:
+
+```
+HATCH_VISION_MODEL=Qwen/Qwen2.5-VL-7B-Instruct
+HATCH_VISION_BASE_URL=https://api.runpod.ai/v2/<vision-endpoint>/openai/v1
+HATCH_VISION_API_KEY=<key for that endpoint>
+HATCH_VISION_PROVIDER=openai-compatible
+```
+
+`HATCH_VISION_BASE_URL` falls back to `HATCH_LLM_BASE_URL`. `HATCH_VISION_API_KEY` falls back to `HATCH_LLM_API_KEY`. A RunPod `/v2/<id>` URL is submitted as an async job, same as chat. Any other `/v1` URL is called directly. Llama 3.2 Vision and Gemma 3 use the same variables. Do not point them at OpenAI, Anthropic, Bedrock, or Google.
+
 Keep `HATCH_LLM_BASE_URL`, `HATCH_LLM_MODEL`, `HATCH_LLM_API_KEY`, `HATCH_LLM_PROVIDER`.
 
 ## Agent / tools — Hermes

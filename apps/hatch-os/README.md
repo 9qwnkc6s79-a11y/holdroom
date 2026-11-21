@@ -61,6 +61,10 @@ HATCH_AGENT_LLM_PROVIDER=openai-compatible
 
 If unset, agent turns fall back to `HATCH_LLM_*`. RunPod / keyed remotes do **not** auto-hop to Ollama on timeout or HTTP errors. Point `HATCH_LLM_BASE_URL` at `http://127.0.0.1:11434` to use local as primary, or set `HATCH_LLM_ALLOW_OLLAMA_FALLBACK=1` to opt in.
 
+### Pictures
+
+With `HATCH_VISION_MODEL` unset, Hatch reads the words in a photo on the phone and sends that text to the text model. The composer says the model cannot see the picture. To send the picture itself, point `HATCH_VISION_MODEL` and `HATCH_VISION_BASE_URL` at an open-weight vision model (Qwen2.5-VL, Llama 3.2 Vision, or Gemma 3) on an OpenAI-compatible endpoint you already run. A `/v2/<id>` RunPod URL uses the same async job path as chat. Leave the key in `HATCH_VISION_API_KEY`, or omit it to reuse `HATCH_LLM_API_KEY`. Do not point this at a frontier API.
+
 Open http://127.0.0.1:3000
 
 1. Pair **`BOUNDARIES`** + any six digits → lands in **Enterprise → Chat**.

@@ -6,7 +6,8 @@ import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments.ts";
-import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
+import { attachmentImageUrls, forStorage, textOnlyContent, withImageParts } from "./images.ts";
+import { agentLlmConfig, llmConfig, streamVisionLlm, visionLlmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
 import { buildAgentMessages, buildAskMessages } from "./prompt.ts";
 import { readRunpodJob, runpodEndpointId, submitRunpodChat } from "./runpod-jobs.ts";
 import {
@@ -41,7 +42,8 @@ export interface LiveTurnState {
   visible: string;
   tools: ToolEvent[];
   sources: Source[];
-  job?: { id: string; endpointId: string; lane: "ask" | "agent" };
+  job?: { id: string; endpointId: string; lane: "ask" | "agent"; vision?: boolean };
+  vision?: boolean;
   turnsLeft: number;
   testerCode?: string;
   startedAt?: number;
@@ -102,7 +104,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const reads = mentionedReads(query);
   const tools = reads.map((item) => item.event);
   const user = newChatMessage("user", query, {
-    attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
     replyTo: input.replyTo,
   });
   const assistant = newChatMessage("assistant", "", { done: false });
@@ -120,7 +122,9 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const ethics = await loadEthics(input.testerCode || "staff", agent.id);
   const connected = await listConnectors(input.testerCode || "staff");
   const toolTurn = ethics.model === "hermes" || wantsAgentTurn(query, false);
-  const lane = input.agent === false || !toolTurn ? "ask" : "agent";
+  const images = attachmentImageUrls(input.attachments);
+  const visionOn = images.length > 0 && visionLlmConfig().enabled;
+  const lane = visionOn || input.agent === false || !toolTurn ? "ask" : "agent";
   const prompt = {
     workspaceId,
     query: modelQuery,
@@ -145,7 +149,12 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     enterprise: Boolean(input.enterprise),
     defaultDepartmentId: input.defaultDepartmentId || agent.writeDepartmentId,
     lane,
-    llmMessages: lane === "agent" ? buildAgentMessages(prompt) : buildAskMessages(prompt),
+    vision: visionOn,
+    llmMessages: visionOn
+      ? withImageParts(buildAskMessages(prompt), images)
+      : lane === "agent"
+        ? buildAgentMessages(prompt)
+        : buildAskMessages(prompt),
     visible: "",
     tools,
     sources,
@@ -160,7 +169,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
 
 export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnResult> {
   if (state.job) {
-    const endpoint = endpointFor(state.job.lane, state.job.endpointId);
+    const endpoint = endpointFor(state.job.lane, state.job.endpointId, state.job.vision);
     if (!endpoint) return finishError(state, "That model endpoint is not configured.");
     const job = await readRunpodJob(endpoint, state.job.id);
     if (!job.done && !job.failed) {
@@ -210,7 +219,48 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
   return submit(state);
 }
 
+function shrinkMessages(messages: LlmMessage[]): LlmMessage[] {
+  return messages.map((message) => ({ ...message, content: textOnlyContent(message.content) }));
+}
+
 async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
+  if (state.vision) {
+    const vision = visionLlmConfig();
+    const endpoint = vision.endpoint;
+    if (!endpoint) return finishError(state, "No vision model is configured.");
+    const endpointId = runpodEndpointId(endpoint.rawBase);
+    if (endpointId && endpoint.apiKey) {
+      try {
+        const jobId = await submitRunpodChat(endpoint, {
+          model: endpoint.model,
+          messages: state.llmMessages,
+          temperature: state.temperature,
+          extras: thinkingOffExtras(true),
+        });
+        state.llmMessages = shrinkMessages(state.llmMessages);
+        state.job = { id: jobId, endpointId, lane: "ask", vision: true };
+        return {
+          phase: "wait",
+          state,
+          note: "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.",
+          threadId: state.threadId,
+          messageId: state.messageId,
+        };
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "The vision model did not accept the photo.";
+        return finishError(state, detail);
+      }
+    }
+    try {
+      const streamed = await streamVisionLlm(state.llmMessages, () => undefined);
+      state.visible = streamed.text;
+      state.llmMessages = shrinkMessages(state.llmMessages);
+      return finishText(state);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "The vision model could not be reached.";
+      return finishError(state, detail);
+    }
+  }
   const lane = state.lane;
   const endpoint = lane === "agent" ? agentLlmConfig().primary : llmConfig().primary;
   const endpointId = runpodEndpointId(endpoint.rawBase);
@@ -234,7 +284,12 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   };
 }
 
-function endpointFor(lane: "ask" | "agent", endpointId: string): LlmEndpoint | null {
+function endpointFor(lane: "ask" | "agent", endpointId: string, vision?: boolean): LlmEndpoint | null {
+  if (vision) {
+    const endpoint = visionLlmConfig().endpoint;
+    if (endpoint && runpodEndpointId(endpoint.rawBase) === endpointId) return endpoint;
+    return null;
+  }
   const endpoint = lane === "agent" ? agentLlmConfig().primary : llmConfig().primary;
   if (runpodEndpointId(endpoint.rawBase) !== endpointId) return null;
   return endpoint;

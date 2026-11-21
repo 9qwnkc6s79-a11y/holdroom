@@ -3,9 +3,16 @@ import type { OpenAiTool } from "./tools.ts";
 import { parseToolCalls, stripToolMarkup, type ToolCall } from "./tool-parse.ts";
 import { stripThinkBlocks } from "./think.ts";
 
+export type RunpodContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    >;
+
 export interface RunpodChatBody {
   model: string;
-  messages: { role: string; content: string }[];
+  messages: { role: string; content: RunpodContent }[];
   tools?: OpenAiTool[];
   extras?: Record<string, unknown>;
   temperature?: number;

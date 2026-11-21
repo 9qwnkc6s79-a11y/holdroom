@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
@@ -13,6 +13,8 @@ import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
 import { ACCEPT_ATTR, kindFromFilename } from "@/lib/files";
+import { prepareChatImage, readImageText, visionEnabled } from "@/lib/image-client";
+import { CAMERA_ACCEPT, forStorage, isRasterImage, isVideoFile, OCR_NOTICE, PHOTO_ACCEPT, SCAN_ACCEPT, turnContext } from "@/lib/images";
 import { dropPending, readPending, upsertPending, waitCopy, type PendingJob } from "@/lib/pending";
 import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
 import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
@@ -47,15 +49,54 @@ interface DraftChip {
   text?: string;
   note?: string;
   fileId?: string;
+  preview?: string;
+  image?: string;
+  reading?: ChatAttachment["reading"];
+  busy?: boolean;
 }
 
-function composeQuery(text: string, files: DraftChip[]) {
-  const blocks = files.map((file) =>
-    file.text
-      ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
-      : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
+function postedAttachment(file: DraftChip): ChatAttachment {
+  return {
+    fileId: file.fileId || "",
+    name: file.name,
+    kind: kindFromFilename(file.name),
+    text: file.text,
+    note: file.note,
+    preview: file.preview,
+    image: file.reading === "vision" ? file.image : undefined,
+    reading: file.reading,
+  };
+}
+
+function FileChip({
+  name,
+  preview,
+  note,
+  onRemove,
+}: {
+  name: string;
+  preview?: string;
+  note?: string;
+  onRemove?: () => void;
+}) {
+  return (
+    <span className="file-chip">
+      {preview ? (
+        // User photos are local data URLs. next/image cannot optimize them.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="file-thumb" src={preview} alt="" />
+      ) : null}
+      <span className="file-chip-copy">
+        <span className="file-chip-name">{name}</span>
+        {note ? <span className="file-note">{note}</span> : null}
+      </span>
+      {onRemove ? (
+        <button type="button" aria-label={`Remove ${name}`} onClick={onRemove}>
+          <IconX size={14} />
+        </button>
+      ) : null}
+    </span>
   );
-  return [text.trim(), ...blocks].filter(Boolean).join("\n\n");
 }
 
 function explainFailure(err: unknown, status?: number) {
@@ -145,15 +186,12 @@ export function Messenger() {
   const busyRef = useRef(false);
   const pollsRef = useRef(new Set<string>());
   const followRef = useRef<(job: PendingJob) => Promise<void>>(async () => undefined);
-  const queueRef = useRef<{ text: string; userId: string; agentId: string }[]>([]);
+  const queueRef = useRef<{ text: string; userId: string; agentId: string; context?: string; posted?: ChatAttachment[] }[]>([]);
   const announcedRef = useRef(new Set<string>());
   const recentSend = useRef("");
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
   const endRef = useRef<HTMLDivElement>(null);
-  const photoRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const scanRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -325,18 +363,14 @@ export function Messenger() {
 
   async function send(text: string, opts?: { voice?: boolean; plain?: boolean; files?: DraftChip[] }) {
     const files = opts?.plain ? [] : (opts?.files ?? chips);
-    const modelQuery = opts?.plain ? text.trim() : composeQuery(text, files);
+    if (files.some((file) => file.busy)) return;
     const display = text.trim() || files.map((file) => file.name).join(", ");
-    const context = opts?.plain ? "" : files.map((file) =>
-      file.text
-        ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
-        : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
-    ).join("\n\n");
-    if (!modelQuery || !session || !agent) return;
-    if (recentSend.current === modelQuery) return;
-    recentSend.current = modelQuery;
+    const context = opts?.plain ? "" : turnContext(text, files);
+    if (!display || !session || !agent) return;
+    if (recentSend.current === display) return;
+    recentSend.current = display;
     window.setTimeout(() => {
-      if (recentSend.current === modelQuery) recentSend.current = "";
+      if (recentSend.current === display) recentSend.current = "";
     }, 500);
     stickRef.current = true;
     setAttachOpen(false);
@@ -344,13 +378,8 @@ export function Messenger() {
       setDraft("");
       setChips([]);
     }
-    const attachments: ChatAttachment[] = files.map((file) => ({
-      fileId: file.fileId || file.id,
-      name: file.name,
-      kind: kindFromFilename(file.name),
-      text: file.text,
-      note: file.note,
-    }));
+    const posted = files.map(postedAttachment);
+    const attachments = posted.map(forStorage);
     if (busyRef.current) {
       const user: ChatMessage = {
         id: `local-u-${Date.now()}`,
@@ -362,18 +391,18 @@ export function Messenger() {
         replyTo: reply ? { text: reply } : undefined,
       };
       mapMessages(agent.id, agent.departmentId, (current) => [...current, user]);
-      queueRef.current.push({ text: modelQuery, userId: user.id, agentId: agent.id });
+      queueRef.current.push({ text: display, userId: user.id, agentId: agent.id, context, posted });
       setReply(null);
       return;
     }
-    await runTurn(agent, modelQuery, undefined, { voice: opts?.voice, display, attachments, context });
+    await runTurn(agent, display, undefined, { voice: opts?.voice, display, attachments, postedAttachments: posted, context });
   }
 
   function releaseTurn(target: HatchAgent) {
     const next = queueRef.current.shift();
     if (next) {
       const found = agentsRef.current.find((item) => item.id === next.agentId) || target;
-      void runTurn(found, next.text, next.userId);
+      void runTurn(found, next.text, next.userId, { display: next.text, context: next.context, postedAttachments: next.posted });
       return;
     }
     busyRef.current = false;
@@ -467,7 +496,7 @@ export function Messenger() {
     target: HatchAgent,
     q: string,
     existingUserId?: string,
-    opts?: { voice?: boolean; display?: string; attachments?: ChatAttachment[]; context?: string },
+    opts?: { voice?: boolean; display?: string; attachments?: ChatAttachment[]; postedAttachments?: ChatAttachment[]; context?: string },
   ) {
     if (!session) return;
     busyRef.current = true;
@@ -528,6 +557,7 @@ export function Messenger() {
           threadId: thread,
           query: opts?.display || q,
           context: opts?.context || "",
+          attachments: opts?.postedAttachments,
           agentId: target.id,
           actor,
           agent: true,
@@ -621,37 +651,69 @@ export function Messenger() {
     }
   }
 
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const picked = event.target.files?.[0];
+    event.target.value = "";
+    void attach(picked);
+  }
+
   async function attach(file?: File | null) {
     if (!file || !agent) return;
     setAttachOpen(false);
-    const chip: DraftChip = { id: `chip-${Date.now()}`, name: file.name };
+    const id = `chip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const patch = (next: Partial<DraftChip>) => {
+      setChips((current) => current.map((item) => (item.id === id ? { ...item, ...next } : item)));
+    };
+    setChips((current) => [...current, { id, name: file.name || "file", busy: true, note: "Adding…" }]);
+    let upload: File = file;
+    let uploadText = "";
+    let skipIngest = false;
     try {
-      const form = new FormData();
-      form.set("file", file);
-      const res = await fetch("/api/extract", { method: "POST", body: form });
-      const data = (await res.json().catch(() => null)) as { text?: string; note?: string; error?: string } | null;
-      if (!res.ok) chip.note = data?.error || "Could not read this file. The model will only see the filename.";
-      else {
-        chip.text = data?.text || "";
-        chip.note = data?.note || "";
+      if (isVideoFile(file.name, file.type)) {
+        skipIngest = true;
+        patch({ busy: false, reading: "file", note: "This video is attached by name. The model cannot watch it." });
+      } else if (isRasterImage(file.name, file.type)) {
+        patch({ note: "Preparing photo…" });
+        const prepared = await prepareChatImage(file);
+        upload = prepared.file;
+        patch({ name: prepared.name, preview: prepared.previewUrl, note: "Reading the text in this photo…" });
+        if ((await visionEnabled()) && prepared.imageUrl) {
+          patch({ busy: false, reading: "vision", image: prepared.imageUrl, text: "", note: "" });
+        } else {
+          let text = "";
+          try {
+            text = await readImageText(prepared.file);
+          } catch {
+            text = "";
+          }
+          uploadText = text;
+          patch({ busy: false, reading: "ocr", text, note: OCR_NOTICE });
+        }
+      } else {
+        const form = new FormData();
+        form.set("file", file);
+        const res = await fetch("/api/extract", { method: "POST", body: form });
+        const data = (await res.json().catch(() => null)) as { text?: string; note?: string; error?: string } | null;
+        if (!res.ok) {
+          patch({ busy: false, reading: "file", note: data?.error || "Could not read this file. The model will only see the filename." });
+        } else {
+          patch({ busy: false, reading: "file", text: data?.text || "", note: data?.note || "" });
+        }
       }
     } catch {
-      chip.note = "Could not read this file. The model will only see the filename.";
+      patch({ busy: false, reading: "file", note: "Could not read this file. The model will only see the filename." });
     }
-    setChips((current) => [...current, chip]);
-    if (!session) return;
+    if (!session || skipIngest) return;
     try {
       const form = new FormData();
-      form.set("file", file);
+      form.set("file", upload);
+      if (uploadText) form.set("text", uploadText.slice(0, 8000));
       form.set("departmentId", agent.writeDepartmentId);
       form.set("inLibrary", "1");
       form.set("accessibleDepartments", accessible.filter(Boolean).join(","));
       const res = await fetch("/api/ingest", { method: "POST", body: form });
       const data = (await res.json().catch(() => null)) as { file?: { id?: string; name: string }; error?: string };
-      if (data?.file?.id) {
-        const fileId = data.file.id;
-        setChips((current) => current.map((item) => (item.id === chip.id ? { ...item, fileId } : item)));
-      }
+      if (data?.file?.id) patch({ fileId: data.file.id });
     } catch {
       /* The chip still goes with the next message even if the file room upload fails. */
     }
@@ -864,8 +926,13 @@ export function Messenger() {
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
                         <div className={mine ? "bubble user" : "bubble agent"}>
                           {mine ? parsed.body : parsed.body ? <MarkdownPreview text={parsed.body} /> : null}
-                          {(message.attachments || []).map((file) => (
-                            <span key={`${message.id}-${file.name}`} className="file-chip">{file.name}</span>
+                          {(message.attachments || []).map((file, index) => (
+                            <FileChip
+                              key={`${message.id}-${file.fileId || file.name}-${index}`}
+                              name={file.name}
+                              preview={file.preview}
+                              note={file.note}
+                            />
                           ))}
                           {!message.done && !parsed.body ? <span className="os-caret" /> : null}
                         </div>
@@ -933,13 +1000,13 @@ export function Messenger() {
                 {chips.length ? (
                   <div className="file-chips">
                     {chips.map((chip) => (
-                      <span key={chip.id} className="file-chip">
-                        <span>{chip.name}</span>
-                        {chip.note ? <span>{chip.note}</span> : null}
-                        <button type="button" aria-label={`Remove ${chip.name}`} onClick={() => setChips((current) => current.filter((item) => item.id !== chip.id))}>
-                          <IconX size={12} />
-                        </button>
-                      </span>
+                      <FileChip
+                        key={chip.id}
+                        name={chip.name}
+                        preview={chip.preview}
+                        note={chip.note}
+                        onRemove={() => setChips((current) => current.filter((item) => item.id !== chip.id))}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -963,7 +1030,7 @@ export function Messenger() {
                     <IconMic />
                   </button>
                   {draft.trim() || chips.length ? (
-                    <button type="submit" className="send" aria-label="Send">
+                    <button type="submit" className="send" aria-label="Send" disabled={chips.some((chip) => chip.busy)}>
                       <IconArrowUp />
                     </button>
                   ) : (
@@ -975,16 +1042,28 @@ export function Messenger() {
               </form>
               {attachOpen ? (
                 <div className="popover attach" role="menu">
-                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><IconImage /></button>
-                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><IconCamera /></button>
-                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><IconScan /></button>
-                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><IconFile /></button>
+                  <label className="file-tap">
+                    <span>Photo or Video</span>
+                    <IconImage />
+                    <input className="file-hit" type="file" accept={PHOTO_ACCEPT} onChange={onPick} />
+                  </label>
+                  <label className="file-tap">
+                    <span>Take Photo</span>
+                    <IconCamera />
+                    <input className="file-hit" type="file" accept={CAMERA_ACCEPT} capture="environment" onChange={onPick} />
+                  </label>
+                  <label className="file-tap">
+                    <span>Scan Document</span>
+                    <IconScan />
+                    <input className="file-hit" type="file" accept={SCAN_ACCEPT} onChange={onPick} />
+                  </label>
+                  <label className="file-tap" htmlFor="hatch-file">
+                    <span>Choose File</span>
+                    <IconFile />
+                  </label>
                 </div>
               ) : null}
-              <input ref={photoRef} hidden type="file" accept="image/*,video/*" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={scanRef} hidden type="file" accept="image/*,application/pdf" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={fileRef} hidden type="file" accept={ACCEPT_ATTR} onChange={(event) => void attach(event.target.files?.[0])} />
+              <input id="hatch-file" ref={fileRef} className="file-proxy" type="file" accept={ACCEPT_ATTR} onChange={onPick} />
             </>
           ) : (
             <div className="chat-empty">
