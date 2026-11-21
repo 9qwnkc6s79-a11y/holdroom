@@ -4,7 +4,8 @@ import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { demoModeEnabled, modelOfflineMessage, planDemoReply, streamText } from "./demo.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
-import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
+import { attachmentImageUrls, forStorage, withImageParts } from "./images.ts";
+import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm, streamVisionLlm, visionLlmConfig } from "./llm";
 import { buildAskMessages } from "./prompt";
 import { inspectThreadHistory } from "./thread-history.ts";
 import { appendThreadMessages, createThread, fileListing, getThread, recordAuditEntry, retrieveFirm } from "./store";
@@ -87,7 +88,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const extra = reads.map((r) => r.extra).filter(Boolean);
 
   const userMsg = newChatMessage("user", query, {
-    attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
     replyTo: input.replyTo,
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
@@ -132,6 +133,59 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const inspected = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
   const history = inspected.turns;
 
+  const promptInput = {
+    workspaceId,
+    query: modelQuery,
+    sources,
+    fileListing: listing,
+    toolResults,
+    extra,
+    accessibleDepartments,
+    history,
+    defaultDepartmentId: input.defaultDepartmentId,
+  };
+
+  let text = "";
+  const images = attachmentImageUrls(input.attachments);
+  if (images.length && visionLlmConfig().enabled) {
+    try {
+      const streamed = await streamVisionLlm(withImageParts(buildAskMessages(promptInput), images), (delta) => {
+        text += delta;
+        hooks.onDelta?.(delta);
+      });
+      text = stripThinkBlocks(streamed.text || text);
+      const final: ChatMessage = { ...assistantMsg, text, done: true, sources, tools: toolResults };
+      appendThreadMessages(active.id, [final]);
+      return {
+        threadId: active.id,
+        title: getThread(active.id)?.title,
+        text,
+        sources,
+        tools: toolResults,
+        messageId: final.id,
+        historyDropped: inspected.dropped,
+        lane: "ask",
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "The vision model failed.";
+      const help = `The vision model is offline. ${msg} Nothing was sent to an outside AI lab.`;
+      const failed: ChatMessage = { ...assistantMsg, text: help, done: true, sources: [], tools: toolResults };
+      appendThreadMessages(active.id, [failed]);
+      return {
+        threadId: active.id,
+        title: getThread(active.id)?.title,
+        text: help,
+        sources: [],
+        tools: toolResults,
+        error: true,
+        modelOffline: true,
+        messageId: failed.id,
+        historyDropped: inspected.dropped,
+        lane: "ask",
+      };
+    }
+  }
+
   const agentic = wantsAgentTurn(query, input.agent);
   const probe = agentic ? await probeAgentLlm() : await probeLlm();
   const { primary } = agentic ? agentLlmConfig() : llmConfig();
@@ -172,19 +226,6 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     };
   }
 
-  const promptInput = {
-    workspaceId,
-    query: modelQuery,
-    sources,
-    fileListing: listing,
-    toolResults,
-    extra,
-    accessibleDepartments,
-    history,
-    defaultDepartmentId: input.defaultDepartmentId,
-  };
-
-  let text = "";
   let pendingApproval: ApprovalCard | undefined;
   try {
     if (agentic) {

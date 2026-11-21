@@ -114,10 +114,16 @@ export interface ChatAttachment {
   fileId: string;
   name: string;
   kind: FileKind;
-  /** Extracted text included in the turn. Omitted for images and other binaries. */
+  /** Extracted text included in the turn. For images this is OCR, not a description of the picture. */
   text?: string;
-  /** Why the file was not read, when text is empty. */
+  /** Why the file was not fully read, or the honest limit of the current model. */
   note?: string;
+  /** Small jpeg data URL for the composer and the sent bubble. */
+  preview?: string;
+  /** Prepared image for HATCH_VISION_*. Stripped before the message is stored. */
+  image?: string;
+  /** vision sends pixels. ocr sends text. file is anything else. */
+  reading?: "vision" | "ocr" | "file";
 }
 
 export interface ChatMessage {

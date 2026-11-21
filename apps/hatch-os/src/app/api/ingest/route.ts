@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       inLibrary,
       folderId,
       accessibleDepartments: accessible.length ? accessible : undefined,
+      extracted: String(form.get("text") || "").slice(0, 8000),
     });
     return NextResponse.json(result);
   }

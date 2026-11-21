@@ -243,17 +243,32 @@
   border-radius: 999px; background: var(--primary); color: var(--on-primary); border: 0;
 }
 .composer .send:hover { background: var(--primary-hover); }
-.file-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.composer .send:disabled { opacity: 0.45; }
+.file-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; max-height: 168px; overflow: auto; }
 .file-chip {
-  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; max-width: 100%;
-  border-radius: 999px; background: var(--stone); color: var(--title);
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  border-radius: 16px; background: var(--stone); color: var(--title);
   border: 1px solid var(--line);
-  padding: 4px 8px 4px 12px; font-size: 12px; overflow-wrap: anywhere;
+  padding: 6px 6px 6px 8px; font-size: 12px; overflow-wrap: anywhere;
   font-family: var(--mono);
 }
-.file-chip button { width: 28px; height: 28px; min-width: 28px; padding: 0; background: transparent; color: var(--title); border: 0; }
+.file-chip-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.file-chip-name { overflow-wrap: anywhere; }
+.file-note {
+  color: var(--muted); font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  font-size: 11px; line-height: 1.35; white-space: normal;
+}
+.file-thumb {
+  width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex: none; background: var(--elev);
+}
+.file-chip button {
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  background: transparent; color: var(--title); border: 0;
+}
 .bubble .file-chip { margin-top: 6px; }
 .bubble.user .file-chip { background: rgba(255, 255, 255, 0.08); color: var(--user-ink); border-color: rgba(255, 255, 255, 0.12); }
+.bubble.user .file-note { color: rgba(255, 255, 255, 0.72); }
+.bubble.user .file-chip button { color: var(--user-ink); }
 [data-theme="light"] .bubble.user .file-chip { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.16); }
 .retry { margin-top: 8px; }
 .retry button { min-height: 40px; }
@@ -270,12 +285,21 @@
   border-radius: 16px; box-shadow: var(--shadow); padding: 6px; min-width: 180px;
 }
 .attach { right: 16px; bottom: 78px; width: min(280px, calc(100% - 32px)); }
-:where(.attach button, .popover button, .sheet button:not(.os-btn):not(.round):not(.ghost):not(.icon-library button)) {
+:where(.attach button, .attach label, .popover button, .sheet button:not(.os-btn):not(.round):not(.ghost):not(.icon-library button)) {
   display: flex; width: 100%; justify-content: space-between; align-items: center;
   background: transparent; color: var(--ink); box-shadow: none; border-radius: 12px; padding: 12px;
   min-height: 44px; border: 0;
 }
-.attach button:hover, .popover button:hover { background: var(--hover-bg); }
+.attach button:hover, .attach label:hover, .popover button:hover { background: var(--hover-bg); }
+.attach label { position: relative; cursor: pointer; font: inherit; text-align: left; }
+.file-hit {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+  opacity: 0; font-size: 16px; cursor: pointer; border: 0;
+}
+.file-proxy {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; opacity: 0;
+}
 .apps-pop { left: 16px; bottom: 72px; }
 .sheet, .info, .voice-screen, .settings-sheet {
   position: fixed; inset: 0; z-index: 20; background: var(--bg); color: var(--ink);

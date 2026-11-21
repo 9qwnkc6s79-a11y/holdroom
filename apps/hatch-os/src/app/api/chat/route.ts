@@ -3,6 +3,7 @@ import { runChatTurn } from "@/lib/chat";
 import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
 import { loadEthics } from "@/lib/ethics";
+import type { ChatAttachment } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 // Each request only submits or checks a RunPod job. The browser polls, so a
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     context?: string;
     accessibleDepartments?: string[];
     enterprise?: boolean;
-    attachments?: { fileId: string; name: string; kind: "PDF" | "Office" | "Markdown" | "Image" }[];
+    attachments?: ChatAttachment[];
     agent?: boolean;
     agentId?: string;
     actor?: string;

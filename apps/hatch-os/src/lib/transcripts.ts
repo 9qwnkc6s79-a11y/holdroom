@@ -1,3 +1,4 @@
+import { forStorage } from "./images.ts";
 import type { ChatThread } from "./types.ts";
 
 export const TRANSCRIPT_KEY = "hatch-transcripts";
@@ -45,6 +46,7 @@ export function writeTranscripts(threads: ChatThread[]) {
     messages: (thread.messages || []).slice(-80).map((message) => ({
       ...message,
       text: message.text.slice(0, 8000),
+      attachments: message.attachments?.map(forStorage),
     })),
   }));
   try {
