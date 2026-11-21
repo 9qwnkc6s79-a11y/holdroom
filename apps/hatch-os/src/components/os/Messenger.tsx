@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
-import { IconArrowUp, IconChevronLeft, IconDots, IconFlag, IconPlus, IconX } from "@/components/os/Icons";
+import { IconPicker } from "@/components/os/IconPicker";
+import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconMic, IconPlus, IconScan, IconSettings, IconWave, IconX } from "@/components/os/Icons";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
@@ -730,7 +731,7 @@ export function Messenger() {
           <div className="pins">
             {agents.filter((item) => item.pinned).map((item) => (
               <button key={item.id} type="button" className="pin" onClick={() => router.push(`/chat?agent=${item.id}`)}>
-                <BlobAvatar color={item.color} size={72} badge={item.id === "general"} />
+                <BlobAvatar color={item.color} icon={item.icon} size={72} label={item.name} badge={item.id === "general"} />
                 <span>{item.name}</span>
               </button>
             ))}
@@ -767,7 +768,7 @@ export function Messenger() {
                       window.addEventListener("pointercancel", clear, { once: true });
                     }}
                   >
-                    <BlobAvatar color={item.color} size={52} />
+                    <BlobAvatar color={item.color} icon={item.icon} size={52} label={item.name} />
                     <span className="row-copy">
                       <span className="row-name">{item.name}</span>
                       <span className="row-preview">{preview.replace(/\s+/g, " ").slice(0, 80)}</span>
@@ -791,12 +792,12 @@ export function Messenger() {
               }}
             >
               {unreadCount} unread
-              <span aria-hidden="true">⌄</span>
+              <IconChevronDown size={14} />
             </button>
           ) : null}
           <form className="dock" onSubmit={(event) => event.preventDefault()}>
             <button type="button" className="round" aria-label="Apps" onClick={() => setApps((value) => !value)}>
-              <GridIcon />
+              <IconGrid />
             </button>
             <input
               value={query}
@@ -824,7 +825,7 @@ export function Messenger() {
                   <IconChevronLeft />
                 </button>
                 <button type="button" className="who" onClick={() => setInfoOpen(true)}>
-                  <BlobAvatar color={agent.color} size={28} />
+                  <BlobAvatar color={agent.color} icon={agent.icon} size={28} label={agent.name} />
                   <span>{agent.name}</span>
                 </button>
                 <button type="button" className="round" aria-label="Send feedback" onClick={() => window.dispatchEvent(new Event("hatch-feedback"))}>
@@ -858,7 +859,7 @@ export function Messenger() {
                         setHold(message.id);
                       }}
                     >
-                      {!mine ? <BlobAvatar color={agent.color} size={22} /> : null}
+                      {!mine ? <BlobAvatar color={agent.color} icon={agent.icon} size={22} label={agent.name} /> : null}
                       <div>
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
                         <div className={mine ? "bubble user" : "bubble agent"}>
@@ -891,10 +892,10 @@ export function Messenger() {
                             {message.approval.status === "pending" ? (
                               <div className="row-actions">
                                 <button type="button" onClick={() => void decide(message, "approved")}>Approve</button>
-                                <button type="button" className="ghost" onClick={() => void decide(message, "cancelled")}>Cancel</button>
+                                <button type="button" className="ghost" onClick={() => void decide(message, "cancelled")}>Deny</button>
                               </div>
                             ) : (
-                              <p>{message.approval.status === "approved" ? "Approved" : "Cancelled"}</p>
+                              <p>{message.approval.status === "approved" ? "Approved" : "Denied"}</p>
                             )}
                           </div>
                         ) : null}
@@ -959,7 +960,7 @@ export function Messenger() {
                     }}
                   />
                   <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
-                    <MicIcon />
+                    <IconMic />
                   </button>
                   {draft.trim() || chips.length ? (
                     <button type="submit" className="send" aria-label="Send">
@@ -967,17 +968,17 @@ export function Messenger() {
                     </button>
                   ) : (
                     <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
-                      <WaveIcon />
+                      <IconWave />
                     </button>
                   )}
                 </div>
               </form>
               {attachOpen ? (
                 <div className="popover attach" role="menu">
-                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><ImageIcon /></button>
-                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><CameraIcon /></button>
-                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><ScanIcon /></button>
-                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><FileIcon /></button>
+                  <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><IconImage /></button>
+                  <button type="button" onClick={() => cameraRef.current?.click()}><span>Take Photo</span><IconCamera /></button>
+                  <button type="button" onClick={() => scanRef.current?.click()}><span>Scan Document</span><IconScan /></button>
+                  <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><IconFile /></button>
                 </div>
               ) : null}
               <input ref={photoRef} hidden type="file" accept="image/*,video/*" onChange={(event) => void attach(event.target.files?.[0])} />
@@ -1067,11 +1068,11 @@ export function Messenger() {
       {voice && agent ? (
         <div className="voice-screen">
           <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice"><IconX /></button>
-          <BlobAvatar color={agent.color} size={120} />
+          <BlobAvatar color={agent.color} icon={agent.icon} size={120} label={agent.name} />
           <p>{agent.name}</p>
           <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
           <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
-            <WaveIcon />
+            <IconWave />
           </button>
           <p className="fine">{voiceHint || "Talk uses this browser’s speech recognition, then Hatch answers aloud. If that isn’t available here, use the keyboard mic."}</p>
         </div>
@@ -1152,9 +1153,9 @@ function InfoPane({ agent, onClose, onSettings }: { agent: HatchAgent; onClose: 
     <aside className="info" role="dialog" aria-label={`${agent.name} info`}>
       <header>
         <button type="button" className="round" onClick={onClose} aria-label="Close"><IconX /></button>
-        <button type="button" className="round" onClick={onSettings} aria-label="Agent settings">⚙</button>
+        <button type="button" className="round" onClick={onSettings} aria-label="Agent settings"><IconSettings /></button>
       </header>
-      <BlobAvatar color={agent.color} size={84} />
+      <BlobAvatar color={agent.color} icon={agent.icon} size={84} label={agent.name} />
       <h2>{agent.name}</h2>
       <p>{agent.description}</p>
       <h3>Routines</h3>
@@ -1196,20 +1197,18 @@ function AgentSettings({
   const [description, setDescription] = useState(agent.description);
   const [model, setModel] = useState(agent.model || FIRM_MODEL);
   const [notifications, setNotifications] = useState(agent.notifications);
-  const [color, setColor] = useState(agent.color);
+  const [color] = useState(agent.color);
+  const [icon, setIcon] = useState(agent.icon || "brackets");
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="Agent settings">
       <header>
         <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>Settings</strong>
-        <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color })}>Save</button>
+        <button type="button" onClick={() => void onSave({ ...agent, name, title, description, model, notifications, color, icon })}>Save</button>
       </header>
-      <BlobAvatar color={color} size={72} />
-      <div className="swatches">
-        {AGENT_COLORS.map((swatch) => (
-          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
-        ))}
-      </div>
+      <BlobAvatar color={color} icon={icon} size={72} label={name} />
+      <p className="set-label">Bot icon</p>
+      <IconPicker value={icon} onChange={setIcon} />
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Instructions<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
@@ -1233,26 +1232,24 @@ function NewAgent({
 }: {
   error?: string;
   onClose: () => void;
-  onCreate: (input: { name: string; description: string; color: string; model: string }) => Promise<void>;
+  onCreate: (input: { name: string; description: string; color: string; icon: string; model: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [model, setModel] = useState(FIRM_MODEL);
-  const [color, setColor] = useState<string>(AGENT_COLORS[0]);
+  const [color] = useState<string>(AGENT_COLORS[0]);
+  const [icon, setIcon] = useState("brackets");
   return (
     <div className="sheet settings-sheet" role="dialog" aria-label="New agent">
       <header>
         <button type="button" className="round" aria-label="Close" onClick={onClose}><IconX /></button>
         <strong>New agent</strong>
-        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, model })}>Create</button>
+        <button type="button" disabled={!name.trim()} onClick={() => void onCreate({ name, description, color, icon, model })}>Create</button>
       </header>
       {error ? <p className="os-error" role="alert">{error}</p> : null}
-      <BlobAvatar color={color} size={84} />
-      <div className="swatches">
-        {AGENT_COLORS.map((swatch) => (
-          <button key={swatch} type="button" className={swatch === color ? "is-on" : ""} style={{ background: swatch }} aria-label={swatch} onClick={() => setColor(swatch)} />
-        ))}
-      </div>
+      <BlobAvatar color={color} icon={icon} size={72} label={name || "Hatch"} />
+      <p className="set-label">Bot icon</p>
+      <IconPicker value={icon} onChange={setIcon} />
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Research" /></label>
       <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is for" /></label>
       <label>Model
@@ -1266,24 +1263,3 @@ function NewAgent({
   );
 }
 
-function GridIcon() {
-  return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="currentColor" d="M2 2h5v5H2V2zm9 0h5v5h-5V2zM2 11h5v5H2v-5zm9 0h5v5h-5v-5z" /></svg>;
-}
-function MicIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.7" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
-}
-function WaveIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
-}
-function ImageIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" /><circle cx="9" cy="10" r="1.4" fill="currentColor" /><path d="m7 16 3.5-3.5L14 16l2-2 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
-}
-function CameraIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7 9.5 5h5L16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="13" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>;
-}
-function ScanIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4H5a1 1 0 0 0-1 1v2M17 4h2a1 1 0 0 1 1 1v2M7 20H5a1 1 0 0 1-1-1v-2M17 20h2a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
-}
-function FileIcon() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.6" /><path d="M14 3v6h6" stroke="currentColor" strokeWidth="1.6" /></svg>;
-}

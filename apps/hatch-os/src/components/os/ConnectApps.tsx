@@ -195,7 +195,7 @@ export function ConnectApps({ scope }: { scope: string }) {
                 <strong>{item.name}</strong>
                 <span>{on ? on.label : item.blurb}</span>
               </span>
-              <span className="set-value">{on ? "Connected" : item.auth}</span>
+              {on ? <span className="status-live">Connected</span> : <span className="set-value">{item.auth}</span>}
             </button>
           );
         })}

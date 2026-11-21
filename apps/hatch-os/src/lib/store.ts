@@ -22,6 +22,7 @@ import type {
   ToolEvent,
 } from "./types.ts";
 import { scrubVaultSecrets } from "./vault.ts";
+import { iconForAgent } from "./bot-icons.ts";
 import { AGENTS, AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "./agents.ts";
 import { hatchDataDir } from "./data-dir.ts";
 
@@ -924,6 +925,7 @@ function normalizeAgent(raw: HatchAgent): HatchAgent {
     departmentId: raw.departmentId || base?.departmentId || raw.id,
     writeDepartmentId: raw.writeDepartmentId || base?.writeDepartmentId || raw.departmentId || raw.id,
     color: raw.color || base?.color || AGENT_COLORS[0],
+    icon: iconForAgent({ id: raw.id || base?.id, name: raw.name || base?.name, icon: raw.icon || base?.icon }),
     model: raw.model || base?.model || FIRM_MODEL,
     notifications: raw.notifications !== false,
     muted: Boolean(raw.muted),
@@ -1009,7 +1011,9 @@ export function saveRoutine(input: {
 }
 
 export function listStoredAgents(): HatchAgent[] {
-  return readState().agents || defaultAgents();
+  const agents = readState().agents;
+  if (!agents?.length) return defaultAgents();
+  return agents.map((agent) => normalizeAgent(agent));
 }
 
 export function resolveAgent(id?: string | null): HatchAgent {
@@ -1043,6 +1047,7 @@ export function saveStoredAgent(input: Partial<HatchAgent> & { name: string }): 
       departmentId: id,
       writeDepartmentId: id,
       color: input.color || AGENT_COLORS[state.agents.length % AGENT_COLORS.length],
+      icon: input.icon,
       model: input.model || FIRM_MODEL,
       notifications: input.notifications !== false,
       muted: Boolean(input.muted),

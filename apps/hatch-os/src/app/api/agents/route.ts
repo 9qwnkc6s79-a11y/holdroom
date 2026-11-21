@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     title?: string;
     description?: string;
     color?: string;
+    icon?: string;
     model?: string;
     notifications?: boolean;
     muted?: boolean;
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
       title: body.title,
       description: body.description,
       color: body.color,
+      icon: body.icon,
       model: body.model,
       notifications: body.notifications,
       muted: body.muted,

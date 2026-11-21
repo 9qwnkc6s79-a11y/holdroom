@@ -2,51 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Can’t reach Hatch</title>
-  <meta name="robots" content="noindex, nofollow" />
-  <meta name="theme-color" content="#0B3B32" />
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
-  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hatch is offline</title>
+  <meta name="theme-color" content="#09090B" />
   <style>
-    :root { color-scheme: light; }
-    * { box-sizing: border-box; }
     body {
       margin: 0;
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-      font-family: Inter, system-ui, -apple-system, sans-serif;
-      background: #F5F1E8;
-      color: #202A2E;
-      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px;
+      background: #09090B;
+      color: #FAFAFA;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     }
-    main { max-width: 28rem; }
-    .mark { margin: 0 0 18px; font-family: Georgia, serif; font-size: 36px; color: #0B3B32; letter-spacing: -0.03em; }
-    h1 { font-size: 28px; letter-spacing: -0.03em; line-height: 1.2; margin: 0 0 12px; font-weight: 560; color: #142B3A; }
-    p { color: #4d5a57; line-height: 1.55; margin: 0 0 24px; }
+    main { width: min(420px, 100%); }
+    .mark { margin: 0 0 18px; font-size: 28px; letter-spacing: -0.04em; font-weight: 600; }
+    h1 { font-size: 28px; letter-spacing: -0.03em; line-height: 1.2; margin: 0 0 12px; font-weight: 600; }
+    p { color: #A1A1AA; line-height: 1.55; margin: 0 0 24px; }
     a {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 10px 16px;
+      min-height: 44px;
+      padding: 0 18px;
       border-radius: 999px;
-      background: #0B3B32;
-      color: #F5F1E8;
-      font-weight: 600;
-      font-size: 14px;
+      background: #FAFAFA;
+      color: #09090B;
       text-decoration: none;
+      font-weight: 600;
     }
   </style>
 </head>
 <body>
   <main>
     <p class="mark">Hatch</p>
-    <h1>Can’t reach Hatch.</h1>
-    <p>Join the office network or the firm VPN, then retry. This phone does not keep a copy of the file room.</p>
-    <a href="/chat">Retry</a>
+    <h1>Hatch is offline on this device.</h1>
+    <p>Open the app again when this phone has a connection to your firm’s Hatch OS.</p>
+    <a href="/chat">Try again</a>
   </main>
 </body>
 </html>

@@ -11,13 +11,15 @@ export interface HatchAgent {
   /** Where drafts land. Enterprise is not a write target. */
   writeDepartmentId: string;
   color: string;
+  /** Bot icon id from the role library. Omitted records fall back by role. */
+  icon?: string;
   model: string;
   notifications: boolean;
   muted: boolean;
   pinned: boolean;
 }
 
-export const AGENT_COLORS = ["#0B3B32", "#244D7A", "#A77B3F", "#142B3A", "#3E6B5A", "#6E4E2E"] as const;
+export const AGENT_COLORS = ["#18181B", "#27272A", "#3F3F46", "#52525B", "#1F1F23", "#2A2A2E"] as const;
 
 export const FIRM_MODEL = "Firm model";
 
@@ -29,7 +31,8 @@ export const AGENTS: HatchAgent[] = [
     description: "Reads the firm file room and asks before anything is sent, changed, or deleted.",
     departmentId: ENTERPRISE,
     writeDepartmentId: HQ_OPS,
-    color: "#0B3B32",
+    color: "#18181B",
+    icon: "brackets",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -42,7 +45,8 @@ export const AGENTS: HatchAgent[] = [
     description: "Day-to-day running of the firm: vendors, checklists, and handoffs between desks.",
     departmentId: HQ_OPS,
     writeDepartmentId: HQ_OPS,
-    color: "#244D7A",
+    color: "#27272A",
+    icon: "layers",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -55,7 +59,8 @@ export const AGENTS: HatchAgent[] = [
     description: "Contracts and engagement notes. Keeps counsel’s file room separate from the rest of the firm.",
     departmentId: LEGAL,
     writeDepartmentId: LEGAL,
-    color: "#A77B3F",
+    color: "#3F3F46",
+    icon: "scale",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,
@@ -68,7 +73,8 @@ export const AGENTS: HatchAgent[] = [
     description: "Close, cash, and the figures partners ask about. Drafts stay in Finance until you approve them.",
     departmentId: FINANCE,
     writeDepartmentId: FINANCE,
-    color: "#142B3A",
+    color: "#52525B",
+    icon: "trending-up",
     model: FIRM_MODEL,
     notifications: true,
     muted: false,

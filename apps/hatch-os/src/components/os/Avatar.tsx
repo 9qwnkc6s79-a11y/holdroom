@@ -1,26 +1,160 @@
-/** Simple hatch-shaped mark. Not a copy of anyone else's mascot. */
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Briefcase,
+  Building2,
+  Calculator,
+  Calendar,
+  Camera,
+  ClipboardCheck,
+  Clock,
+  Code2,
+  Compass,
+  Cpu,
+  Crown,
+  Database,
+  FileCheck,
+  FlaskConical,
+  FolderKanban,
+  Gavel,
+  Globe,
+  Handshake,
+  Inbox,
+  KeyRound,
+  Landmark,
+  Layers,
+  Lock,
+  Mail,
+  Megaphone,
+  MessageSquare,
+  Package,
+  Palette,
+  PenTool,
+  Phone,
+  PieChart,
+  Radio,
+  Receipt,
+  Scale,
+  ScrollText,
+  Search,
+  Shield,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  Terminal,
+  TrendingUp,
+  Truck,
+  UserCheck,
+  Users,
+  Wallet,
+  Workflow,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { iconForAgent } from "@/lib/bot-icons";
+
+const ICONS: Record<string, LucideIcon> = {
+  briefcase: Briefcase,
+  compass: Compass,
+  target: Target,
+  crown: Crown,
+  shield: Shield,
+  sparkles: Sparkles,
+  "building-2": Building2,
+  layers: Layers,
+  "sliders-horizontal": SlidersHorizontal,
+  wrench: Wrench,
+  package: Package,
+  truck: Truck,
+  "clipboard-check": ClipboardCheck,
+  workflow: Workflow,
+  activity: Activity,
+  scale: Scale,
+  gavel: Gavel,
+  "shield-check": ShieldCheck,
+  "file-check": FileCheck,
+  lock: Lock,
+  "scroll-text": ScrollText,
+  landmark: Landmark,
+  "trending-up": TrendingUp,
+  calculator: Calculator,
+  receipt: Receipt,
+  "pie-chart": PieChart,
+  wallet: Wallet,
+  megaphone: Megaphone,
+  "pen-tool": PenTool,
+  palette: Palette,
+  globe: Globe,
+  radio: Radio,
+  camera: Camera,
+  handshake: Handshake,
+  users: Users,
+  phone: Phone,
+  mail: Mail,
+  calendar: Calendar,
+  "message-square": MessageSquare,
+  search: Search,
+  "book-open": BookOpen,
+  "bar-chart-3": BarChart3,
+  terminal: Terminal,
+  "code-2": Code2,
+  database: Database,
+  cpu: Cpu,
+  "flask-conical": FlaskConical,
+  "user-check": UserCheck,
+  "folder-kanban": FolderKanban,
+  inbox: Inbox,
+  "key-round": KeyRound,
+  clock: Clock,
+  bell: Bell,
+};
+
+function HatchMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 8H7v2M15 8h2v2M9 16H7v-2M15 16h2v-2" />
+    </svg>
+  );
+}
+
+export function AgentAvatar({
+  label,
+  icon,
+  size = 48,
+  live = false,
+}: {
+  label: string;
+  icon?: string | null;
+  size?: number;
+  live?: boolean;
+}) {
+  const id = iconForAgent({ name: label, icon });
+  const glyph = Math.max(14, Math.round(size * 0.46));
+  const Mark = id === "brackets" ? null : ICONS[id];
+  return (
+    <span className="blob agent-avatar" style={{ width: size, height: size }} aria-hidden="true">
+      {id === "brackets" || !Mark ? <HatchMark size={glyph} /> : <Mark size={glyph} strokeWidth={1.5} aria-hidden="true" />}
+      {live ? <span className="blob-badge" /> : null}
+    </span>
+  );
+}
+
 export function BlobAvatar({
-  color,
+  label,
+  icon,
   size = 48,
   badge,
 }: {
-  color: string;
+  color?: string;
   size?: number;
   badge?: boolean;
+  label?: string;
+  icon?: string | null;
 }) {
-  return (
-    <span className="blob" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
-        <path
-          fill={color}
-          d="M18 30c0-12 6-20 14-20s14 8 14 20v16c0 8-6 12-14 12s-14-4-14-12V30z"
-        />
-        <circle cx="26" cy="32" r="2.4" fill="#F5F1E8" />
-        <circle cx="38" cy="32" r="2.4" fill="#F5F1E8" />
-      </svg>
-      {badge ? <span className="blob-badge" /> : null}
-    </span>
-  );
+  return <AgentAvatar label={label || "Hatch"} icon={icon} size={size} live={Boolean(badge)} />;
 }
 
 export function InitialAvatar({ label, size = 36 }: { label: string; size?: number }) {
@@ -31,7 +165,7 @@ export function InitialAvatar({ label, size = 36 }: { label: string; size?: numb
     .slice(0, 2)
     .toUpperCase();
   return (
-    <span className="initials" style={{ width: size, height: size, fontSize: size * 0.36 }}>
+    <span className="initials" style={{ width: size, height: size, fontSize: Math.round(size * 0.34) }}>
       {letters || "H"}
     </span>
   );
