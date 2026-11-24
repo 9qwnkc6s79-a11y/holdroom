@@ -54,5 +54,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiBase: process.env.EXPO_PUBLIC_HATCH_API_BASE || "https://hatch-os-beta.vercel.app",
+    eas: {
+      projectId: "fc74686d-5f9e-4fb9-9511-d8b89c1fe68d",
+    },
   },
 });
