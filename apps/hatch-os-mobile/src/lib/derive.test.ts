@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { Agent, ChatThread } from "../api/types.ts";
+import { greeting, hostLine, normalizeInvite, tasksFromThreads } from "./derive.ts";
+
+const legal: Agent = {
+  id: "legal",
+  name: "Legal",
+  title: "Counsel",
+  description: "Contracts.",
+  departmentId: "legal",
+  writeDepartmentId: "legal",
+};
+
+test("greeting follows the local hour", () => {
+  assert.equal(greeting(8), "Good morning");
+  assert.equal(greeting(12), "Good afternoon");
+  assert.equal(greeting(17), "Good evening");
+});
+
+test("invite codes keep their dash and case is folded", () => {
+  assert.equal(normalizeInvite("  hatch-beta "), "HATCH-BETA");
+});
+
+test("urgent work sorts ahead of other threads", () => {
+  const threads: ChatThread[] = [
+    {
+      id: "later",
+      title: "Notes",
+      departmentId: "legal",
+      agentId: "legal",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      messages: [{ id: "m1", role: "assistant", text: "Ready when you are.", done: true }],
+    },
+    {
+      id: "now",
+      title: "Draft",
+      departmentId: "legal",
+      agentId: "legal",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      messages: [
+        {
+          id: "m2",
+          role: "assistant",
+          text: "This waits for you.",
+          done: true,
+          approval: {
+            id: "a1",
+            tool: "email_send",
+            title: "Send an email",
+            summary: "Nothing is sent until you approve.",
+            inputs: [],
+            status: "pending",
+          },
+        },
+      ],
+    },
+  ];
+  const tasks = tasksFromThreads(threads, [legal]);
+  assert.equal(tasks[0]?.id, "now");
+  assert.equal(tasks[0]?.urgent, true);
+  assert.match(tasks[0]?.meta || "", /Legal · Needs your approval/);
+  assert.equal(tasks[1]?.urgent, false);
+});
+
+test("host line does not surface a vendor name", () => {
+  assert.deepEqual(hostLine({ ok: true, label: "https://api.runpod.ai is ready", modelState: "ready" }), {
+    detail: "Your firm’s host is ready",
+    connected: true,
+  });
+  assert.equal(hostLine(null).connected, false);
+});
