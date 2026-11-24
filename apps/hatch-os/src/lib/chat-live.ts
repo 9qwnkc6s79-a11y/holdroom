@@ -1,6 +1,7 @@
 import { toolNeedsApproval } from "./action-cards.ts";
 import { wantsAgentTurn } from "./agent-intent.ts";
 import { connectorToolNeedsApproval, listConnectors, runConnectorTool } from "./connectors.ts";
+import { searchLibraryPassages } from "./library-passages.ts";
 import { compileEthics, loadEthics } from "./ethics.ts";
 import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
@@ -98,7 +99,10 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const agent = resolveAgent(input.agentId);
   const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
   const active = thread || createThread(workspaceId, query.slice(0, 42), agent.id);
-  const sources = retrieveFirm(query);
+  const sources = [
+    ...retrieveFirm(query),
+    ...(input.testerCode ? await searchLibraryPassages(input.testerCode, query) : []),
+  ];
   const reads = mentionedReads(query);
   const tools = reads.map((item) => item.event);
   const user = newChatMessage("user", query, {
