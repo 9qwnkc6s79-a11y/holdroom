@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import type { DraftFile } from "@/api/types";
 import { T, uiFont } from "@/components/chrome";
 import { IconArrowUp, IconCamera, IconFiles, IconMic, IconPhoto, IconPlus } from "@/components/icons";
+import { startListening, type SpeechSession } from "@/lib/speech";
 import { PressableScale } from "@/components/PressableScale";
 import { hapticLight, hapticMedium } from "@/lib/haptics";
 import { colors, type } from "@/theme/presenceTokens";
@@ -37,7 +38,23 @@ export function ChatComposer({
   sending?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [listening, setListening] = useState(false);
   const ready = value.trim().length > 0 || attachments.some((file) => !file.reading);
+
+  async function dictate() {
+    if (listening) return;
+    void hapticLight();
+    const session = await startListening({
+      onText: (text) => onChangeText(text),
+      onLevel: () => undefined,
+    });
+    if ("error" in session) return;
+    setListening(true);
+    const handle = session as SpeechSession;
+    setTimeout(() => {
+      void handle.stop().finally(() => setListening(false));
+    }, 8000);
+  }
 
   async function chooseLibrary() {
     setOpen(false);
@@ -88,7 +105,7 @@ export function ChatComposer({
           ))}
         </View>
       ) : null}
-      <View style={{ minHeight: 44, maxHeight: 132, borderRadius: 14, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <View style={{ minHeight: 48, maxHeight: 132, borderRadius: 24, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingLeft: 6, paddingRight: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Attach a file"
@@ -111,21 +128,39 @@ export function ChatComposer({
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={ready ? "Send" : "Voice"}
+          accessibilityLabel={listening ? "Listening" : "Dictate"}
           hitSlop={6}
-          disabled={sending}
-          onPress={() => {
-            if (ready) {
+          onPress={() => void dictate()}
+          style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: listening ? colors.blueButton : "transparent" }}
+        >
+          <IconMic size={18} color={listening ? colors.white : colors.blueSoft} />
+        </Pressable>
+        {ready ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            hitSlop={6}
+            disabled={sending}
+            onPress={() => {
               void hapticMedium();
               onSend();
-            } else {
-              void hapticLight();
-              onVoice();
-            }
+            }}
+            style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.fg }}
+          >
+            <IconArrowUp size={16} color={colors.bg} strokeWidth={2} />
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voice mode"
+          hitSlop={6}
+          onPress={() => {
+            void hapticLight();
+            onVoice();
           }}
-          style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: ready ? colors.fg : colors.micBg }}
+          style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.micBg }}
         >
-          {ready ? <IconArrowUp size={16} color={colors.bg} strokeWidth={2} /> : <IconMic size={18} color={colors.blueSoft} />}
+          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.blueSky }} />
         </Pressable>
       </View>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>

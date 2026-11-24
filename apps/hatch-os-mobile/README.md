@@ -10,7 +10,7 @@ npm install
 npx expo start
 ```
 
-Press `i` for the iOS simulator. `npx expo start --web` runs the same UI in a browser. The browser build needs CanvasKit for the live sphere:
+Press `i` for the iOS simulator. After sign-in the app opens on your bots. Profile is the initials button. Connect apps is the grid button. `npx expo start --web` runs the same UI in a browser. The browser build needs CanvasKit for the live sphere:
 
 ```bash
 mkdir -p public
@@ -49,7 +49,9 @@ npx eas build --platform ios --profile production
 npx eas submit --platform ios --profile production
 ```
 
-`preview` is an internal install. `development` is a dev client. `appVersionSource` is `local`. The iOS build number is `1` and the bundle id is `ai.hatchsystems.os`.
+`preview` is an internal install. `development` is a dev client. `appVersionSource` is `local`. The iOS build number is `2` and the bundle id is `ai.hatchsystems.os`.
+
+Gmail, Drive, Calendar, Outlook, and OneDrive connect through the host’s OAuth routes. The iPhone opens that page and returns to `hatchos://oauth`. The host needs `HATCH_GOOGLE_CLIENT_ID`, `HATCH_GOOGLE_CLIENT_SECRET`, `HATCH_MICROSOFT_CLIENT_ID`, `HATCH_MICROSOFT_CLIENT_SECRET`, and `HATCH_VAULT_KEY`. SharePoint, Dropbox, Box, and Teams stay on Coming soon until the host has them.
 
 `ITSAppUsesNonExemptEncryption` is false. The app uses HTTPS only.
 

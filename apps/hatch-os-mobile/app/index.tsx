@@ -17,7 +17,7 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (!ready) return;
-    const destination = session ? "/(tabs)/home" : "/sign-in";
+    const destination = session ? "/bots" : "/sign-in";
     if (systemReduced) {
       progress.value = 1;
       const timer = setTimeout(() => router.replace(destination), 400);

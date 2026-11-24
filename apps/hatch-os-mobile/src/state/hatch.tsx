@@ -416,6 +416,13 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   const startThread = useCallback(async (agentId: string) => {
     const agent = agentsRef.current.find((entry) => entry.id === agentId);
     if (!agent) return null;
+    if (demoMode()) {
+      const now = new Date().toISOString();
+      const thread = { id: `local-${Date.now()}`, title: "New thread", departmentId: agent.departmentId, agentId: agent.id, createdAt: now, updatedAt: now, messages: [] };
+      setThreads((prev) => [thread, ...prev]);
+      threadsRef.current = [thread, ...threadsRef.current];
+      return thread.id;
+    }
     const thread = await createThreadRequest({
       departmentId: agent.departmentId,
       agentId: agent.id,

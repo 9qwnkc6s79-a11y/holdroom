@@ -81,5 +81,21 @@ export function demoThreads(now = new Date().toISOString()): ChatThread[] {
         },
       ],
     },
+    {
+      id: "demo-general",
+      title: "Ready when you are",
+      departmentId: "enterprise",
+      agentId: "general",
+      createdAt: now,
+      updatedAt: now,
+      messages: [
+        {
+          id: "demo-general-assistant",
+          role: "assistant",
+          text: "I’m here when you want to start.",
+          done: true,
+        },
+      ],
+    },
   ];
 }

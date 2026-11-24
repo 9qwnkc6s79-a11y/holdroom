@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { DraftFile } from "@/api/types";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { BackButton, Screen, StatusLine, T } from "@/components/chrome";
+import { Screen, StatusLine, T } from "@/components/chrome";
 import { ChatComposer, type PickedFile } from "@/components/ChatComposer";
+import { IconBack, IconClose, IconDots } from "@/components/icons";
 import { MessageBubble } from "@/components/MessageBubble";
+import { PressableScale } from "@/components/PressableScale";
 import { ShapeAvatar, shapeFor } from "@/components/ShapeAvatar";
-import { agentLabel, oneParam } from "@/lib/derive";
+import { agentLabel, oneParam, threadUnread } from "@/lib/derive";
 import { hapticRigid, hapticSuccess } from "@/lib/haptics";
+import { markSeen } from "@/lib/seen";
 import { useHatch } from "@/state/hatch";
 import { useRequireSession } from "@/state/session";
 import { colors, type } from "@/theme/presenceTokens";
@@ -19,7 +22,7 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ agentId: string; thread?: string }>();
   const agentId = oneParam(params.agentId) || "";
   const threadId = oneParam(params.thread);
-  const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment } = useHatch();
+  const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread } = useHatch();
   const agent = agents.find((item) => item.id === agentId) || agents[0];
   const messages = messagesFor(agent?.id || agentId, threadId);
   const phase = phaseFor(agent?.id || agentId);
@@ -27,6 +30,13 @@ export default function ChatScreen() {
   const [files, setFiles] = useState<DraftFile[]>([]);
   const [actionError, setActionError] = useState("");
   const [deciding, setDeciding] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [seen, setSeen] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!threadId) return;
+    void markSeen(threadId).then(setSeen);
+  }, [threadId]);
+  const unreadOthers = threads.filter((thread) => thread.id !== threadId && threadUnread(thread, seen)).length;
   const status = useMemo(() => {
     const live = turns[agent?.id || ""];
     if (phase === "thinking" || phase === "listening" || phase === "speaking") {
@@ -38,6 +48,11 @@ export default function ChatScreen() {
     return { color: colors.blueSky, text: "Ready for you" };
   }, [agent?.id, messages, phase, turns]);
   const agentIndex = Math.max(0, agents.findIndex((item) => item.id === agent?.id));
+
+  async function startFresh(id: string) {
+    const created = await startThread(id);
+    router.replace(created ? `/chat/${id}?thread=${encodeURIComponent(created)}` : `/chat/${id}`);
+  }
 
   async function pick(file: PickedFile) {
     if (!agent) return;
@@ -73,17 +88,27 @@ export default function ChatScreen() {
   return (
     <Screen>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))} />
-          <ShapeAvatar name={agent ? agentLabel(agent) : "Assistant"} shape={shapeFor(agentIndex)} size={34} />
-          <View style={{ flex: 1, marginLeft: 4 }}>
-            <T style={[type.headerBrand, { color: colors.fg }]} numberOfLines={1} maxFontSizeMultiplier={1.25}>
+        <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/bots"))} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+            <IconBack size={18} color={colors.fg} />
+            {unreadOthers > 0 ? (
+              <View style={{ position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.blueButton, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+                <T style={{ color: colors.white, fontSize: 10, fontWeight: "700" }}>{unreadOthers}</T>
+              </View>
+            ) : null}
+          </PressableScale>
+          <View style={{ flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12 }}>
+            <ShapeAvatar name={agent ? agentLabel(agent) : "Assistant"} shape={shapeFor(agentIndex)} size={24} />
+            <T style={[type.headerBrand, { color: colors.fg, flexShrink: 1 }]} numberOfLines={1}>
               {agent ? agentLabel(agent) : "Assistant"}
             </T>
-            <View style={{ marginTop: 2 }}>
-              <StatusLine color={status.color} text={status.text} />
-            </View>
           </View>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Chat menu" onPress={() => setMenu(true)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+            <IconDots size={18} color={colors.fg} />
+          </PressableScale>
+        </View>
+        <View style={{ alignItems: "center", paddingBottom: 8 }}>
+          <StatusLine color={status.color} text={status.text} centered />
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
           {messages.length === 0 ? (
@@ -113,7 +138,7 @@ export default function ChatScreen() {
         <ChatComposer
           value={draft}
           onChangeText={setDraft}
-          placeholder={agent ? `Reply to ${agentLabel(agent)}...` : "Ask Hatch..."}
+          placeholder={agent ? `Ask ${agentLabel(agent)}` : "Ask Hatch"}
           attachments={files}
           onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
           onPick={(file) => void pick(file)}
@@ -125,6 +150,32 @@ export default function ChatScreen() {
           }}
         />
       </KeyboardAvoidingView>
+      <Modal visible={menu} transparent animationType="slide" onRequestClose={() => setMenu(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Pressable accessibilityLabel="Close chat menu" onPress={() => setMenu(false)} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
+          <View style={{ backgroundColor: "#131316", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 28 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingTop: 8 }}>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={() => setMenu(false)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+                <IconClose size={18} color={colors.fg} />
+              </PressableScale>
+              <T style={[type.headerBrand, { color: colors.fg, flex: 1, textAlign: "center" }]}>{agent ? agentLabel(agent) : "Chat"}</T>
+              <View style={{ width: 44 }} />
+            </View>
+            <MenuRow label="Bot settings" detail="Permissions and the firm host" onPress={() => { setMenu(false); router.push("/profile"); }} />
+            <MenuRow label="Files" detail="Connect a file source or attach one here" onPress={() => { setMenu(false); router.push("/plugins"); }} />
+            <MenuRow label="Fresh chat" detail="Starts a new thread. The host keeps this one." onPress={() => { setMenu(false); if (agent) void startFresh(agent.id); }} />
+          </View>
+        </View>
+      </Modal>
     </Screen>
+  );
+}
+
+function MenuRow({ label, detail, onPress }: { label: string; detail: string; onPress: () => void }) {
+  return (
+    <PressableScale accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+      <T style={[type.rowTitle, { color: colors.fg }]}>{label}</T>
+      <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>{detail}</T>
+    </PressableScale>
   );
 }

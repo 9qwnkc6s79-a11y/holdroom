@@ -78,11 +78,12 @@ export default function RootLayout() {
                       >
                         <Stack.Screen name="index" options={{ animation: "fade" }} />
                         <Stack.Screen name="sign-in" options={{ animation: "fade" }} />
-                        <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+                        <Stack.Screen name="(app)" options={{ animation: "fade" }} />
                         <Stack.Screen name="voice" options={{ presentation: "fullScreenModal", animation: "fade", animationDuration: 320 }} />
                         <Stack.Screen name="chat/[agentId]" />
-                        <Stack.Screen name="threads" />
-                        <Stack.Screen name="settings" />
+                        <Stack.Screen name="profile" options={{ animation: "slide_from_bottom" }} />
+                        <Stack.Screen name="plugins/index" options={{ animation: "slide_from_bottom" }} />
+                        <Stack.Screen name="plugins/[id]" />
                       </Stack>
                     </ThemeProvider>
                   </Boot>

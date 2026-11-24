@@ -81,7 +81,7 @@ export default function VoiceScreen() {
     Speech.stop();
     void hearing.current?.stop();
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)/home");
+    else router.replace("/bots");
   }
 
   async function toggleMute() {

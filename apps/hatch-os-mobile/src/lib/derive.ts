@@ -181,6 +181,20 @@ export function agentRows(
   });
 }
 
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "H";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export function threadUnread(thread: ChatThread, seen: ReadonlySet<string>): boolean {
+  if (seen.has(thread.id)) return false;
+  if ((thread.messages || []).some((message) => message.approval?.status === "pending")) return true;
+  const last = [...(thread.messages || [])].reverse().find((message) => message.text.trim());
+  return last?.role === "assistant";
+}
+
 export function oneParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;

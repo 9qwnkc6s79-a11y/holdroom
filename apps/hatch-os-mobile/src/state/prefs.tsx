@@ -7,18 +7,20 @@ const KEY = "hatch.prefs";
 interface Prefs {
   haptics: boolean;
   voice: boolean;
+  timeZoneAuto: boolean;
 }
 
 interface PrefsValue extends Prefs {
   ready: boolean;
   setHaptics: (value: boolean) => void;
   setVoice: (value: boolean) => void;
+  setTimeZoneAuto: (value: boolean) => void;
 }
 
 const PrefsContext = createContext<PrefsValue | null>(null);
 
 export function PrefsProvider({ children }: { children: ReactNode }) {
-  const [prefs, setPrefs] = useState<Prefs>({ haptics: true, voice: true });
+  const [prefs, setPrefs] = useState<Prefs>({ haptics: true, voice: true, timeZoneAuto: true });
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
           setPrefs({
             haptics: parsed.haptics !== false,
             voice: parsed.voice !== false,
+            timeZoneAuto: parsed.timeZoneAuto !== false,
           });
           setHapticsEnabled(parsed.haptics !== false);
         } catch {
@@ -56,6 +59,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       ready,
       setHaptics: (haptics) => persist({ ...prefs, haptics }),
       setVoice: (voice) => persist({ ...prefs, voice }),
+      setTimeZoneAuto: (timeZoneAuto) => persist({ ...prefs, timeZoneAuto }),
     }),
     [persist, prefs, ready],
   );

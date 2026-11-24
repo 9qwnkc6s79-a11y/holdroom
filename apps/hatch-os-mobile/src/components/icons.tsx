@@ -1,4 +1,4 @@
-import Svg, { Path } from "react-native-svg";
+import Svg, { Circle, Path } from "react-native-svg";
 
 interface IconProps {
   size?: number;
@@ -80,6 +80,20 @@ export function IconPhoto(props: IconProps) {
 
 export function IconCamera(props: IconProps) {
   return <Glyph {...props} d="M4 8 H8 L10 6 H14 L16 8 H20 A1 1 0 0 1 21 9 V18 A1 1 0 0 1 20 19 H4 A1 1 0 0 1 3 18 V9 A1 1 0 0 1 4 8 M12 16 a3 3 0 1 0 0 -6 a3 3 0 0 0 0 6" />;
+}
+
+export function IconGrid(props: IconProps) {
+  return <Glyph {...props} d="M4 4 H10 V10 H4 Z M14 4 H20 V10 H14 Z M4 14 H10 V20 H4 Z M14 14 H20 V20 H14 Z" />;
+}
+
+export function IconDots({ size = 16, color = "#8E8E98" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Circle cx="6" cy="12" r="1.6" />
+      <Circle cx="12" cy="12" r="1.6" />
+      <Circle cx="18" cy="12" r="1.6" />
+    </Svg>
+  );
 }
 
 export function roleIcon(id: string | undefined, props: IconProps) {

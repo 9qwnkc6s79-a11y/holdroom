@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/api/*.test.ts src/shader/*.test.ts src/demo/*.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/api/*.test.ts src/shader/*.test.ts src/demo/*.test.ts src/plugins/*.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.12",
@@ -28,6 +28,7 @@
     "expo-splash-screen": "~55.0.25",
     "expo-status-bar": "~55.0.6",
     "expo-system-ui": "~55.0.22",
+    "expo-web-browser": "~55.0.9",
     "hatch-speech": "file:./modules/hatch-speech",
     "react": "19.2.0",
     "react-dom": "19.2.0",

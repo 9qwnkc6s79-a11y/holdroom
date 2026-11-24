@@ -1,0 +1,60 @@
+import { apiJson } from "./client";
+
+export interface ConnectedAccount {
+  id: string;
+  kind: string;
+  label: string;
+  detail: string;
+  connectedAt?: string;
+}
+
+export interface OAuthSetup {
+  kind: string;
+  configured: boolean;
+  callbackUrl?: string;
+}
+
+export interface OAuthProbe {
+  configured?: boolean;
+  provider?: string;
+  callbackUrl?: string;
+  authorizeUrl?: string;
+  message?: string;
+  error?: string;
+}
+
+export function loadConnectors(scope: string): Promise<{ connected: ConnectedAccount[]; setup: OAuthSetup[] }> {
+  return apiJson("/api/connectors", { headers: { "x-hatch-tester": scope } });
+}
+
+export function probeOAuth(kind: string, scope: string): Promise<OAuthProbe> {
+  const path = `/api/connectors/${encodeURIComponent(kind)}/start?client=ios&probe=1&scope=${encodeURIComponent(scope)}`;
+  return apiJson(path, { headers: { "x-hatch-tester": scope } });
+}
+
+export function oauthReturnUrl(): string {
+  return "hatchos://oauth";
+}
+
+export function disconnectAccount(scope: string, id: string): Promise<{ ok?: boolean }> {
+  return apiJson(`/api/connectors?kind=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "x-hatch-tester": scope },
+  });
+}
+
+export function connectWithToken(scope: string, body: Record<string, string>): Promise<{ connector?: ConnectedAccount; error?: string }> {
+  return apiJson("/api/connectors", {
+    method: "POST",
+    headers: { "x-hatch-tester": scope },
+    body: JSON.stringify({ ...body, scope }),
+  });
+}
+
+export function syncProvider(scope: string, kind: "google" | "microsoft", departmentId: string): Promise<{ ok?: boolean; detail?: string; saved?: number; error?: string }> {
+  return apiJson("/api/connectors/sync", {
+    method: "POST",
+    headers: { "x-hatch-tester": scope },
+    body: JSON.stringify({ scope, kind, departmentId }),
+  });
+}

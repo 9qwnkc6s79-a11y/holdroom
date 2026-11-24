@@ -17,7 +17,7 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (session) router.replace("/(tabs)/home");
+    if (session) router.replace("/bots");
   }, [router, session]);
 
   async function submit() {
@@ -31,7 +31,7 @@ export default function SignInScreen() {
       return;
     }
     void hapticMedium();
-    router.replace("/(tabs)/home");
+    router.replace("/bots");
   }
 
   return (
