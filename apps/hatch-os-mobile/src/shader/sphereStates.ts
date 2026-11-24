@@ -18,12 +18,26 @@ export interface SphereParams {
   coreFocus: number;
   corePower: number;
   filamentGain: number;
+  /** Rim only. The body never uses this. Needs-approval mixes a little amber in. */
+  ring: [number, number, number];
 }
 
 export function hexRgb(hex: string): [number, number, number] {
   const value = Number.parseInt(hex.slice(1), 16);
   return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
 }
+
+function mixRgb(from: [number, number, number], to: [number, number, number], amount: number): [number, number, number] {
+  return [
+    from[0] + (to[0] - from[0]) * amount,
+    from[1] + (to[1] - from[1]) * amount,
+    from[2] + (to[2] - from[2]) * amount,
+  ];
+}
+
+/** One full rim pulse every 2.8s: sin(clock * freq) has period 2π/freq. */
+const APPROVAL_PULSE = (2 * Math.PI) / 2.8;
+const AMBER_RIM = 0.24;
 
 const TABLE: Record<SphereState, SphereParams> = {
   idle: {
@@ -42,6 +56,7 @@ const TABLE: Record<SphereState, SphereParams> = {
     coreFocus: 10.5,
     corePower: 0.44,
     filamentGain: 0.5,
+    ring: hexRgb("#84B6FF"),
   },
   listening: {
     core: hexRgb("#D2E5FF"),
@@ -59,6 +74,7 @@ const TABLE: Record<SphereState, SphereParams> = {
     coreFocus: 8.5,
     corePower: 0.56,
     filamentGain: 0.62,
+    ring: hexRgb("#9CC7FF"),
   },
   thinking: {
     core: hexRgb("#C7DEFF"),
@@ -76,6 +92,7 @@ const TABLE: Record<SphereState, SphereParams> = {
     coreFocus: 9.5,
     corePower: 0.48,
     filamentGain: 0.6,
+    ring: hexRgb("#8EC0FF"),
   },
   speaking: {
     core: hexRgb("#D2E5FF"),
@@ -93,23 +110,26 @@ const TABLE: Record<SphereState, SphereParams> = {
     coreFocus: 9,
     corePower: 0.52,
     filamentGain: 0.58,
+    ring: hexRgb("#9CC7FF"),
   },
+  // The body stays the idle periwinkle. Only the rim picks up a little amber.
   needsApproval: {
-    core: hexRgb("#FDE68A"),
-    hi: hexRgb("#EB9E1F"),
-    mid: hexRgb("#B8610B"),
-    deep: hexRgb("#6B3006"),
-    edge: hexRgb("#250F03"),
+    core: hexRgb("#BDD8FF"),
+    hi: hexRgb("#84B6FF"),
+    mid: hexRgb("#5584E6"),
+    deep: hexRgb("#3559B8"),
+    edge: hexRgb("#131E42"),
     speed: 0.22,
-    swirl: 1.1,
-    bloom: 0.3,
-    breathAmp: 0.015,
-    breathFreq: 1.8,
-    ringPulse: 0.3,
+    swirl: 1.05,
+    bloom: 0.26,
+    breathAmp: 0.012,
+    breathFreq: APPROVAL_PULSE,
+    ringPulse: 0.85,
     audio: 0,
-    coreFocus: 10,
+    coreFocus: 10.5,
     corePower: 0.44,
     filamentGain: 0.5,
+    ring: mixRgb(hexRgb("#84B6FF"), hexRgb("#F59E0B"), AMBER_RIM),
   },
 };
 
@@ -135,6 +155,7 @@ export function flattenSphere(params: SphereParams): number[] {
     params.coreFocus,
     params.corePower,
     params.filamentGain,
+    ...params.ring,
   ];
 }
 

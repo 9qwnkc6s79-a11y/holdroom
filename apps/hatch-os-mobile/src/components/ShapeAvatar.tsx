@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { View } from "react-native";
 import Svg, { Polygon, Text as SvgText } from "react-native-svg";
 import { T } from "@/components/chrome";
@@ -15,10 +16,12 @@ function initialOf(name: string): string {
   return letter || "H";
 }
 
-export function ShapeAvatar({ name, shape }: { name: string; shape: AvatarShape }) {
+export function ShapeAvatar({ name, shape, size = 44 }: { name: string; shape: AvatarShape; size?: number }) {
+  const scale = size / 44;
   const initial = initialOf(name);
+  let glyph: ReactNode;
   if (shape === "hexagon") {
-    return (
+    glyph = (
       <Svg width={44} height={44} viewBox="0 0 44 44">
         <Polygon points="22,2 40,12 40,32 22,42 4,32 4,12" fill={colors.avatarBg} stroke={colors.lineAvatar} strokeWidth={1} />
         <SvgText x={22} y={27} textAnchor="middle" fontSize={16} fontWeight="600" fill={colors.fgSecondary}>
@@ -26,9 +29,8 @@ export function ShapeAvatar({ name, shape }: { name: string; shape: AvatarShape 
         </SvgText>
       </Svg>
     );
-  }
-  if (shape === "diamond") {
-    return (
+  } else if (shape === "diamond") {
+    glyph = (
       <View style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
         <View
           style={{
@@ -47,22 +49,28 @@ export function ShapeAvatar({ name, shape }: { name: string; shape: AvatarShape 
         </View>
       </View>
     );
+  } else {
+    const radius = shape === "circle" ? 22 : shape === "rect" ? radii.inset : radii.squircle;
+    glyph = (
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: radius,
+          backgroundColor: colors.avatarBg,
+          borderWidth: 1,
+          borderColor: colors.lineAvatar,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <T style={{ fontSize: 16, fontWeight: "600", color: colors.fgSecondary }}>{initial}</T>
+      </View>
+    );
   }
-  const radius = shape === "circle" ? 22 : shape === "rect" ? radii.inset : radii.squircle;
   return (
-    <View
-      style={{
-        width: 44,
-        height: 44,
-        borderRadius: radius,
-        backgroundColor: colors.avatarBg,
-        borderWidth: 1,
-        borderColor: colors.lineAvatar,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <T style={{ fontSize: 16, fontWeight: "600", color: colors.fgSecondary }}>{initial}</T>
+    <View style={{ width: size, height: size }}>
+      <View style={{ position: "absolute", width: 44, height: 44, left: (size - 44) / 2, top: (size - 44) / 2, transform: [{ scale }] }}>{glyph}</View>
     </View>
   );
 }

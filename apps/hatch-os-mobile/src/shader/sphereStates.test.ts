@@ -25,7 +25,12 @@ test("sphere states match the Presence spec", () => {
 
   const approval = sphereParams("needsApproval");
   assert.equal(approval.speed, 0.22);
-  assert.equal(approval.ringPulse, 0.3);
-  assert.ok(Math.abs((approval.core[0] ?? 0) - 0xfd / 255) < 0.002);
-  assert.equal(flattenSphere(idle).length, 25);
+  assert.equal(approval.core[0], idle.core[0]);
+  assert.equal(approval.core[2], idle.core[2]);
+  assert.ok(Math.abs(approval.breathFreq - (2 * Math.PI) / 2.8) < 0.001);
+  const amber = 0xf5 / 255;
+  const sky = 0x84 / 255;
+  const mixed = sky + (amber - sky) * 0.24;
+  assert.ok(Math.abs((approval.ring[0] ?? 0) - mixed) < 0.02);
+  assert.equal(flattenSphere(idle).length, 28);
 });

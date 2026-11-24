@@ -15,6 +15,7 @@ uniform float3 uHi;
 uniform float3 uMid;
 uniform float3 uDeep;
 uniform float3 uEdge;
+uniform float3 uRing;
 uniform float  uSpeed;
 uniform float  uSwirl;
 uniform float  uBloom;
@@ -77,17 +78,17 @@ half4 main(float2 fragCoord) {
   float bloom2 = exp(-distOut * 4.8) * 0.11 * uBloom;
   float outerFade = smoothstep(0.49, r * 0.90, d);
 
-  float ringRadius = r * (1.13 + 0.025 * sin(clock * uBreathFreq));
+  float ringRadius = r * (1.02 + 0.01 * sin(clock * uBreathFreq));
   float ringD = abs(d - ringRadius);
-  float ringAlpha = exp(-ringD * 260.0) * uRingPulse * (0.42 + 0.28 * sin(clock * uBreathFreq));
+  float ringAlpha = exp(-ringD * 48.0) * uRingPulse * (0.82 + 0.18 * sin(clock * uBreathFreq));
   if (uReduced > 0.5 && uRingPulse > 0.25) {
-    ringAlpha = smoothstep(0.008, 0.0, abs(d - r * 1.14)) * 0.42;
+    ringAlpha = smoothstep(0.012, 0.0, abs(d - r * 1.03)) * 0.28;
   } else if (uReduced > 0.5) {
     ringAlpha = 0.0;
   }
 
   float3 bloomCol = mix(uDeep, uMid, 0.55) * bloom2 + mix(uMid, uHi, 0.25) * bloom1;
-  bloomCol += uHi * ringAlpha;
+  bloomCol += uRing * ringAlpha;
   float outAlpha = clamp((bloom1 + bloom2) * outerFade + ringAlpha, 0.0, 1.0);
 
   float sphereMask = 1.0 - smoothstep(r - 0.004, r + 0.004, d);

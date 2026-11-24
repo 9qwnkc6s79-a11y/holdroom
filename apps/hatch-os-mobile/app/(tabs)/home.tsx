@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { EmptyNote, Screen, StatusLine, T } from "@/components/chrome";
+import { EmptyNote, Screen, StatusLine, T, uiFont } from "@/components/chrome";
 import { HatchMark, IconLock, IconMic } from "@/components/icons";
 import { PresenceSphere } from "@/components/PresenceSphere";
 import { TaskCard } from "@/components/TaskCard";
@@ -12,13 +12,12 @@ import { colors, type } from "@/theme/presenceTokens";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { agents, threads, hostError, sphere, send } = useHatch();
+  const { agents, threads, hostError, sphere, turns, send } = useHatch();
   const [draft, setDraft] = useState("");
   const tasks = tasksFromThreads(threads, agents);
-  const pending = tasks.some((task) => task.urgent);
-  const thinking = sphere === "thinking" || sphere === "speaking" || sphere === "listening";
-  const status = thinking ? "Thinking" : pending ? "Needs your approval" : hostError ? "Your firm’s host is offline" : "Ready for you";
-  const dot = !thinking && pending ? colors.amber : colors.blueSky;
+  const live = Object.values(turns).find((turn) => turn.phase === "thinking" || turn.phase === "listening" || turn.phase === "speaking");
+  const status = live?.status || (hostError ? "Your firm’s host is offline" : "Ready for you");
+  const dot = colors.blueSky;
   const agent = agents[0];
 
   function openVoice() {
@@ -92,7 +91,7 @@ export default function HomeScreen() {
               placeholderTextColor={colors.fgSecondary}
               onSubmitEditing={ask}
               returnKeyType="send"
-              style={[type.inputText, { flex: 1, color: colors.fg, padding: 0 }]}
+              style={[uiFont, type.inputText, { flex: 1, color: colors.fg, padding: 0 }]}
               accessibilityLabel="Ask Hatch"
             />
             <Pressable

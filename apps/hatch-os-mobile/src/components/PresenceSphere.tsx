@@ -110,6 +110,7 @@ export function PresenceSphere({
       uMid: [at(6), at(7), at(8)],
       uDeep: [at(9), at(10), at(11)],
       uEdge: [at(12), at(13), at(14)],
+      uRing: [at(25), at(26), at(27)],
       uSpeed: 1,
       uSwirl: at(16),
       uBloom: at(17),
@@ -142,8 +143,8 @@ export function PresenceSphere({
             width: slot * 0.92,
             height: slot * 0.92,
             borderRadius: slot,
-            borderWidth: 2,
-            borderColor: "rgba(245, 158, 11, 0.42)",
+            borderWidth: 1.5,
+            borderColor: "rgba(245, 158, 11, 0.22)",
           }}
         />
       ) : null}

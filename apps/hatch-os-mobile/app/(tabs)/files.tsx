@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
-import { EmptyNote, Screen, SearchField, T } from "@/components/chrome";
+import { Screen, SearchField, T } from "@/components/chrome";
 import { workspaceName } from "@/lib/derive";
 import { useHatch } from "@/state/hatch";
 import { colors, type } from "@/theme/presenceTokens";
@@ -19,7 +19,13 @@ export default function FilesScreen() {
         <View style={{ gap: 8, marginTop: 12 }}>
           {hostError ? <T style={[type.cardSubcopy, { color: colors.muted }]}>{hostError}</T> : null}
           {rows.length === 0 ? (
-            <EmptyNote title="No files yet" body="Attach a file in a conversation and it will be saved here." />
+            <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 15 }}>
+              <T style={[type.rowTitle, { color: colors.fg }]}>No files yet</T>
+              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 4 }]}>
+                <T style={{ color: "#FAFAFA", fontWeight: "500" }}>Attach a file</T>
+                <T style={{ color: colors.muted }}> in a conversation and it will be saved here.</T>
+              </T>
+            </View>
           ) : (
             rows.map((file) => {
               const room = workspaceName(file.departmentId);

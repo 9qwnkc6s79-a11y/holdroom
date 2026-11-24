@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { BackButton, EmptyNote, Screen, SearchField, T, tabular } from "@/components/chrome";
+import { BackButton, EmptyNote, Screen, SearchField, T, tabular, uiFont } from "@/components/chrome";
 import { IconMic, IconPlus } from "@/components/icons";
-import { PresenceSphere } from "@/components/PresenceSphere";
 import { PressableScale } from "@/components/PressableScale";
-import { formatWhen, snippet } from "@/lib/derive";
+import { agentLabel, formatWhen, snippet } from "@/lib/derive";
 import { hapticLight, hapticSelection } from "@/lib/haptics";
 import { useHatch } from "@/state/hatch";
 import { useRequireSession } from "@/state/session";
@@ -72,7 +71,7 @@ export default function ThreadsScreen() {
               const pending = (thread.messages || []).some((message) => message.approval?.status === "pending");
               const assistant = agents.find((item) => item.id === thread.agentId);
               const last = [...(thread.messages || [])].reverse().find((message) => message.text.trim());
-              const meta = pending ? `${assistant?.name || "Assistant"} · Needs your approval` : `${assistant?.name || "Assistant"} · ${snippet(last?.text) || "Ready for you"}`;
+              const meta = pending ? `${assistant ? agentLabel(assistant) : "Assistant"} · Needs your approval` : `${assistant ? agentLabel(assistant) : "Assistant"} · ${snippet(last?.text) || "Ready for you"}`;
               return (
                 <PressableScale
                   key={thread.id}
@@ -110,14 +109,13 @@ export default function ThreadsScreen() {
         </View>
       </ScrollView>
       <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <PresenceSphere preset="threads" state="idle" />
         <TextInput
           value={draft}
           onChangeText={setDraft}
           placeholder="Start a new thread..."
           placeholderTextColor={colors.muted}
           onSubmitEditing={ask}
-          style={[type.inputText, { flex: 1, color: colors.fg, minHeight: 44 }]}
+          style={[uiFont, type.inputText, { flex: 1, color: colors.fg, minHeight: 44 }]}
           accessibilityLabel="Start a new thread"
         />
         <PressableScale

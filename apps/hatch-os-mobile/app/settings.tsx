@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Constants from "expo-constants";
 import { ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { BackButton, Screen, Switch, T, monoRegular } from "@/components/chrome";
@@ -92,10 +93,16 @@ export default function SettingsScreen() {
             <IconChevron size={16} color={colors.muted} />
           </PressableScale>
         </Group>
-        <T style={[monoRegular, { fontSize: 12, lineHeight: 16, color: colors.dim, textAlign: "center", marginTop: 28 }]}>Hatch OS · Presence v4</T>
+        <T style={[monoRegular, { fontSize: 12, lineHeight: 16, color: "#71717A", textAlign: "center", marginTop: 28 }]}>{appStamp()}</T>
       </ScrollView>
     </Screen>
   );
+}
+
+function appStamp(): string {
+  const version = (Constants.expoConfig?.version || "1.0.0").replace(/\.0$/, "");
+  const build = Constants.nativeBuildVersion || Constants.expoConfig?.ios?.buildNumber || "1";
+  return `Hatch OS ${version} (build ${build})`;
 }
 
 function Group({ label, children }: { label: string; children: ReactNode }) {

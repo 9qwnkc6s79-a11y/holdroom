@@ -24,6 +24,7 @@ Without that file, the sphere uses the still frame from the design. The iPhone b
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `EXPO_PUBLIC_HATCH_API_BASE` | `https://hatch-os-beta.vercel.app` | Firm host. Same routes the web app uses. |
+| `EXPO_PUBLIC_HATCH_DEMO` | unset | `1` shows the on-device seed in `src/demo/seed.ts` instead of the host. Production EAS profiles do not set it. |
 
 Copy `.env.example` to `.env` to override it. EAS profiles in `eas.json` set the same default.
 

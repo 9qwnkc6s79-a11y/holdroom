@@ -15,7 +15,9 @@ import {
   type LocalUpload,
 } from "@/api/client";
 import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, HatchFile, HostStatus } from "@/api/types";
-import { accessibleDepartments, acceptedFilename, explainFailure, kindFromFilename, presenceState, waitCopy } from "@/lib/derive";
+import { DEMO_AGENTS, demoThreads } from "@/demo/seed";
+import { demoMode } from "@/demo/mode";
+import { accessibleDepartments, acceptedFilename, activityLine, explainFailure, kindFromFilename, presenceState } from "@/lib/derive";
 import { hapticWarning } from "@/lib/haptics";
 import type { SphereState } from "@/shader/sphereStates";
 import { useSession } from "./session";
@@ -109,6 +111,14 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const current = sessionRef.current;
     if (!current) return;
+    if (demoMode()) {
+      setAgents(DEMO_AGENTS);
+      setThreads((existing) => (existing.length ? existing : demoThreads()));
+      setFiles([]);
+      setStatus({ ok: true, label: "Demo seed on this phone", modelState: "demo" });
+      setHostError("");
+      return;
+    }
     setRefreshing(true);
     try {
       const departments = Array.from(new Set([current.homeDepartment, ...current.departments].filter(Boolean)));
@@ -209,10 +219,10 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         agentId: item.agentId,
         threadId: item.threadId || current?.threadId,
         phase: "thinking",
-        status: "Thinking",
+        status: "Thinking…",
         messages: [
           ...(current?.messages || []),
-          { id: assistantId, role: "assistant", text: "Thinking", done: false },
+          { id: assistantId, role: "assistant", text: "Thinking…", done: false },
         ],
       }));
       const patchAssistant = (patch: Partial<ChatMessage>, phase: SphereState, status: string) => {
@@ -262,14 +272,14 @@ export function HatchProvider({ children }: { children: ReactNode }) {
       };
       const shouldContinue = () => generation.current === gen;
       try {
-        let payload = await postChat(body, (text) => patchAssistant({ text, done: false }, "thinking", "Thinking"));
+        let payload = await postChat(body, (text) => patchAssistant({ text, done: false }, "thinking", "Thinking…"));
         if (payload.phase === "wait" && payload.state && shouldContinue()) {
-          const note = waitCopy(payload.note);
-          patchAssistant({ text: note, done: false }, "thinking", "Thinking");
+          const note = activityLine(payload.note);
+          patchAssistant({ text: note, done: false }, "thinking", note);
           if (payload.threadId) writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));
           payload = await pollTurn(payload.state, (note) => {
-            const line = waitCopy(note);
-            patchAssistant({ text: line, done: false }, "thinking", "Thinking");
+            const line = activityLine(note);
+            patchAssistant({ text: line, done: false }, "thinking", line);
           }, shouldContinue);
         }
         if (!shouldContinue()) {
@@ -291,7 +301,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
             approval,
           },
           approval?.status === "pending" ? "needsApproval" : "idle",
-          approval?.status === "pending" ? "Needs your approval" : "Ready for you",
+          "Ready for you",
         );
         if (payload.threadId) {
           writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));
@@ -355,7 +365,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
           agentId: input.agentId,
           threadId: input.threadId || existing?.threadId,
           phase: existing?.phase || "thinking",
-          status: existing?.status || "Thinking",
+          status: existing?.status || "Thinking…",
           messages: [...base, user],
         }));
         const queue = queues.current[input.agentId] || [];

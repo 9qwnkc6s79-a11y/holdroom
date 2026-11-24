@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/api/*.test.ts src/shader/*.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/api/*.test.ts src/shader/*.test.ts src/demo/*.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.12",

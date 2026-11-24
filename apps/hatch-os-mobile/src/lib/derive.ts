@@ -12,6 +12,20 @@ const KNOWN_ROOMS: Record<string, string> = {
 
 const ENTERPRISE_ROOMS = ["hq-ops", "legal", "finance", "little-elm", "prosper"];
 
+/** The product agent named Hatch reads as a second Hatch inside the app. */
+export function agentLabel(agent: { id: string; name: string }): string {
+  if (agent.id === "general" || agent.name.trim().toLowerCase() === "hatch") return "General assistant";
+  return agent.name;
+}
+
+export function activityLine(note: string | undefined, tools?: { detail?: string }[]): string {
+  const detail = [...(tools || [])].reverse().find((tool) => tool.detail)?.detail || "";
+  if (/read/i.test(detail)) return "Reading the file room…";
+  if (detail) return /…$/.test(detail) ? detail : `${detail.replace(/\.$/, "")}…`;
+  const waited = waitCopy(note);
+  return waited === "Thinking" ? "Thinking…" : waited;
+}
+
 export function normalizeInvite(input: string): string {
   return input.trim().toUpperCase().replace(/\s+/g, "");
 }
@@ -113,11 +127,11 @@ function pendingMessage(messages: ChatMessage[]): ChatMessage | undefined {
 }
 
 export function tasksFromThreads(threads: ChatThread[], agents: Agent[]): TaskItem[] {
-  const names = new Map(agents.map((agent) => [agent.id, agent.name]));
   return threads
     .filter((thread) => !thread.archived)
     .map((thread) => {
-      const name = (thread.agentId && names.get(thread.agentId)) || "Assistant";
+      const named = thread.agentId ? agents.find((agent) => agent.id === thread.agentId) : undefined;
+      const name = named ? agentLabel(named) : "Assistant";
       const pending = pendingMessage(thread.messages || []);
       const last = [...(thread.messages || [])].reverse().find((message) => message.text.trim());
       return {

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Modal, Pressable, TextInput, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import type { DraftFile } from "@/api/types";
-import { T } from "@/components/chrome";
-import { IconArrowUp, IconMic, IconPlus } from "@/components/icons";
+import { T, uiFont } from "@/components/chrome";
+import { IconArrowUp, IconCamera, IconFiles, IconMic, IconPhoto, IconPlus } from "@/components/icons";
 import { PressableScale } from "@/components/PressableScale";
 import { hapticLight, hapticMedium } from "@/lib/haptics";
 import { colors, type } from "@/theme/presenceTokens";
@@ -38,13 +38,6 @@ export function ChatComposer({
 }) {
   const [open, setOpen] = useState(false);
   const ready = value.trim().length > 0 || attachments.some((file) => !file.reading);
-  const iconButton = {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-  };
 
   async function chooseLibrary() {
     setOpen(false);
@@ -95,16 +88,16 @@ export function ChatComposer({
           ))}
         </View>
       ) : null}
-      <View style={{ minHeight: 48, maxHeight: 132, borderRadius: 14, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingHorizontal: 7, flexDirection: "row", alignItems: "flex-end", gap: 6 }}>
+      <View style={{ minHeight: 44, maxHeight: 132, borderRadius: 14, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Attach a file"
-          hitSlop={8}
+          hitSlop={6}
           onPress={() => {
             void hapticLight();
             setOpen(true);
           }}
-          style={iconButton}
+          style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" }}
         >
           <IconPlus size={18} color={colors.muted} strokeWidth={1.8} />
         </Pressable>
@@ -114,12 +107,12 @@ export function ChatComposer({
           placeholder={placeholder}
           placeholderTextColor={colors.muted}
           multiline
-          style={[type.inputText, { flex: 1, color: colors.fg, paddingVertical: 12, maxHeight: 120 }]}
+          style={[uiFont, type.inputText, { flex: 1, color: colors.fg, paddingVertical: 8, maxHeight: 108, textAlignVertical: "center" }]}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={ready ? "Send" : "Voice"}
-          hitSlop={8}
+          hitSlop={6}
           disabled={sending}
           onPress={() => {
             if (ready) {
@@ -130,29 +123,36 @@ export function ChatComposer({
               onVoice();
             }
           }}
-          style={[iconButton, { backgroundColor: ready ? colors.fg : colors.micBg, marginBottom: 7 }]}
+          style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: ready ? colors.fg : colors.micBg }}
         >
           {ready ? <IconArrowUp size={16} color={colors.bg} strokeWidth={2} /> : <IconMic size={18} color={colors.blueSoft} />}
         </Pressable>
       </View>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }} onPress={() => setOpen(false)}>
-          <View style={{ backgroundColor: colors.surfaceInput, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderWidth: 1, borderColor: colors.lineCard, padding: 12, gap: 8 }}>
-            <SheetRow label="Photo library" onPress={() => void chooseLibrary()} />
-            <SheetRow label="Camera" onPress={() => void chooseCamera()} />
-            <SheetRow label="Files" onPress={() => void chooseFile()} />
-            <SheetRow label="Cancel" onPress={() => setOpen(false)} />
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Pressable accessibilityLabel="Close attachments" onPress={() => setOpen(false)} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
+          <View style={{ backgroundColor: "#131316", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 28 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#3F3F46", alignSelf: "center", marginTop: 10, marginBottom: 8 }} />
+            <SheetRow icon={<IconPhoto size={18} color="#A1A1AA" />} label="Photo library" onPress={() => void chooseLibrary()} />
+            <SheetRow icon={<IconCamera size={18} color="#A1A1AA" />} label="Take photo" onPress={() => void chooseCamera()} />
+            <SheetRow icon={<IconFiles size={18} color="#A1A1AA" />} label="Files" onPress={() => void chooseFile()} />
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
 }
 
-function SheetRow({ label, onPress }: { label: string; onPress: () => void }) {
+function SheetRow({ icon, label, onPress }: { icon: ReactNode; label: string; onPress: () => void }) {
   return (
-    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={{ minHeight: 50, borderRadius: 12, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
-      <T style={[type.rowTitle, { color: colors.fg }]}>{label}</T>
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={{ minHeight: 52, paddingHorizontal: 22, flexDirection: "row", alignItems: "center", gap: 14 }}
+    >
+      {icon}
+      <T style={[type.rowTitle, { color: colors.fg, fontWeight: "500" }]}>{label}</T>
     </PressableScale>
   );
 }

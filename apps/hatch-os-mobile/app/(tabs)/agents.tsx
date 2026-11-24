@@ -5,7 +5,7 @@ import { EmptyNote, Screen, SearchField, T, tabular } from "@/components/chrome"
 import { roleIcon } from "@/components/icons";
 import { PressableScale } from "@/components/PressableScale";
 import { ShapeAvatar, shapeFor } from "@/components/ShapeAvatar";
-import { agentRows, formatWhen } from "@/lib/derive";
+import { agentLabel, agentRows, formatWhen } from "@/lib/derive";
 import { hapticSelection } from "@/lib/haptics";
 import { useHatch } from "@/state/hatch";
 import { colors, type } from "@/theme/presenceTokens";
@@ -16,7 +16,7 @@ export default function AgentsScreen() {
   const [query, setQuery] = useState("");
   const phases = useMemo(() => Object.fromEntries(Object.entries(turns).map(([id, turn]) => [id, turn.phase])), [turns]);
   const rows = agentRows(agents, threads, phases).filter((row) => {
-    const hay = `${row.agent.name} ${row.preview}`.toLowerCase();
+    const hay = `${agentLabel(row.agent)} ${row.preview}`.toLowerCase();
     return hay.includes(query.trim().toLowerCase());
   });
 
@@ -34,7 +34,7 @@ export default function AgentsScreen() {
               <PressableScale
                 key={row.agent.id}
                 accessibilityRole="button"
-                accessibilityLabel={row.agent.name}
+                accessibilityLabel={agentLabel(row.agent)}
                 onPress={() => {
                   void hapticSelection();
                   const thread = row.threadId ? `?thread=${encodeURIComponent(row.threadId)}` : "";
@@ -55,13 +55,13 @@ export default function AgentsScreen() {
                 {row.status?.tone === "amber" ? (
                   <View style={{ position: "absolute", left: 0, top: 12, bottom: 12, width: 2.5, backgroundColor: colors.amber, borderTopRightRadius: 2, borderBottomRightRadius: 2 }} />
                 ) : null}
-                <ShapeAvatar name={row.agent.name} shape={shapeFor(row.index)} />
+                <ShapeAvatar name={agentLabel(row.agent)} shape={shapeFor(row.index)} />
                 <View style={{ flex: 1, gap: 3 }}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <T style={[type.rowTitle, { color: colors.fg }]} numberOfLines={1}>
-                      {row.agent.name}
+                      {agentLabel(row.agent)}
                     </T>
-                    <View style={{ marginLeft: 7 }}>{roleIcon(row.agent.icon, { size: 14, color: colors.muted })}</View>
+                    <View style={{ marginLeft: 6 }}>{roleIcon(row.agent.icon, { size: 13, color: colors.dim })}</View>
                     {row.when ? (
                       <T style={[type.timestamp, tabular, { color: colors.muted, marginLeft: "auto" }]}>{formatWhen(row.when)}</T>
                     ) : null}

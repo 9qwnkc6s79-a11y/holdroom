@@ -1,15 +1,19 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Platform, Pressable, Text, TextInput, View, type TextProps, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Switch as NativeSwitch, Text, TextInput, View, type TextProps, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, type } from "@/theme/presenceTokens";
 import { IconBack, IconSearch } from "./icons";
 import { PressableScale } from "./PressableScale";
 
-const webFamily = Platform.OS === "web" ? "system-ui, -apple-system, BlinkMacSystemFont, sans-serif" : undefined;
+/** iOS leaves fontFamily unset so the system font is SF Pro. Web falls through to Inter on this machine. */
+export const uiFont =
+  Platform.OS === "web"
+    ? { fontFamily: "-apple-system, 'SF Pro Text', system-ui, Inter, sans-serif" }
+    : null;
 
 export function T({ style, ...props }: TextProps) {
-  return <Text {...props} style={[webFamily ? { fontFamily: webFamily } : null, style]} />;
+  return <Text {...props} style={[uiFont, style]} />;
 }
 
 export const tabular: TextStyle = { fontVariant: ["tabular-nums"] };
@@ -82,7 +86,7 @@ export function SearchField({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
-        style={[webFamily ? { fontFamily: webFamily } : null, type.inputText, { flex: 1, color: colors.fg, padding: 0 }]}
+        style={[uiFont, type.inputText, { flex: 1, color: colors.fg, padding: 0 }]}
         autoCapitalize="none"
         autoCorrect={false}
         accessibilityLabel={placeholder}
@@ -100,29 +104,16 @@ export function Switch({
   onValueChange: (value: boolean) => void;
   label: string;
 }) {
-  const x = useSharedValue(value ? 18 : 0);
-  useEffect(() => {
-    x.value = withTiming(value ? 18 : 0, { duration: 180, easing: Easing.out(Easing.cubic) });
-  }, [value, x]);
-  const knob = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
-    <Pressable
-      accessibilityRole="switch"
+    <NativeSwitch
+      value={value}
+      onValueChange={onValueChange}
       accessibilityLabel={label}
-      accessibilityState={{ checked: value }}
-      onPress={() => onValueChange(!value)}
-      hitSlop={8}
-      style={{
-        width: 46,
-        height: 28,
-        borderRadius: 99,
-        backgroundColor: value ? colors.blueButton : colors.switchOff,
-        padding: 3,
-        justifyContent: "center",
-      }}
-    >
-      <Animated.View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.white }, knob]} />
-    </Pressable>
+      trackColor={{ false: "#272730", true: "#406AD6" }}
+      thumbColor="#FFFFFF"
+      ios_backgroundColor="#272730"
+      {...(Platform.OS === "web" ? { activeThumbColor: "#FFFFFF" } : {})}
+    />
   );
 }
 

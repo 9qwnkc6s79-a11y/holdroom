@@ -74,6 +74,14 @@ export function IconClose(props: IconProps) {
   return <Glyph {...props} d="M7 7 L17 17 M17 7 L7 17" />;
 }
 
+export function IconPhoto(props: IconProps) {
+  return <Glyph {...props} d="M5 6 H19 A2 2 0 0 1 21 8 V18 A2 2 0 0 1 19 20 H5 A2 2 0 0 1 3 18 V8 A2 2 0 0 1 5 6 M8 11 a1.4 1.4 0 1 0 0.01 0 M21 15 L16 11 L6 20" />;
+}
+
+export function IconCamera(props: IconProps) {
+  return <Glyph {...props} d="M4 8 H8 L10 6 H14 L16 8 H20 A1 1 0 0 1 21 9 V18 A1 1 0 0 1 20 19 H4 A1 1 0 0 1 3 18 V9 A1 1 0 0 1 4 8 M12 16 a3 3 0 1 0 0 -6 a3 3 0 0 0 0 6" />;
+}
+
 export function roleIcon(id: string | undefined, props: IconProps) {
   if (id === "scale") return <Glyph {...props} d="M12 4 V20 M7 20 H17 M12 7 L6.5 13 H4 M12 7 L17.5 13 H20 M6.5 13 a2.2 2.2 0 1 0 0 0.1 M17.5 13 a2.2 2.2 0 1 0 0 0.1" />;
   if (id === "layers") return <Glyph {...props} d="M12 4 L20 8 L12 12 L4 8 Z M4 12 L12 16 L20 12 M4 16 L12 20 L20 16" />;

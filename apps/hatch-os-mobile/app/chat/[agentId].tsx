@@ -6,13 +6,12 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { BackButton, Screen, StatusLine, T } from "@/components/chrome";
 import { ChatComposer, type PickedFile } from "@/components/ChatComposer";
 import { MessageBubble } from "@/components/MessageBubble";
-import { PresenceSphere } from "@/components/PresenceSphere";
-import { oneParam } from "@/lib/derive";
+import { ShapeAvatar, shapeFor } from "@/components/ShapeAvatar";
+import { agentLabel, oneParam } from "@/lib/derive";
 import { hapticRigid, hapticSuccess } from "@/lib/haptics";
 import { useHatch } from "@/state/hatch";
 import { useRequireSession } from "@/state/session";
 import { colors, type } from "@/theme/presenceTokens";
-import type { SphereState } from "@/shader/sphereStates";
 
 export default function ChatScreen() {
   useRequireSession();
@@ -29,13 +28,16 @@ export default function ChatScreen() {
   const [actionError, setActionError] = useState("");
   const [deciding, setDeciding] = useState(false);
   const status = useMemo(() => {
-    if (phase === "thinking") return { color: colors.blueSky, text: "Thinking" };
-    if (phase === "needsApproval" || messages.some((message) => message.approval?.status === "pending")) {
+    const live = turns[agent?.id || ""];
+    if (phase === "thinking" || phase === "listening" || phase === "speaking") {
+      return { color: colors.blueSky, text: live?.status || "Thinking…" };
+    }
+    if (messages.some((message) => message.approval?.status === "pending")) {
       return { color: colors.amber, text: "Needs your approval" };
     }
     return { color: colors.blueSky, text: "Ready for you" };
-  }, [messages, phase]);
-  const sphere: SphereState = status.text === "Needs your approval" ? "needsApproval" : phase === "thinking" ? "thinking" : "idle";
+  }, [agent?.id, messages, phase, turns]);
+  const agentIndex = Math.max(0, agents.findIndex((item) => item.id === agent?.id));
 
   async function pick(file: PickedFile) {
     if (!agent) return;
@@ -73,10 +75,10 @@ export default function ChatScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
           <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))} />
-          <PresenceSphere preset="chat" state={sphere} />
+          <ShapeAvatar name={agent ? agentLabel(agent) : "Assistant"} shape={shapeFor(agentIndex)} size={34} />
           <View style={{ flex: 1, marginLeft: 4 }}>
             <T style={[type.headerBrand, { color: colors.fg }]} numberOfLines={1} maxFontSizeMultiplier={1.25}>
-              {agent?.name || "Assistant"}
+              {agent ? agentLabel(agent) : "Assistant"}
             </T>
             <View style={{ marginTop: 2 }}>
               <StatusLine color={status.color} text={status.text} />
@@ -111,7 +113,7 @@ export default function ChatScreen() {
         <ChatComposer
           value={draft}
           onChangeText={setDraft}
-          placeholder={agent ? `Reply to ${agent.name}...` : "Ask Hatch..."}
+          placeholder={agent ? `Reply to ${agentLabel(agent)}...` : "Ask Hatch..."}
           attachments={files}
           onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
           onPick={(file) => void pick(file)}

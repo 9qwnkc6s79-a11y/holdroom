@@ -8,10 +8,12 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>Hatch OS</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
         <ScrollViewStyleReset />
         <style
           dangerouslySetInnerHTML={{
-            __html: "html, body, #root { background: #09090B; height: 100%; margin: 0; } body { overflow: hidden; }",
+            __html:
+              "html, body, #root { background: #09090B; height: 100%; margin: 0; font-family: -apple-system, 'SF Pro Text', system-ui, Inter, sans-serif; } body { overflow: hidden; }",
           }}
         />
       </head>

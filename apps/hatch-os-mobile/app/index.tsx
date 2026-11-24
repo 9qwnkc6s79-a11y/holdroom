@@ -7,7 +7,7 @@ import { PresenceSphere } from "@/components/PresenceSphere";
 import { Screen, T } from "@/components/chrome";
 import { useMotion } from "@/state/motion";
 import { useSession } from "@/state/session";
-import { colors, type } from "@/theme/presenceTokens";
+import { type } from "@/theme/presenceTokens";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -41,25 +41,27 @@ export default function SplashScreen() {
   });
   const word = useAnimatedStyle(() => {
     const value = progress.value;
-    const opacity = value < 0.7 ? 0 : (value - 0.7) / 0.3;
+    const opacity = value < 0.68 ? 0 : Math.min(1, (value - 0.68) / 0.16);
     return { opacity };
   });
 
   return (
     <Screen>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Animated.View style={[{ position: "absolute" }, mark]}>
-          <HatchMark size={72} />
-        </Animated.View>
-        <Animated.View style={[{ alignItems: "center" }, sphere]}>
-          <PresenceSphere preset="splash" state="idle" />
-        </Animated.View>
-        <Animated.View style={[{ position: "absolute", top: "58%", alignItems: "center", gap: 9 }, word]}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", transform: [{ translateY: -36 }] }}>
+        <View style={{ width: 176, height: 176, alignItems: "center", justifyContent: "center" }}>
+          <Animated.View style={[{ position: "absolute" }, mark]}>
+            <HatchMark size={72} />
+          </Animated.View>
+          <Animated.View style={sphere}>
+            <PresenceSphere preset="splash" state="idle" />
+          </Animated.View>
+        </View>
+        <Animated.View style={[{ alignItems: "center", marginTop: 18, gap: 8 }, word]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <HatchMark size={22} />
-            <T style={[type.splashMark, { color: colors.fg }]}>Hatch</T>
+            <T style={[type.splashMark, { color: "#FAFAFA" }]}>Hatch</T>
           </View>
-          <T style={[type.cardSubcopy, { color: colors.muted }]}>Your firm’s AI. On your firm’s knowledge.</T>
+          <T style={[type.cardSubcopy, { color: "#A1A1AA" }]}>Your firm’s AI. On your firm’s knowledge.</T>
         </Animated.View>
       </View>
     </Screen>
