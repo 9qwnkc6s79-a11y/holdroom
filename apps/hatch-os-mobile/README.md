@@ -49,7 +49,7 @@ npx eas build --platform ios --profile production
 npx eas submit --platform ios --profile production
 ```
 
-`preview` is an internal install. `development` is a dev client. `appVersionSource` is `local`. The iOS build number is `2` and the bundle id is `ai.hatchsystems.os`.
+`preview` is an internal install. `development` is a dev client. `appVersionSource` is `local`. The iOS build number is `3` and the bundle id is `ai.hatchsystems.os`.
 
 Gmail, Drive, Calendar, Outlook, and OneDrive connect through the host’s OAuth routes. The iPhone opens that page and returns to `hatchos://oauth`. The host needs `HATCH_GOOGLE_CLIENT_ID`, `HATCH_GOOGLE_CLIENT_SECRET`, `HATCH_MICROSOFT_CLIENT_ID`, `HATCH_MICROSOFT_CLIENT_SECRET`, and `HATCH_VAULT_KEY`. SharePoint, Dropbox, Box, and Teams stay on Coming soon until the host has them.
 

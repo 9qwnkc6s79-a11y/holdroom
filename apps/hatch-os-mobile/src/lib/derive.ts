@@ -61,7 +61,22 @@ export function kindFromFilename(name: string): FileKind {
 }
 
 export function acceptedFilename(name: string): boolean {
-  return /\.(pdf|docx?|xlsx?|md|txt|png|jpe?g|webp|gif)$/i.test(name);
+  return /\.(pdf|docx?|xlsx?|md|txt|png|jpe?g|webp|gif|heic|heif)$/i.test(name);
+}
+
+/** Photos are stored as JPEG so HEIC and large PNGs upload as a normal image. */
+export function jpegName(name: string): string {
+  const base = name.replace(/\.[^.]+$/, "") || "photo";
+  const clean = base.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "photo";
+  return `${clean}.jpg`;
+}
+
+/** Wait copy belongs on the status line. It is not the assistant's reply. */
+export function isWaitStatus(text: string): boolean {
+  const clean = text.trim();
+  if (!clean) return false;
+  if (/^thinking…?$/i.test(clean)) return true;
+  return /warming up your firm/i.test(clean);
 }
 
 export function explainFailure(message: string, status?: number): string {

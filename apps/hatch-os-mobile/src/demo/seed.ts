@@ -58,8 +58,9 @@ export function demoThreads(now = new Date().toISOString()): ChatThread[] {
         {
           id: "demo-user",
           role: "user",
-          text: "Please prepare the note and hold it for me.",
+          text: "Produce a dossier on this guy",
           done: true,
+          attachments: [{ fileId: "demo-photo", name: "IMG_2067.png", kind: "Image", previewUri: "/demo-photo.png" }],
         },
         {
           id: "demo-assistant",

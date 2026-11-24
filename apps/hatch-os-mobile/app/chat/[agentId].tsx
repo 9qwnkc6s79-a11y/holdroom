@@ -19,7 +19,7 @@ import { colors, type } from "@/theme/presenceTokens";
 export default function ChatScreen() {
   useRequireSession();
   const router = useRouter();
-  const params = useLocalSearchParams<{ agentId: string; thread?: string }>();
+  const params = useLocalSearchParams<{ agentId: string; thread?: string; preview?: string; attach?: string; dictate?: string }>();
   const agentId = oneParam(params.agentId) || "";
   const threadId = oneParam(params.thread);
   const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread } = useHatch();
@@ -27,7 +27,11 @@ export default function ChatScreen() {
   const messages = messagesFor(agent?.id || agentId, threadId);
   const phase = phaseFor(agent?.id || agentId);
   const [draft, setDraft] = useState("");
-  const [files, setFiles] = useState<DraftFile[]>([]);
+  const [files, setFiles] = useState<DraftFile[]>(() =>
+    oneParam(params.preview) === "1"
+      ? [{ id: "preview", name: "IMG_2067.png", uri: "/demo-photo.png", mimeType: "image/jpeg", kind: "Image", note: "On your firm’s host" }]
+      : [],
+  );
   const [actionError, setActionError] = useState("");
   const [deciding, setDeciding] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -56,15 +60,19 @@ export default function ChatScreen() {
 
   async function pick(file: PickedFile) {
     if (!agent) return;
-    const placeholder: DraftFile = { id: `pending-${Date.now()}`, name: file.name, uri: file.uri, mimeType: file.mimeType, kind: "Office", reading: true };
+    const id = `pending-${Date.now()}`;
+    const placeholder: DraftFile = { id, name: file.name, uri: file.uri, mimeType: file.mimeType, kind: "Image", reading: true, note: "Preparing…" };
     setFiles((current) => [...current, placeholder]);
-    const ready = await prepareAttachment(file, agent.writeDepartmentId);
-    setFiles((current) => current.map((item) => (item.id === placeholder.id ? ready : item)));
+    const ready = await prepareAttachment({ ...file, id }, agent.writeDepartmentId, (patch) => {
+      setFiles((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    });
+    setFiles((current) => current.map((item) => (item.id === id ? ready : item)));
   }
 
   function submit(text = draft) {
     if (!agent) return;
-    const attachments = files.filter((file) => !file.reading);
+    const attachments = files.filter((file) => !file.reading && !file.error);
+    if (files.some((file) => file.reading)) return;
     if (!text.trim() && attachments.length === 0) return;
     setDraft("");
     setFiles([]);
@@ -143,6 +151,8 @@ export default function ChatScreen() {
           onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
           onPick={(file) => void pick(file)}
           onSend={() => submit()}
+          sheetOpen={oneParam(params.attach) === "1"}
+          recordingPreview={oneParam(params.dictate) === "1"}
           onVoice={() => {
             if (!agent) return;
             const threadQuery = threadId ? `&thread=${encodeURIComponent(threadId)}` : "";

@@ -17,7 +17,8 @@ import {
 import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, HatchFile, HostStatus } from "@/api/types";
 import { DEMO_AGENTS, demoThreads } from "@/demo/seed";
 import { demoMode } from "@/demo/mode";
-import { accessibleDepartments, acceptedFilename, activityLine, explainFailure, kindFromFilename, presenceState } from "@/lib/derive";
+import { accessibleDepartments, acceptedFilename, activityLine, explainFailure, isWaitStatus, kindFromFilename, presenceState } from "@/lib/derive";
+import { isPhoto, keepImage, preparePhoto } from "@/lib/photos";
 import { hapticWarning } from "@/lib/haptics";
 import type { SphereState } from "@/shader/sphereStates";
 import { useSession } from "./session";
@@ -54,7 +55,7 @@ interface HatchValue {
   refresh: () => Promise<void>;
   send: (input: SendInput) => Promise<{ text: string; failed: boolean }>;
   decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled" }) => Promise<string | null>;
-  prepareAttachment: (file: LocalUpload, departmentId: string) => Promise<DraftFile>;
+  prepareAttachment: (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => Promise<DraftFile>;
   startThread: (agentId: string) => Promise<string | null>;
   messagesFor: (agentId: string, threadId?: string) => ChatMessage[];
   phaseFor: (agentId: string) => SphereState;
@@ -173,36 +174,74 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     seenApprovals.current = ids;
   }, [threads]);
 
-  const prepareAttachment = useCallback(async (file: LocalUpload, departmentId: string) => {
+  const prepareAttachment = useCallback(async (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => {
+    const id = file.id || `file-${Date.now()}`;
+    let current: LocalUpload = file;
     const draft: DraftFile = {
-      id: `file-${Date.now()}`,
+      id,
       name: file.name,
       kind: kindFromFilename(file.name),
       uri: file.uri,
       mimeType: file.mimeType,
-      reading: false,
+      reading: true,
+      note: "Preparing…",
     };
-    if (!acceptedFilename(file.name)) {
-      draft.note = "Could not read this file. Try a PDF, Office file, markdown, or an image.";
+    if (isPhoto(file.name, file.mimeType)) {
+      try {
+        current = await preparePhoto(file);
+        draft.name = current.name;
+        draft.uri = current.uri;
+        draft.mimeType = current.mimeType;
+        draft.kind = "Image";
+        draft.note = "Uploading…";
+        onUpdate?.({ name: draft.name, uri: draft.uri, mimeType: draft.mimeType, kind: "Image", note: "Uploading…" });
+      } catch (error) {
+        draft.reading = false;
+        draft.error = error instanceof Error ? error.message : "Could not prepare this photo.";
+        draft.note = draft.error;
+        return draft;
+      }
+    }
+    if (!acceptedFilename(draft.name)) {
+      draft.reading = false;
+      draft.error = "Could not read this file. Try a PDF, Office file, markdown, or a photo.";
+      draft.note = draft.error;
       return draft;
     }
+    draft.note = "Uploading…";
+    onUpdate?.({ note: "Uploading…" });
     try {
-      const extracted = await extractFile(file);
+      const extracted = await extractFile(current);
       draft.text = extracted.text;
-      draft.note = extracted.note;
+      draft.note = extracted.note || "Uploading…";
     } catch (error) {
       draft.note = error instanceof Error ? error.message : "Could not read this file. The model will only see the filename.";
     }
     try {
-      const saved = await ingestFile(file, {
+      const saved = await ingestFile(current, {
         departmentId,
         accessibleDepartments: accessibleDepartments(sessionRef.current, departmentId),
       });
-      if (saved.id) draft.fileId = saved.id;
-      else if (saved.error && !draft.note) draft.note = saved.error;
-    } catch {
-      if (!draft.note) draft.note = "The file stays on this message. It was not saved to your firm’s host.";
+      if (saved.id) {
+        draft.fileId = saved.id;
+        if (draft.kind === "Image") {
+          try {
+            draft.uri = await keepImage(saved.id, draft.uri);
+          } catch {
+            /* The preview still uses the uri from this session. */
+          }
+        }
+        draft.note = draft.text ? "On your firm’s host" : draft.note || "On your firm’s host";
+        draft.error = undefined;
+      } else {
+        draft.error = saved.error || "The upload did not reach your firm’s host.";
+        draft.note = draft.error;
+      }
+    } catch (error) {
+      draft.error = error instanceof Error ? error.message : "The upload did not reach your firm’s host.";
+      draft.note = draft.error;
     }
+    draft.reading = false;
     return draft;
   }, []);
 
@@ -220,10 +259,10 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         threadId: item.threadId || current?.threadId,
         phase: "thinking",
         status: "Thinking…",
-        messages: [
-          ...(current?.messages || []),
-          { id: assistantId, role: "assistant", text: "Thinking…", done: false },
-        ],
+          messages: [
+            ...(current?.messages || []),
+            { id: assistantId, role: "assistant", text: "", done: false },
+          ],
       }));
       const patchAssistant = (patch: Partial<ChatMessage>, phase: SphereState, status: string) => {
         writeTurn(item.agentId, (current) => {
@@ -245,13 +284,14 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         )
         .join("\n\n");
       const attachments: ChatAttachment[] = (item.attachments || [])
-        .filter((file) => file.fileId)
+        .filter((file) => file.fileId && !file.error)
         .map((file) => ({
           fileId: file.fileId || file.id,
           name: file.name,
           kind: file.kind,
           text: file.text,
           note: file.note,
+          previewUri: file.kind === "Image" ? file.uri : undefined,
         }));
       const threadId = item.threadId || turnsRef.current[item.agentId]?.threadId;
       const body: ChatRequest = {
@@ -272,14 +312,16 @@ export function HatchProvider({ children }: { children: ReactNode }) {
       };
       const shouldContinue = () => generation.current === gen;
       try {
-        let payload = await postChat(body, (text) => patchAssistant({ text, done: false }, "thinking", "Thinking…"));
+        let payload = await postChat(body, (text) => {
+          if (!isWaitStatus(text)) patchAssistant({ text, done: false }, "thinking", "Thinking…");
+        });
         if (payload.phase === "wait" && payload.state && shouldContinue()) {
           const note = activityLine(payload.note);
-          patchAssistant({ text: note, done: false }, "thinking", note);
+          patchAssistant({ done: false }, "thinking", note);
           if (payload.threadId) writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));
           payload = await pollTurn(payload.state, (note) => {
             const line = activityLine(note);
-            patchAssistant({ text: line, done: false }, "thinking", line);
+            patchAssistant(isWaitStatus(line) ? { done: false } : { text: line, done: false }, "thinking", line);
           }, shouldContinue);
         }
         if (!shouldContinue()) {
@@ -287,8 +329,9 @@ export function HatchProvider({ children }: { children: ReactNode }) {
           return;
         }
         const text = payload.text || "";
-        const failed = !text || Boolean(payload.error) || Boolean(payload.modelOffline);
-        const shown = text || (payload.modelOffline ? explainFailure("offline") : "The model returned an empty reply.");
+        const waiting = isWaitStatus(text);
+        const failed = (!text && !waiting) || Boolean(payload.error) || Boolean(payload.modelOffline);
+        const shown = waiting ? "" : text || (payload.modelOffline ? explainFailure("offline") : "The model returned an empty reply.");
         const approval = payload.approval;
         patchAssistant(
           {
@@ -355,9 +398,14 @@ export function HatchProvider({ children }: { children: ReactNode }) {
           role: "user",
           text: text || files.map((file) => file.name).join(", "),
           done: true,
-          attachments: files
-            .filter((file) => file.fileId)
-            .map((file) => ({ fileId: file.fileId || file.id, name: file.name, kind: file.kind, text: file.text, note: file.note })),
+          attachments: files.map((file) => ({
+            fileId: file.fileId || file.id,
+            name: file.name,
+            kind: file.kind,
+            text: file.text,
+            note: file.note,
+            previewUri: file.kind === "Image" ? file.uri : undefined,
+          })),
         };
         const existing = turnsRef.current[input.agentId];
         const base = existing?.messages || latestThread(threadsRef.current, input.agentId, input.threadId)?.messages || [];

@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
-import type { ChatMessage, ToolEvent } from "@/api/types";
+import { useEffect, useState } from "react";
+import { Image, Modal, Pressable, View } from "react-native";
+import type { ChatAttachment, ChatMessage, ToolEvent } from "@/api/types";
 import { T } from "@/components/chrome";
+import { isWaitStatus } from "@/lib/derive";
+import { remoteImageUrl, savedImageUri } from "@/lib/photos";
 import { colors, type } from "@/theme/presenceTokens";
 
 function toolTitle(tool: ToolEvent): string {
@@ -34,12 +36,48 @@ function ToolCard({ tool }: { tool: ToolEvent }) {
   );
 }
 
+function usePicture(file: ChatAttachment): string {
+  const remote = file.fileId && !file.fileId.startsWith("pending") && !file.fileId.startsWith("file-") && !file.fileId.startsWith("local") ? remoteImageUrl(file.fileId) : "";
+  const [saved, setSaved] = useState("");
+  useEffect(() => {
+    if (!file.fileId) return;
+    void savedImageUri(file.fileId).then((uri) => setSaved(uri || ""));
+  }, [file.fileId]);
+  return file.previewUri || saved || remote;
+}
+
+function Picture({ file }: { file: ChatAttachment }) {
+  const uri = usePicture(file);
+  const [open, setOpen] = useState(false);
+  if (file.kind !== "Image" || !uri) {
+    return <T style={[type.metaLabel, { color: colors.muted }]}>{file.name}</T>;
+  }
+  return (
+    <>
+      <Pressable accessibilityRole="image" accessibilityLabel={file.name} onPress={() => setOpen(true)}>
+        <Image source={{ uri }} style={{ width: 180, height: 180, borderRadius: 14, backgroundColor: colors.surface }} resizeMode="cover" />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable accessibilityLabel="Close photo" onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}>
+          <Image source={{ uri }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
 export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
   const user = message.role === "user";
+  const text = isWaitStatus(message.text) ? "" : message.text;
+  const images = (message.attachments || []).filter((file) => file.kind === "Image");
+  const others = (message.attachments || []).filter((file) => file.kind !== "Image");
   return (
     <View style={{ gap: 8, alignItems: user ? "flex-end" : "flex-start" }}>
       {message.tools?.map((tool, index) => (tool.detail ? <ToolCard key={`${tool.name}-${index}`} tool={tool} /> : null))}
-      {message.text ? (
+      {images.map((file) => (
+        <Picture key={file.fileId || file.name} file={file} />
+      ))}
+      {text ? (
         <View
           style={{
             alignSelf: user ? "flex-end" : "flex-start",
@@ -52,13 +90,13 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
             paddingHorizontal: 14,
           }}
         >
-          <T style={[type.body, { color: user ? colors.white : colors.fg }]}>{message.text}</T>
-          {message.attachments?.length ? (
-            <T style={[type.metaLabel, { color: colors.muted, marginTop: 6 }]}>
-              Attached · {message.attachments.map((file) => file.name).join(", ")}
-            </T>
+          <T style={[type.body, { color: user ? colors.white : colors.fg }]}>{text}</T>
+          {others.length ? (
+            <T style={[type.metaLabel, { color: user ? colors.blueCore : colors.muted, marginTop: 6 }]}>{others.map((file) => file.name).join(", ")}</T>
           ) : null}
         </View>
+      ) : others.length ? (
+        <T style={[type.metaLabel, { color: colors.muted }]}>{others.map((file) => file.name).join(", ")}</T>
       ) : null}
       {message.failed && onRetry ? (
         <T onPress={onRetry} accessibilityRole="button" style={[type.metaLabel, { color: colors.fgSecondary, paddingHorizontal: 4 }]}>

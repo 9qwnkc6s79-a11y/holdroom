@@ -49,6 +49,8 @@ export interface ChatAttachment {
   kind: FileKind;
   text?: string;
   note?: string;
+  /** Local preview. The host copy is /api/files/:id/raw after upload. */
+  previewUri?: string;
 }
 
 export interface ChatMessage {
@@ -122,6 +124,7 @@ export interface DraftFile {
   note?: string;
   fileId?: string;
   reading?: boolean;
+  error?: string;
 }
 
 export interface PairResponse {

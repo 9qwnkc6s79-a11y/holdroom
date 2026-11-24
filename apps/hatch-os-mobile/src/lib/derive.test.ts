@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Agent, ChatThread } from "../api/types.ts";
-import { greeting, hostLine, normalizeInvite, tasksFromThreads } from "./derive.ts";
+import { greeting, hostLine, isWaitStatus, jpegName, normalizeInvite, tasksFromThreads } from "./derive.ts";
 
 const legal: Agent = {
   id: "legal",
@@ -16,6 +16,14 @@ test("greeting follows the local hour", () => {
   assert.equal(greeting(8), "Good morning");
   assert.equal(greeting(12), "Good afternoon");
   assert.equal(greeting(17), "Good evening");
+});
+
+test("photos are renamed to jpeg and warmup copy is not a reply", () => {
+  assert.equal(jpegName("IMG_2067.HEIC"), "IMG_2067.jpg");
+  assert.equal(jpegName("scan.png"), "scan.jpg");
+  assert.equal(isWaitStatus("Warming up your firm’s host. The first reply can take a few minutes."), true);
+  assert.equal(isWaitStatus("Thinking…"), true);
+  assert.equal(isWaitStatus("The dossier is ready."), false);
 });
 
 test("invite codes keep their dash and case is folded", () => {
