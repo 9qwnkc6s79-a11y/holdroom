@@ -40,7 +40,7 @@ Voice uses on-device speech recognition on iPhone. If that returns no words, the
 
 ## TestFlight
 
-Do not commit a real App Store Connect id. `eas.json` → `submit.production.ios.ascAppId` is `REPLACE_WITH_APP_STORE_CONNECT_APP_ID`. Replace it after the app record exists. The first `eas build` also links an EAS project id for the `djkeene` account. This repo does not invent one.
+`eas.json` → `submit.production.ios.ascAppId` is `6838890464` (App Store Connect app Hatch OS, SKU `hatch-os-ios`, Apple Team `L7S46ZMK8Y`). The first `eas build` links an EAS project id for the `djkeene` account. This repo does not invent one. Production profiles leave `EXPO_PUBLIC_HATCH_DEMO` unset. A non-interactive build needs `EXPO_TOKEN` for the `djkeene` Expo account, plus an App Store Connect API key (`EXPO_ASC_API_KEY_PATH`, `EXPO_ASC_KEY_ID`, `EXPO_ASC_ISSUER_ID`, `EXPO_APPLE_TEAM_ID`, `EXPO_APPLE_TEAM_TYPE`). Those are not in this repo.
 
 ```bash
 cd apps/hatch-os-mobile
