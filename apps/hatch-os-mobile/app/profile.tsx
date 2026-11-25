@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import { privacyUrl, termsUrl } from "@/api/config";
 import { useRouter } from "expo-router";
 import { getTokenBalance } from "@/api/client";
 import type { TokenBalanceView } from "@/api/types";
@@ -41,10 +43,13 @@ function formatUsd(cents: number): string {
 export default function ProfileScreen() {
   useRequireSession();
   const router = useRouter();
-  const { session, signOut } = useSession();
+  const { session, signOut, deleteAccount } = useSession();
   const { status } = useHatch();
   const { timeZoneAuto, setTimeZoneAuto } = usePrefs();
   const [tokens, setTokens] = useState<TokenBalanceView | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const host = hostLine(status);
   const name = session?.testerLabel || session?.deviceName || "You";
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Not set";
@@ -55,9 +60,32 @@ export default function ProfileScreen() {
     void getTokenBalance().then(setTokens);
   }, [session]);
 
+  async function openLegal(url: string) {
+    if (Platform.OS === "web") {
+      await Linking.openURL(url);
+      return;
+    }
+    await WebBrowser.openBrowserAsync(url);
+  }
+
   async function leave() {
     await signOut();
     router.replace("/sign-in");
+  }
+
+  async function confirmRemoveAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteAccount();
+      setConfirmDelete(false);
+      router.replace("/sign-in");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete account data.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const usageSubtitle = tokens
@@ -109,10 +137,38 @@ export default function ProfileScreen() {
           <Row title="Firm host" subtitle={`${firm} · ${host.detail}. Work stays off OpenAI and Anthropic.`} />
           <Row title="Manage your devices" subtitle={session?.deviceName || "This iPhone"} last />
         </Card>
+        <T style={[type.metaLabel, { color: colors.dim, marginBottom: 8, marginLeft: 4 }]}>Legal</T>
+        <Card>
+          <Row title="Privacy Policy" subtitle="hatchsystems.ai/privacy" onPress={() => void openLegal(privacyUrl())} trailing={<IconChevron size={16} color={colors.dim} />} />
+          <Row title="Terms of Service" subtitle="hatchsystems.ai/terms" last onPress={() => void openLegal(termsUrl())} trailing={<IconChevron size={16} color={colors.dim} />} />
+        </Card>
         <PressableScale accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void leave()} style={{ minHeight: 52, alignItems: "center", justifyContent: "center" }}>
           <T style={[type.rowTitle, { color: colors.fg }]}>Sign out</T>
         </PressableScale>
+        <PressableScale accessibilityRole="button" accessibilityLabel="Delete account and data" onPress={() => { setDeleteError(""); setConfirmDelete(true); }} style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+          <T style={[type.cardSubcopy, { color: colors.amberSoft }]}>Delete account &amp; data</T>
+        </PressableScale>
       </ScrollView>
+      <Modal visible={confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", paddingHorizontal: 24 }}>
+          <Pressable accessibilityLabel="Cancel account deletion" onPress={() => !deleting && setConfirmDelete(false)} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }} />
+          <View style={{ backgroundColor: "#18181B", borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: 20, gap: 12 }}>
+            <T style={[type.headerBrand, { color: colors.fg }]}>Delete account &amp; data?</T>
+            <T style={[type.cardSubcopy, { color: colors.muted }]}>
+              This removes your saved threads, uploaded files, connected app tokens, and Model &amp; Ethics settings from your firm’s host.
+            </T>
+            {deleteError ? <T style={[type.cardSubcopy, { color: colors.amberSoft }]}>{deleteError}</T> : null}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Cancel delete" disabled={deleting} onPress={() => setConfirmDelete(false)} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+                <T style={[type.ctaLabel, { color: colors.fg }]}>Cancel</T>
+              </PressableScale>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Confirm delete account" disabled={deleting} onPress={() => void confirmRemoveAccount()} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: "#B91C1C", alignItems: "center", justifyContent: "center", opacity: deleting ? 0.6 : 1 }}>
+                <T style={[type.ctaLabel, { color: colors.white }]}>{deleting ? "Deleting…" : "Delete"}</T>
+              </PressableScale>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }

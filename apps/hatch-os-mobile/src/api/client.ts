@@ -332,6 +332,10 @@ export function signOutServer(): Promise<{ ok?: boolean }> {
   return apiJson<{ ok?: boolean }>("/api/auth/pair", { method: "DELETE" });
 }
 
+export function deleteAccountServer(): Promise<{ ok?: boolean; deleted?: boolean }> {
+  return apiJson<{ ok?: boolean; deleted?: boolean }>("/api/auth/account", { method: "DELETE" });
+}
+
 export function listLibrary(query = ""): Promise<{ files: HatchFile[]; passages: LibraryPassage[] }> {
   return apiJson<{ files?: HatchFile[]; passages?: LibraryPassage[] }>(
     `/api/library?department=enterprise&q=${encodeURIComponent(query)}`,

@@ -14,3 +14,19 @@ export function apiUrl(path: string): string {
   const base = apiBase();
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+const DEFAULT_PRIVACY_URL = "https://hatchsystems.ai/privacy";
+const DEFAULT_TERMS_URL = "https://hatchsystems.ai/terms";
+
+export function resolveLegalUrl(value: string | undefined, fallback: string): string {
+  const clean = (value || "").trim();
+  return /^https?:\/\//i.test(clean) ? clean : fallback;
+}
+
+export function privacyUrl(): string {
+  return resolveLegalUrl(process.env.EXPO_PUBLIC_PRIVACY_URL, DEFAULT_PRIVACY_URL);
+}
+
+export function termsUrl(): string {
+  return resolveLegalUrl(process.env.EXPO_PUBLIC_TERMS_URL, DEFAULT_TERMS_URL);
+}

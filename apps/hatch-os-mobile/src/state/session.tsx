@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "expo-router";
-import { pair as pairRequest, setAuthToken, setUnauthorizedHandler, signOutServer } from "@/api/client";
+import { deleteAccountServer, pair as pairRequest, setAuthToken, setUnauthorizedHandler, signOutServer } from "@/api/client";
 import type { Session } from "@/api/types";
 import { normalizeInvite } from "@/lib/derive";
 import { kvDelete, kvGet, kvSet } from "@/lib/kv";
@@ -12,6 +12,7 @@ interface SessionValue {
   session: Session | null;
   signIn: (invite: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -98,6 +99,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    await deleteAccountServer();
+    setAuthToken("");
+    await kvDelete(KEY);
+    await kvDelete("hatch.prefs.v1").catch(() => undefined);
+    await kvDelete("hatch.seen.v1").catch(() => undefined);
+    setSession(null);
+  }, []);
+
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setAuthToken("");
@@ -107,7 +117,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  const value = useMemo(() => ({ ready, session, signIn, signOut }), [ready, session, signIn, signOut]);
+  const value = useMemo(() => ({ ready, session, signIn, signOut, deleteAccount }), [ready, session, signIn, signOut, deleteAccount]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

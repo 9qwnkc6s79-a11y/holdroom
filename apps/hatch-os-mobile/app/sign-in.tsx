@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { TextInput, View } from "react-native";
+import { Linking, Platform, TextInput, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import { privacyUrl, termsUrl } from "@/api/config";
 import { useRouter } from "expo-router";
 import { HatchMark } from "@/components/icons";
 import { PresenceSphere } from "@/components/PresenceSphere";
@@ -19,6 +21,14 @@ export default function SignInScreen() {
   useEffect(() => {
     if (session) router.replace("/bots");
   }, [router, session]);
+
+  async function openLegal(url: string) {
+    if (Platform.OS === "web") {
+      await Linking.openURL(url);
+      return;
+    }
+    await WebBrowser.openBrowserAsync(url);
+  }
 
   async function submit() {
     if (busy) return;
@@ -97,6 +107,14 @@ export default function SignInScreen() {
         <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 4 }]}>
           Use your firm’s invite code before sending confidential client files.
         </T>
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 18, paddingBottom: 14 }}>
+        <PressableScale accessibilityRole="link" accessibilityLabel="Privacy Policy" onPress={() => void openLegal(privacyUrl())}>
+          <T style={[type.metaLabel, { color: colors.muted }]}>Privacy Policy</T>
+        </PressableScale>
+        <PressableScale accessibilityRole="link" accessibilityLabel="Terms of Service" onPress={() => void openLegal(termsUrl())}>
+          <T style={[type.metaLabel, { color: colors.muted }]}>Terms of Service</T>
+        </PressableScale>
       </View>
     </Screen>
   );
