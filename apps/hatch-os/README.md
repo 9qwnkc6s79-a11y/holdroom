@@ -46,7 +46,7 @@ HATCH_LLM_API_KEY=
 HATCH_LLM_PROVIDER=openai-compatible
 ```
 
-A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint.
+A100 FP8 worker. Use **`Qwen/Qwen3.8-27B-FP8`** — `qwen/qwen3.8-27b` 500s on this endpoint. A chat photo is sent to this Ask model as an image, not as a filename. The worker has to be vLLM 0.17 or newer with the vision tower loaded. Hermes does not see pictures. See [INTERIM_INFERENCE.md](./INTERIM_INFERENCE.md).
 
 ### Agentic (Hermes)
 

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { isRasterImage } from "@/lib/images";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const TEXT_EXT = /\.(txt|md|markdown|csv|json|js|jsx|ts|tsx|py|html|css|yml|yaml)$/i;
 
-/** Pull readable text out of a chat attachment. Images stay unread on purpose. */
+/** Pull readable text out of a chat attachment. Pictures are sent to the model as images, not as this text. */
 export async function POST(req: Request) {
   const form = await req.formData();
   const file = form.get("file");
@@ -13,11 +14,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Choose a file." }, { status: 400 });
   }
   const name = file.name || "file";
-  if (file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|heic)$/i.test(name)) {
+  if (isRasterImage(name, file.type || "")) {
     return NextResponse.json({
       name,
       text: "",
-      note: "This test build can't read images. The model will only see the filename.",
+      vision: true,
+      note: "",
     });
   }
   const buf = Buffer.from(await file.arrayBuffer());

@@ -44,7 +44,12 @@ export function writeTranscripts(threads: ChatThread[]) {
     ...thread,
     messages: (thread.messages || []).slice(-80).map((message) => ({
       ...message,
-      text: message.text.slice(0, 8000),
+      text: (message.text || "").slice(0, 8000),
+      attachments: message.attachments?.map((file) => {
+        const next = { ...file };
+        delete next.image;
+        return next;
+      }),
     })),
   }));
   try {

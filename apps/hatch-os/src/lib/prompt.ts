@@ -24,6 +24,8 @@ export interface PromptInput {
   history?: ThreadHistoryTurn[];
   defaultDepartmentId?: string;
   ethics?: string;
+  /** The user attached a picture on this turn. The Ask model can see it. */
+  seeingImage?: boolean;
 }
 
 function vaultPromptLine() {
@@ -60,6 +62,9 @@ function sharedContext(input: PromptInput) {
       "If work belongs in a department the user cannot write, hand off — notify + learn — do not pretend you wrote the file.",
       aclPreview(input.accessibleDepartments),
       "Do not call or pretend to call OpenAI, Anthropic, or any public lab.",
+      input.seeingImage
+        ? "The latest user message includes a picture you can see. Answer from what is actually visible. Describe the person or scene when asked. If no picture is in the message, say so. Do not say you were only given a filename."
+        : "",
       "Do not invent prices or account numbers. Sample files are labeled DEMO.",
       "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
       "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are sample-firm notes, not a substitute for thread memory.",

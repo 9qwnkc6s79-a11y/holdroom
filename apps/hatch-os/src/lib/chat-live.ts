@@ -7,8 +7,11 @@ import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments.ts";
+import { scheduleImageCaption } from "./image-caption.ts";
+import { chooseChatLane, forStorage, modelTextForTurn, withImageParts, withoutImagePayload } from "./images.ts";
 import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
 import { buildAgentMessages, buildAskMessages } from "./prompt.ts";
+import { missingImageMessage, prepareTurnImages } from "./vision-turn.ts";
 import { readRunpodJob, runpodEndpointId, submitRunpodChat } from "./runpod-jobs.ts";
 import {
   appendThreadMessages,
@@ -43,6 +46,9 @@ export interface LiveTurnState {
   tools: ToolEvent[];
   sources: Source[];
   job?: { id: string; endpointId: string; lane: "ask" | "agent" };
+  /** JPEG data URLs for the first model submit. Stripped before the state is returned. */
+  pendingImages?: string[];
+  imageFileIds?: string[];
   turnsLeft: number;
   testerCode?: string;
   startedAt?: number;
@@ -95,7 +101,8 @@ export function liveRunpodReady(): boolean {
 export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   const query = input.query.trim();
-  const modelQuery = [query, (input.context || "").trim()].filter(Boolean).join("\n\n");
+  const prepared = await prepareTurnImages(input.attachments);
+  const modelQuery = modelTextForTurn(query, input.context, prepared.hasImage);
   const agent = resolveAgent(input.agentId);
   const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
   const active = thread || createThread(workspaceId, query.slice(0, 42), agent.id);
@@ -106,11 +113,23 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const reads = mentionedReads(query);
   const tools = reads.map((item) => item.event);
   const user = newChatMessage("user", query, {
-    attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
     replyTo: input.replyTo,
   });
-  const assistant = newChatMessage("assistant", "", { done: false });
   appendThreadMessages(active.id, [user]);
+  if (prepared.hasImage && !prepared.dataUrls.length) {
+    const missed = newChatMessage("assistant", missingImageMessage((input.attachments || []).map((file) => file.name)), { done: true });
+    appendThreadMessages(active.id, [missed]);
+    return {
+      phase: "done",
+      threadId: active.id,
+      messageId: missed.id,
+      text: missed.text,
+      error: true,
+      tools: [],
+      sources: [],
+    };
+  }
   recordAuditEntry(
     {
       name: "ask",
@@ -120,11 +139,12 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     },
     { actor: input.actor || "signed-in", agentId: agent.id, kind: "ask" },
   );
+  const assistant = newChatMessage("assistant", "", { done: false });
   const history = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query }).turns;
   const ethics = await loadEthics(input.testerCode || "staff", agent.id);
   const connected = await listConnectors(input.testerCode || "staff");
   const toolTurn = ethics.model === "hermes" || wantsAgentTurn(query, false);
-  const lane = input.agent === false || !toolTurn ? "ask" : "agent";
+  const lane = chooseChatLane({ hasImage: prepared.hasImage, agent: input.agent, toolTurn });
   const prompt = {
     workspaceId,
     query: modelQuery,
@@ -136,6 +156,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     accessibleDepartments: input.accessibleDepartments || [],
     history,
     defaultDepartmentId: input.defaultDepartmentId || agent.writeDepartmentId,
+    seeingImage: prepared.hasImage,
   };
   const state: LiveTurnState = {
     version: 1,
@@ -150,6 +171,8 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     defaultDepartmentId: input.defaultDepartmentId || agent.writeDepartmentId,
     lane,
     llmMessages: lane === "agent" ? buildAgentMessages(prompt) : buildAskMessages(prompt),
+    pendingImages: prepared.dataUrls,
+    imageFileIds: prepared.fileIds,
     visible: "",
     tools,
     sources,
@@ -162,6 +185,11 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   return advanceLiveTurn(state);
 }
 
+function pack(result: LiveTurnResult): LiveTurnResult {
+  if (result.state) result.state = withoutImagePayload(result.state);
+  return result;
+}
+
 export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnResult> {
   if (state.job) {
     const endpoint = endpointFor(state.job.lane, state.job.endpointId);
@@ -172,11 +200,20 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
         job.status === "IN_PROGRESS"
           ? "The firm model is running."
           : "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.";
-      return { phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId };
+      return pack({ phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId });
     }
     state.job = undefined;
     state.turnsLeft -= 1;
-    if (job.failed) return finishError(state, job.error || "The firm model failed.");
+    if (job.failed) {
+      const detail = job.error || "The firm model failed.";
+      const visionReject = Boolean(state.imageFileIds?.length) && /image|multimodal|vision|unsupported|content/i.test(detail);
+      return finishError(
+        state,
+        visionReject
+          ? `${detail} The Ask worker needs vLLM 0.17 or newer with the Qwen3.8 vision tower loaded, not a text-only setup.`
+          : detail,
+      );
+    }
     state.visible = [state.visible, job.text].filter(Boolean).join("\n\n");
     const needsApproval = (call: ToolCall) => toolNeedsApproval(call.name) || connectorToolNeedsApproval(call.name, call.arguments);
     const held = job.toolCalls.find(needsApproval);
@@ -206,12 +243,12 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
             ].join("\n"),
           },
         ];
-        return submit(state);
+        return pack(await submit(state));
       }
     }
-    return finishText(state);
+    return pack(finishText(state));
   }
-  return submit(state);
+  return pack(await submit(state));
 }
 
 async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
@@ -221,12 +258,14 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   if (!endpointId || !endpoint.apiKey) {
     return finishError(state, "The firm model is offline. The RunPod key is not set on this system.");
   }
+  const outbound = withImageParts(state.llmMessages, state.pendingImages || []);
+  const seeing = outbound.some((message) => typeof message.content !== "string");
   const jobId = await submitRunpodChat(endpoint, {
     model: endpoint.model,
-    messages: state.llmMessages,
+    messages: outbound,
     tools: lane === "agent" ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
     temperature: state.temperature,
-    extras: thinkingOffExtras(true),
+    extras: { ...thinkingOffExtras(true), ...(seeing ? { max_tokens: 2048 } : {}) },
   });
   state.job = { id: jobId, endpointId, lane };
   return {
@@ -286,6 +325,7 @@ function finishApproval(state: LiveTurnState, call: ToolCall): LiveTurnResult {
 }
 
 function finishText(state: LiveTurnState): LiveTurnResult {
+  if (state.imageFileIds?.length) scheduleImageCaption(state.imageFileIds);
   const text = state.visible.trim() || "The model returned an empty reply.";
   const message = {
     ...newChatMessage("assistant", text),

@@ -13,6 +13,8 @@ HATCH_LLM_PROVIDER=openai-compatible
 
 A100 FP8 path. Working model id is **`Qwen/Qwen3.8-27B-FP8`**. `qwen/qwen3.8-27b` 500s on `diqb3ykkxo0i16`.
 
+Chat photos are sent to this Ask endpoint as OpenAI `image_url` parts (a resized JPEG data URL). Hermes is text-only, so a turn with a picture stays on Ask even when Model & Ethics is set to Hermes. The worker has to actually load the vision tower: vLLM **0.17.0+** (the [Qwen3.8-27B recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-27B)), `transformers>=5.8.0`, model `Qwen/Qwen3.8-27B-FP8`, and **not** a text-only / `--language-model-only` launch. Include `--mm-encoder-tp-mode data` and allow images, for example `--limit-mm-per-prompt {"image":4}`. A text-only worker rejects the picture; Hatch does not fall back to OpenAI, Anthropic, or any other frontier API.
+
 Bearer on HTTPS. Cold start: Ask waits up to **180s**. Status shows **RunPod / Qwen3.8** when the URL contains `runpod.ai` (host only, no key).
 
 ## Fallback (16 GB Mac)

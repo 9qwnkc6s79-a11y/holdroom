@@ -464,6 +464,30 @@ export function fileListing(workspaceId: DepartmentId): string {
     .join("\n");
 }
 
+/** Replace library text for one uploaded image after the model captions it. */
+export function replaceFilePassage(fileId: string, passage: string): boolean {
+  const clean = passage.replace(/\u0000/g, "").trim();
+  if (!clean) return false;
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const file = allFiles(state).find((item) => item.id === fileId);
+    if (!file) return false;
+    state.chunks = state.chunks.filter((chunk) => !(chunk.departmentId === file.departmentId && chunk.file === file.name));
+    const parts = chunkText(clean);
+    (parts.length ? parts : [clean]).forEach((text, index) => {
+      state.chunks.push({
+        id: `${file.id}-cap-${index}`,
+        departmentId: file.departmentId,
+        roomId: file.departmentId,
+        file: file.name,
+        text,
+      });
+    });
+    writeState(state);
+    return true;
+  });
+}
+
 export function readFileRecord(fileId: string): { file: HatchFile; text: string } | null {
   const state = readState();
   const file = allFiles(state).find((f) => f.id === fileId);

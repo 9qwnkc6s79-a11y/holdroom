@@ -13,6 +13,8 @@ import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
 import { ACCEPT_ATTR, kindFromFilename } from "@/lib/files";
+import { browserImageDataUrl } from "@/lib/image-client";
+import { forStorage, isRasterImage } from "@/lib/images";
 import { dropPending, readPending, upsertPending, waitCopy, type PendingJob } from "@/lib/pending";
 import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
 import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
@@ -47,15 +49,21 @@ interface DraftChip {
   text?: string;
   note?: string;
   fileId?: string;
+  vision?: boolean;
+  /** JPEG data URL kept only until the message is sent. */
+  image?: string;
+}
+
+function attachmentBlock(file: DraftChip) {
+  if (file.vision) return `Attached image ${file.name}`;
+  if (file.text) return `Attached file ${file.name}\n${file.text.slice(0, 8000)}`;
+  return `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`;
 }
 
 function composeQuery(text: string, files: DraftChip[]) {
-  const blocks = files.map((file) =>
-    file.text
-      ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
-      : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
-  );
-  return [text.trim(), ...blocks].filter(Boolean).join("\n\n");
+  const body = [text.trim(), ...files.filter((file) => !file.vision).map(attachmentBlock)].filter(Boolean).join("\n\n");
+  if (body) return body;
+  return files.map((file) => file.name).join(", ");
 }
 
 function explainFailure(err: unknown, status?: number) {
@@ -145,7 +153,7 @@ export function Messenger() {
   const busyRef = useRef(false);
   const pollsRef = useRef(new Set<string>());
   const followRef = useRef<(job: PendingJob) => Promise<void>>(async () => undefined);
-  const queueRef = useRef<{ text: string; userId: string; agentId: string }[]>([]);
+  const queueRef = useRef<{ text: string; userId: string; agentId: string; context?: string; attachments?: ChatAttachment[] }[]>([]);
   const announcedRef = useRef(new Set<string>());
   const recentSend = useRef("");
   const agentsRef = useRef(agents);
@@ -327,16 +335,13 @@ export function Messenger() {
     const files = opts?.plain ? [] : (opts?.files ?? chips);
     const modelQuery = opts?.plain ? text.trim() : composeQuery(text, files);
     const display = text.trim() || files.map((file) => file.name).join(", ");
-    const context = opts?.plain ? "" : files.map((file) =>
-      file.text
-        ? `Attached file ${file.name}\n${file.text.slice(0, 8000)}`
-        : `Attached file ${file.name}\n${file.note || "No text could be read from this file."}`,
-    ).join("\n\n");
+    const context = opts?.plain ? "" : files.map(attachmentBlock).join("\n\n");
+    const fingerprint = [modelQuery, ...files.map((file) => `${file.name}:${file.image?.length || file.id}`)].join("|");
     if (!modelQuery || !session || !agent) return;
-    if (recentSend.current === modelQuery) return;
-    recentSend.current = modelQuery;
+    if (recentSend.current === fingerprint) return;
+    recentSend.current = fingerprint;
     window.setTimeout(() => {
-      if (recentSend.current === modelQuery) recentSend.current = "";
+      if (recentSend.current === fingerprint) recentSend.current = "";
     }, 500);
     stickRef.current = true;
     setAttachOpen(false);
@@ -347,10 +352,12 @@ export function Messenger() {
     const attachments: ChatAttachment[] = files.map((file) => ({
       fileId: file.fileId || file.id,
       name: file.name,
-      kind: kindFromFilename(file.name),
-      text: file.text,
-      note: file.note,
+      kind: file.vision ? "Image" : kindFromFilename(file.name),
+      text: file.vision ? undefined : file.text,
+      note: file.vision ? undefined : file.note,
+      image: file.image,
     }));
+    const storedAttachments = attachments.map(forStorage);
     if (busyRef.current) {
       const user: ChatMessage = {
         id: `local-u-${Date.now()}`,
@@ -358,11 +365,11 @@ export function Messenger() {
         text: display,
         done: true,
         sources: [],
-        attachments,
+        attachments: storedAttachments,
         replyTo: reply ? { text: reply } : undefined,
       };
       mapMessages(agent.id, agent.departmentId, (current) => [...current, user]);
-      queueRef.current.push({ text: modelQuery, userId: user.id, agentId: agent.id });
+      queueRef.current.push({ text: display, userId: user.id, agentId: agent.id, context, attachments });
       setReply(null);
       return;
     }
@@ -373,7 +380,7 @@ export function Messenger() {
     const next = queueRef.current.shift();
     if (next) {
       const found = agentsRef.current.find((item) => item.id === next.agentId) || target;
-      void runTurn(found, next.text, next.userId);
+      void runTurn(found, next.text, next.userId, { display: next.text, context: next.context, attachments: next.attachments });
       return;
     }
     busyRef.current = false;
@@ -492,7 +499,7 @@ export function Messenger() {
         text: display,
         done: true,
         sources: [],
-        attachments: opts?.attachments,
+        attachments: opts?.attachments?.map(forStorage),
         replyTo: quote ? { text: quote } : undefined,
       };
       mapMessages(target.id, target.departmentId, (current) => [...current, user, assistant]);
@@ -537,6 +544,7 @@ export function Messenger() {
           enterprise: session.enterprise,
           replyTo: quote ? { text: quote } : undefined,
           testerCode: session.inviteCode || "staff",
+          attachments: opts?.attachments,
         }),
       });
       if (!res.ok) {
@@ -624,19 +632,24 @@ export function Messenger() {
   async function attach(file?: File | null) {
     if (!file || !agent) return;
     setAttachOpen(false);
-    const chip: DraftChip = { id: `chip-${Date.now()}`, name: file.name };
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      const res = await fetch("/api/extract", { method: "POST", body: form });
-      const data = (await res.json().catch(() => null)) as { text?: string; note?: string; error?: string } | null;
-      if (!res.ok) chip.note = data?.error || "Could not read this file. The model will only see the filename.";
-      else {
-        chip.text = data?.text || "";
-        chip.note = data?.note || "";
+    const vision = isRasterImage(file.name, file.type || "");
+    const chip: DraftChip = { id: `chip-${Date.now()}`, name: file.name, vision };
+    if (vision) {
+      chip.image = (await browserImageDataUrl(file)) || undefined;
+    } else {
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        const res = await fetch("/api/extract", { method: "POST", body: form });
+        const data = (await res.json().catch(() => null)) as { text?: string; note?: string; error?: string } | null;
+        if (!res.ok) chip.note = data?.error || "Could not read this file. The model will only see the filename.";
+        else {
+          chip.text = data?.text || "";
+          chip.note = data?.note || "";
+        }
+      } catch {
+        chip.note = "Could not read this file. The model will only see the filename.";
       }
-    } catch {
-      chip.note = "Could not read this file. The model will only see the filename.";
     }
     setChips((current) => [...current, chip]);
     if (!session) return;
@@ -981,10 +994,10 @@ export function Messenger() {
                   <button type="button" onClick={() => fileRef.current?.click()}><span>Choose File</span><IconFile /></button>
                 </div>
               ) : null}
-              <input ref={photoRef} hidden type="file" accept="image/*,video/*" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={scanRef} hidden type="file" accept="image/*,application/pdf" capture="environment" onChange={(event) => void attach(event.target.files?.[0])} />
-              <input ref={fileRef} hidden type="file" accept={ACCEPT_ATTR} onChange={(event) => void attach(event.target.files?.[0])} />
+              <input ref={photoRef} hidden type="file" accept="image/*,video/*,.heic,.heif" onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void attach(picked); }} />
+              <input ref={cameraRef} hidden type="file" accept="image/*,.heic,.heif" capture="environment" onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void attach(picked); }} />
+              <input ref={scanRef} hidden type="file" accept="image/*,.heic,.heif,application/pdf" capture="environment" onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void attach(picked); }} />
+              <input ref={fileRef} hidden type="file" accept={ACCEPT_ATTR} onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void attach(picked); }} />
             </>
           ) : (
             <div className="chat-empty">
