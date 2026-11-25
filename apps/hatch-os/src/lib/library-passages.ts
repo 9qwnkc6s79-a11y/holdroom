@@ -45,7 +45,7 @@ export function rankPassages(rows: { title: string; text: string; source: string
     .map(({ row }) => ({
       file: row.title,
       room: row.source,
-      snippet: row.text.replace(/\s+/g, " ").slice(0, 360),
+      snippet: row.text.replace(/\s+/g, " ").slice(0, 1200),
     }));
 }
 
@@ -72,4 +72,27 @@ export async function searchLibraryPassages(scope: string, query: string): Promi
     }
   });
   return rankPassages(open, query);
+}
+
+export interface PublicPassage {
+  id: string;
+  title: string;
+  source: string;
+  at: string;
+  text: string;
+}
+
+export async function listLibraryPassages(scope: string): Promise<PublicPassage[]> {
+  if (!scope.trim()) return [];
+  const rows = await readRecords<StoredPassage>(folder(scope));
+  return rows
+    .flatMap((row) => {
+      try {
+        const secret = decryptJson<{ text?: string }>(row.secret);
+        return [{ id: row.id, title: row.title, source: row.source, at: row.at, text: secret.text || "" }];
+      } catch {
+        return [];
+      }
+    })
+    .sort((a, b) => (b.at || "").localeCompare(a.at || ""));
 }

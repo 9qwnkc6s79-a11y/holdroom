@@ -1,9 +1,12 @@
+import { requireSession } from "@/lib/session-auth";
 import { mimeFromFilename } from "@/lib/files";
 import { readFileBytes } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const { id } = await ctx.params;
   const rec = readFileBytes(decodeURIComponent(id));
   if (!rec) return new Response(JSON.stringify({ error: "Unknown file." }), { status: 404 });

@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { syncConnector } from "@/lib/connector-sync";
+import { requireSession } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as { kind?: string; scope?: string; departmentId?: string } | null;
   const kind = body?.kind === "microsoft" ? "microsoft" : body?.kind === "google" ? "google" : "";
   if (!kind) return NextResponse.json({ error: "Choose Google or Microsoft." }, { status: 400 });
-  const scope = body?.scope || req.headers.get("x-hatch-tester") || "";
-  if (!scope) return NextResponse.json({ error: "Sign in before syncing." }, { status: 400 });
+  const scope = auth.session.scope;
   const departmentId = body?.departmentId || "hq-ops";
   try {
     const result = await syncConnector(scope, kind, departmentId);

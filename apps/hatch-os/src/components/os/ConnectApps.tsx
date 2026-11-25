@@ -35,7 +35,7 @@ export function ConnectApps({ scope }: { scope: string }) {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const res = await fetch("/api/connectors", { headers: { "x-hatch-tester": scope }, cache: "no-store" });
+    const res = await fetch("/api/connectors", { cache: "no-store" });
     const data = (await res.json()) as { catalog: CatalogItem[]; connected: Connected[]; setup: Setup[] };
     setCatalog(data.catalog || []);
     setConnected(data.connected || []);
@@ -93,7 +93,7 @@ export function ConnectApps({ scope }: { scope: string }) {
     });
     const res = await fetch("/api/connectors", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-hatch-tester": scope },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -111,7 +111,7 @@ export function ConnectApps({ scope }: { scope: string }) {
     setError("");
     const res = await fetch("/api/connectors", {
       method: "PUT",
-      headers: { "Content-Type": "application/json", "x-hatch-tester": scope },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: provider, scope }),
     });
     const data = (await res.json().catch(() => null)) as { detail?: string; error?: string } | null;
@@ -120,7 +120,7 @@ export function ConnectApps({ scope }: { scope: string }) {
   }
 
   async function disconnect(provider: string) {
-    await fetch(`/api/connectors?kind=${encodeURIComponent(provider)}`, { method: "DELETE", headers: { "x-hatch-tester": scope } });
+    await fetch(`/api/connectors?kind=${encodeURIComponent(provider)}`, { method: "DELETE" });
     setNote("Disconnected.");
     await load();
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GOOGLE_OAUTH_SCOPE, MICROSOFT_OAUTH_SCOPE, callbackUrl, oauthConfigured, signState } from "@/lib/connectors";
+import { requireSession } from "@/lib/session-auth";
 import { vaultConfigured } from "@/lib/vault-crypto";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ function isKind(value: string): value is OauthKind {
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ kind: string }> }) {
+  const auth = requireSession(req, { allowQueryToken: true });
+  if (auth.error) return auth.error;
   const { kind } = await ctx.params;
   const origin = new URL(req.url).origin;
   if (!isKind(kind)) return NextResponse.json({ error: "Unknown connector." }, { status: 404 });
@@ -29,7 +32,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
     return NextResponse.json({ configured: false, provider: kind, callbackUrl: back, message: "Encrypted storage is not configured on this system." });
   }
   const params = new URL(req.url).searchParams;
-  const scope = params.get("scope") || "staff";
+  const scope = auth.session.scope;
   const client = params.get("client") === "ios" ? "ios" : "web";
   const state = signState({ scope, kind, client });
   const redirect = authorizeUrl(kind, back, state);

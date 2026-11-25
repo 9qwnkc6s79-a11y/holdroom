@@ -5,7 +5,7 @@ const DRAFT_HINT =
   /\b(draft|write|create|save)\b.{0,40}\b(note|notes|file|doc|document|memo|checklist|draft)\b/i;
 const NATURAL_TOOLS =
   /\b(use tools?|search(?: the)? library|look(?:ing)? up (?:in )?(?:the )?library|read (?:the )?files?|tool calls?)\b/i;
-const OTHER_AGENT = /\bhandoff\b|\blist files\b/i;
+const OTHER_AGENT = /\bhandoff\b|\blist files\b|\b(?:get up to speed|catch me up)\b|\b(?:check|search|read)\s+(?:my\s+|our\s+)?(?:mail|email|gmail|inbox|drive|calendar|slack|notion)\b/i;
 
 export function looksSoftDraft(query: string): boolean {
   return DRAFT_HINT.test((query || "").trim());

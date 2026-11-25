@@ -1,9 +1,12 @@
+import { requireSession } from "@/lib/session-auth";
 import { saveRecord } from "@/lib/beta-store";
 import { APP_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     text?: string;
     screenshot?: string;

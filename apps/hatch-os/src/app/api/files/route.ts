@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { NORTH_DESK, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
 import { createFolder, filesIn, listFolders } from "@/lib/store";
@@ -5,6 +6,8 @@ import { createFolder, filesIn, listFolders } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const departmentId = migrateWorkspaceId(
     new URL(req.url).searchParams.get("department") || NORTH_DESK,
   );
@@ -20,6 +23,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     action?: string;
     departmentId?: string;

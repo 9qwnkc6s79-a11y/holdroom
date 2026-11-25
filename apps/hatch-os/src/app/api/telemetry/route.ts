@@ -1,8 +1,11 @@
+import { requireSession } from "@/lib/session-auth";
 import { saveRecord } from "@/lib/beta-store";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as { kind?: string; code?: string } | null;
   const kind = body?.kind === "session" || body?.kind === "error" ? body.kind : "";
   if (!kind) return Response.json({ ok: false }, { status: 400 });

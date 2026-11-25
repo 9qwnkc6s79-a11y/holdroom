@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { NORTH_DESK, migrateWorkspaceId } from "@/lib/departments";
 import { createThread, listThreads, patchMessage, updateThread } from "@/lib/store";
@@ -5,6 +6,8 @@ import { createThread, listThreads, patchMessage, updateThread } from "@/lib/sto
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const departmentId = new URL(req.url).searchParams.get("department");
   return NextResponse.json(
     { threads: listThreads(departmentId ? migrateWorkspaceId(departmentId) : undefined) },
@@ -13,6 +16,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     departmentId?: string;
     title?: string;
@@ -27,6 +32,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     id?: string;
     title?: string;

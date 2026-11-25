@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { recordAuditEntry } from "@/lib/store";
 import { deleteVaultItem, scrubVaultSecrets } from "@/lib/vault";
@@ -5,6 +6,8 @@ import { deleteVaultItem, scrubVaultSecrets } from "@/lib/vault";
 export const dynamic = "force-dynamic";
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => null)) as { actor?: string; name?: string } | null;
   const removed = deleteVaultItem(id);

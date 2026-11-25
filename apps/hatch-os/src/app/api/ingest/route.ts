@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { NORTH_DESK, migrateWorkspaceId } from "@/lib/departments";
 import { mirrorVisionJpeg } from "@/lib/image-cache";
@@ -10,6 +11,8 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const contentType = req.headers.get("content-type") || "";
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();

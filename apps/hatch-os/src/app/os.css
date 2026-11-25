@@ -720,3 +720,8 @@ select {
 @media (max-width: 959px) {
   .msg.is-wide { display: block; }
 }
+
+.working-bar { padding: 6px 18px 2px; margin: 0; color: var(--muted); font-size: 13px; }
+.os-search-row { margin-bottom: 16px; }
+.os-search-row input { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font: inherit; background: var(--surface); color: var(--ink); }
+.os-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

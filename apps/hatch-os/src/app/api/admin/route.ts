@@ -1,9 +1,12 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { INITIAL_SEATS, SEAT_LINE } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   return NextResponse.json(
     {
       seats: INITIAL_SEATS,
@@ -21,6 +24,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as { action?: string } | null;
   const action = body?.action;
   if (action === "backup") {
