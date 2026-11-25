@@ -17,11 +17,12 @@ function customerHostLabel(connected: boolean, kind: "ask" | "agent") {
 export async function GET(req: Request) {
   const operator = operatorUiEnabled();
 
-  if (demoModeEnabled()) {
+  const session = verifySessionRequest(req);
+  if (demoModeEnabled() || session?.appReview) {
     const body: BoxStatus = {
       ...MOCK_STATUS,
       ok: true,
-      label: "Demo mode — the firm model is not called",
+      label: session?.appReview ? "Sample firm host ready" : "Demo mode — the firm model is not called",
       model: "demo",
       demoMode: true,
       modelState: "demo",

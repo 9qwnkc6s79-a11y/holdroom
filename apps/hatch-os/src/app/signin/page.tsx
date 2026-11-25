@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal-links";
 
 export default function SignInPage() {
   const { pair, pairError, session } = useHatch();
@@ -53,6 +54,10 @@ export default function SignInPage() {
         ) : null}
         <p className="os-fine">
           This beta runs on cloud test hardware, not a firm’s own box. <Link href="/offline">Offline</Link>
+        </p>
+        <p className="os-fine">
+          <a href={PRIVACY_URL} target="_blank" rel="noreferrer">Privacy Policy</a> ·{" "}
+          <a href={TERMS_URL} target="_blank" rel="noreferrer">Terms of Service</a>
         </p>
       </div>
     </div>

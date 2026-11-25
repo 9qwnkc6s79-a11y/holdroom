@@ -7,6 +7,7 @@ import {
   verifySessionRequest,
   verifySessionToken,
 } from "./session-auth.ts";
+import { appReviewCode } from "./testers.ts";
 
 test("signSessionToken and verifySessionToken round-trip and reject tampering or expiry", () => {
   process.env.HATCH_SESSION_SECRET = "test-session-secret-for-unit-tests";
@@ -62,4 +63,21 @@ test("verifySessionRequest reads Authorization Bearer and httpOnly cookie", () =
     headers: { "x-hatch-tester": "HATCH-AH7G" },
   });
   assert.equal(verifySessionRequest(unauthReq), null);
+});
+
+test("appReviewCode is strictly env-driven and preserves appReview flag in signed tokens", () => {
+  assert.equal(appReviewCode(""), "");
+  assert.equal(appReviewCode("  review-demo-123  "), "REVIEW-DEMO-123");
+  const token = signSessionToken({
+    scope: "APP-REVIEW",
+    role: "Partner",
+    label: "App Review",
+    departments: ["north-desk"],
+    enterprise: true,
+    homeDepartment: "hq-ops",
+    appReview: true,
+  });
+  const verified = verifySessionToken(token);
+  assert.equal(verified?.appReview, true);
+  assert.equal(verified?.scope, "APP-REVIEW");
 });

@@ -1,4 +1,4 @@
-import { deleteRecord, readRecord, readRecords, saveRecord } from "./beta-store.ts";
+import { deleteFolder, deleteRecord, readRecord, readRecords, saveRecord } from "./beta-store.ts";
 import { ENTERPRISE, NORTH_DESK, isEnterprise, migrateWorkspaceId } from "./departments.ts";
 import {
   createThread,
@@ -144,4 +144,28 @@ export async function updateUploadLibraryFlagScoped(
 export async function deleteUploadScoped(scope: string, departmentId: DepartmentId, fileId: string): Promise<void> {
   removeFile(departmentId, fileId);
   await deleteRecord(uploadsFolder(scope), safeId(fileId));
+}
+
+export async function deleteAccountScope(scope: string): Promise<{ scope: string; removedFolders: string[] }> {
+  const key = scopeKey(scope);
+  const existingThreads = await listThreadsScoped(scope);
+  for (const thread of existingThreads) {
+    removeThreadRecord(thread.id);
+  }
+  const existingUploads = await readRecords<StoredUploadBlob>(uploadsFolder(scope));
+  for (const rec of existingUploads) {
+    if (rec?.file?.id) {
+      removeFile(rec.file.departmentId || NORTH_DESK, rec.file.id);
+    }
+  }
+  const folders = [
+    threadsFolder(scope),
+    uploadsFolder(scope),
+    `ethics/${key}`,
+    `library/${key}`,
+    `connectors/${key}`,
+    `usage/${key}`,
+  ];
+  await Promise.all(folders.map((folder) => deleteFolder(folder)));
+  return { scope: key, removedFolders: folders };
 }

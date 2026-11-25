@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { del, get, list, put } from "@vercel/blob";
 import { dailyMessageCap, safeCode } from "./testers.ts";
@@ -55,6 +55,29 @@ export async function deleteRecord(folder: string, name: string) {
     unlinkSync(path.join(localRoot(), folder, `${name}.json`));
   } catch {
     /* already gone */
+  }
+}
+
+export async function deleteFolder(folder: string): Promise<number> {
+  if (blobEnabled()) {
+    let deleted = 0;
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: `${ROOT}/${folder}/`, cursor, limit: 100 });
+      if (page.blobs.length) {
+        await del(page.blobs.map((b) => b.url));
+        deleted += page.blobs.length;
+      }
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    return deleted;
+  }
+  const dir = path.join(localRoot(), folder);
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    return 1;
+  } catch {
+    return 0;
   }
 }
 

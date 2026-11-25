@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { demoModeEnabled } from "@/lib/demo";
 import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { clearSessionCookie, setSessionCookie, signSessionToken } from "@/lib/session-auth";
-import { testerByCode } from "@/lib/testers";
+import { appReviewCode, testerByCode } from "@/lib/testers";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +30,10 @@ export async function POST(req: Request) {
   const adminCode = (process.env.HATCH_ADMIN_CODE || "").trim().toUpperCase();
   const isAdmin = Boolean(adminCode) && invite === adminCode;
   const isDemoStaff = demoModeEnabled() && invite === "STAFF-PREVIEW";
+  const reviewCode = appReviewCode();
+  const isAppReview = Boolean(reviewCode) && invite === reviewCode;
 
-  if (!tester && !isAdmin && !isDemoStaff) {
+  if (!tester && !isAdmin && !isDemoStaff && !isAppReview) {
     return NextResponse.json(
       { error: "This code is not recognized. Ask your admin for a valid code." },
       { status: 401 },
@@ -41,8 +43,8 @@ export async function POST(req: Request) {
   const departments = [NORTH_DESK, SOUTH_DESK, HQ_OPS, LEGAL, FINANCE];
   const enterprise = true;
   const homeDepartment = HQ_OPS;
-  const scope = tester?.code || (isAdmin ? "ADMIN" : "STAFF-PREVIEW");
-  const label = tester?.label || (isAdmin ? "Admin" : "Staff preview");
+  const scope = isAppReview ? "APP-REVIEW" : tester?.code || (isAdmin ? "ADMIN" : "STAFF-PREVIEW");
+  const label = isAppReview ? "App Review" : tester?.label || (isAdmin ? "Admin" : "Staff preview");
   const role = "Partner" as const;
 
   const token = signSessionToken({
@@ -52,6 +54,7 @@ export async function POST(req: Request) {
     departments,
     enterprise,
     homeDepartment,
+    appReview: isAppReview,
   });
 
   const res = NextResponse.json(
@@ -68,6 +71,7 @@ export async function POST(req: Request) {
       note: "Signed in.",
       inviteCode: scope,
       testerLabel: label,
+      appReview: isAppReview,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

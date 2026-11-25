@@ -33,3 +33,7 @@ export function safeCode(code: string) {
   const cleaned = code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 40);
   return cleaned || "staff";
 }
+
+export function appReviewCode(raw = process.env.HATCH_APP_REVIEW_CODE || ""): string {
+  return raw.trim().toUpperCase();
+}

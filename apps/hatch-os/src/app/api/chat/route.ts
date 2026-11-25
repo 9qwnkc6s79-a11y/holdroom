@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     at: new Date().toISOString(),
   }).catch(() => undefined);
 
-  if (!demoModeEnabled() && liveRunpodReady()) {
+  if (!demoModeEnabled() && !auth.session.appReview && liveRunpodReady()) {
     try {
       const result = await startLiveTurn({
         query,
@@ -117,6 +117,7 @@ export async function POST(req: Request) {
             defaultDepartmentId: body?.defaultDepartmentId,
             replyTo: body?.replyTo,
             testerCode,
+            sampleMode: Boolean(auth.session.appReview),
           },
           {
             onStart: (info) => {

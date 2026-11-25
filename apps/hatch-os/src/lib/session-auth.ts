@@ -13,6 +13,7 @@ export interface HatchVerifiedSession {
   departments: string[];
   enterprise: boolean;
   homeDepartment: string;
+  appReview?: boolean;
   iat: number;
   exp: number;
 }
@@ -45,6 +46,7 @@ export function signSessionToken(
     departments: input.departments,
     enterprise: input.enterprise,
     homeDepartment: input.homeDepartment,
+    ...(input.appReview ? { appReview: true } : {}),
     iat: now,
     exp: now + SESSION_TTL_MS,
   };
@@ -80,6 +82,7 @@ export function verifySessionToken(token: string | null | undefined, now = Date.
       departments: parsed.departments.map(String),
       enterprise: Boolean(parsed.enterprise),
       homeDepartment: String(parsed.homeDepartment || "hq-ops"),
+      ...(parsed.appReview ? { appReview: true } : {}),
       iat: Number(parsed.iat || 0),
       exp: parsed.exp,
     };

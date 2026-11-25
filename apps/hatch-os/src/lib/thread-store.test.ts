@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { appendThreadMessages, patchMessage, removeThreadRecord, updateThread } from "./store.ts";
+import { appendThreadMessages, patchMessage, persistUpload, readFileRecord, removeFile, removeThreadRecord, updateThread } from "./store.ts";
 import {
   createThreadScoped,
   deleteThreadScoped,
@@ -13,6 +13,7 @@ import {
   listThreadsScoped,
   loadUploadScoped,
   saveThreadScoped,
+  deleteAccountScope,
   saveUploadScoped,
 } from "./thread-store.ts";
 
@@ -93,5 +94,48 @@ describe("scoped thread and upload persistence", () => {
     await deleteUploadScoped("HATCH-AH7G", "north-desk", file.id);
     const after = await loadUploadScoped("HATCH-AH7G", file.id);
     assert.equal(after, null);
+  });
+
+  it("deleteAccountScope removes threads and uploads for that scope without touching other scopes", async () => {
+    const tA = await createThreadScoped("SCOPE-A", "north-desk", "Thread A", "general");
+    const tB = await createThreadScoped("SCOPE-B", "north-desk", "Thread B", "general");
+    await saveUploadScoped(
+      "SCOPE-A",
+      {
+        id: "up-scope-a",
+        name: "Little_Elm_Monument.txt",
+        kind: "Markdown",
+        status: "ready",
+        progress: 100,
+        departmentId: "north-desk",
+        roomId: "north-desk",
+        folderId: null,
+        inLibrary: true,
+        origin: "upload",
+      },
+      "Boundaries Little Elm monument sign notes.",
+      Buffer.from("Boundaries Little Elm monument sign notes.", "utf8"),
+    );
+
+    await deleteAccountScope("SCOPE-A");
+    assert.equal(await getThreadScoped("SCOPE-A", tA.id), null);
+    assert.equal(await loadUploadScoped("SCOPE-A", "up-scope-a"), null);
+    const stillB = await getThreadScoped("SCOPE-B", tB.id);
+    assert.ok(stillB);
+    await deleteThreadScoped("SCOPE-B", tB.id);
+  });
+
+  it("does not wipe user uploads containing Boundaries or Little Elm", () => {
+    const up = persistUpload({
+      departmentId: "north-desk",
+      filename: "Boundaries_Little_Elm_Monument.txt",
+      body: Buffer.from("Boundaries Little Elm monument sign variance approved Nov 18.", "utf8"),
+      inLibrary: true,
+    });
+    assert.ok(up.file?.id);
+    const rec = readFileRecord(up.file.id);
+    assert.ok(rec);
+    assert.match(rec.text, /Boundaries Little Elm monument sign/);
+    removeFile("north-desk", up.file.id);
   });
 });

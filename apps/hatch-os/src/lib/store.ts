@@ -336,8 +336,10 @@ function ensure() {
 }
 
 function seedTextIsStale(raw: Partial<DiskState>) {
-  return (raw.chunks || []).some((chunk) =>
-    /boundaries|prosper|little[- ]?elm|rafael|heath|\bcoffee\b|catering|loyalty/i.test(chunk.text || ""),
+  return (raw.chunks || []).some(
+    (chunk) =>
+      chunk.id.startsWith("seed-") &&
+      /boundaries|prosper|little[- ]?elm|rafael|heath|\bcoffee\b|catering|loyalty/i.test(chunk.text || ""),
   );
 }
 
@@ -346,7 +348,7 @@ function readState(): DiskState {
   try {
     const raw = JSON.parse(readFileSync(STATE, "utf8")) as Partial<DiskState>;
     const ids = (raw.rooms || []).map((r) => r.id);
-    if (!ids.includes(NORTH_DESK) || !ids.includes(SOUTH_DESK) || seedTextIsStale(raw) || (raw.rooms || []).some((r) => r.files.some((f) => /DEMO_little_elm|DEMO_catering|DEMO_loyalty/i.test(f.name)))) {
+    if (!ids.includes(NORTH_DESK) || !ids.includes(SOUTH_DESK) || seedTextIsStale(raw) || (raw.rooms || []).some((r) => r.files.some((f) => f.origin === "seed" && /DEMO_little_elm|DEMO_catering|DEMO_loyalty/i.test(f.name)))) {
       const fresh = loadSeed();
       fresh.threads = raw.threads || [];
       fresh.agents = raw.agents?.length ? raw.agents.map(normalizeAgent) : fresh.agents;

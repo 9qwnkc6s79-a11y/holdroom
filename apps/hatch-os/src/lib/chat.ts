@@ -50,6 +50,7 @@ export interface ChatTurnInput {
   approvals?: "wait" | "immediate";
   replyTo?: { text: string };
   testerCode?: string;
+  sampleMode?: boolean;
 }
 
 export interface ChatTurnResult {
@@ -114,7 +115,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     { actor: input.actor || "signed-in", agentId: hatchAgent.id, kind: "ask" },
   );
 
-  if (demoModeEnabled()) {
+  if (demoModeEnabled() || input.sampleMode) {
     const demoSources = retrieveFirm(query, 4);
     const plan = planDemoReply({ query: modelQuery, agentId: hatchAgent.id, sources: demoSources });
     await streamText(plan.text, hooks.onDelta);
