@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { LITTLE_ELM, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
+import { NORTH_DESK, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
 import { createFolder, filesIn, listFolders } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const departmentId = migrateWorkspaceId(
-    new URL(req.url).searchParams.get("department") || LITTLE_ELM,
+    new URL(req.url).searchParams.get("department") || NORTH_DESK,
   );
   return NextResponse.json(
     {

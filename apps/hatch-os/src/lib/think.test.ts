@@ -22,7 +22,7 @@ ${FINAL}`;
 
   it("leaves a plain final-only reply unchanged", () => {
     assert.equal(stripThinkBlocks(FINAL), FINAL);
-    assert.equal(stripThinkBlocks("TapMango or text COFFEE."), "TapMango or text COFFEE.");
+    assert.equal(stripThinkBlocks("Client onboarding checklist updated."), "Client onboarding checklist updated.");
   });
 
   it("drops an unclosed <think> body", () => {

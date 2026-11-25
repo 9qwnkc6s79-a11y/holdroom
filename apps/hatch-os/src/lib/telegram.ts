@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import path from "path";
 import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
 import { parseMentionedDepartment } from "./agent-draft.ts";
-import { DEPARTMENT_IDS, LITTLE_ELM, migrateWorkspaceId, workspaceLabel } from "./departments.ts";
+import { DEPARTMENT_IDS, NORTH_DESK, migrateWorkspaceId, workspaceLabel } from "./departments.ts";
 import { connectHelp } from "./llm.ts";
 import { stripThinkBlocks } from "./think.ts";
 
-export const BOT_USERNAME = "Hatchboundariesbot";
+export const BOT_USERNAME = "HatchBetaBot";
 export const BOT_HANDLE = `@${BOT_USERNAME}`;
 export const BOT_URL = `https://t.me/${BOT_USERNAME}`;
 
@@ -30,13 +30,13 @@ export const LOCKED_HINT = "This phone is now the locked dogfood user.";
 
 export const HELP_TEXT = `Hatch Telegram (${BOT_HANDLE})
 
-/start — welcome and BOUNDARIES pair hint
+/start — welcome and pairing hint
 /help — this list
 /new — start a fresh Chat thread
 /ask — sticky Ask (Qwen). /ask <text> is one-shot Ask
 /agent — sticky Agent (Hermes + tools). /agent <text> is one-shot Agent
 /auto — heuristic (default)
-/dept — show or set sticky write department (little-elm, prosper, hq-ops)
+/dept — show or set sticky write department (north-desk, south-desk, hq-ops)
 
 Auto routes to Agent for: draft/write/save a note, use tools, search the library, read file, list files, handoff, or snake_case tool names. Plain chat stays on Ask.
 
@@ -45,7 +45,7 @@ Enterprise is a view — drafts write via write_draft to the sticky department (
 export const ASK_MODE_TEXT = "Ask mode on (Qwen). /agent or /auto to change.";
 export const AGENT_MODE_TEXT = "Agent mode on (Hermes + tools). /ask or /auto to change.";
 export const AUTO_MODE_TEXT = "Auto mode on — Ask for chat, Agent for drafts / tools / library search.";
-export const DEPT_HELP_TEXT = "Write department: /dept little-elm | prosper | hq-ops";
+export const DEPT_HELP_TEXT = "Write department: /dept north-desk | south-desk | hq-ops";
 export const WORKING_ASK = "Working (Ask)…";
 export const WORKING_AGENT = "Working (Agent)…";
 export const HISTORY_WINDOW_NOTICE =
@@ -168,9 +168,9 @@ export function clearTelegramHistoryNotice(userId: string, file = telegramStoreF
 }
 
 export function telegramDefaultDepartment(storeDept?: string | null): string {
-  const raw = (storeDept || process.env.HATCH_TELEGRAM_DEFAULT_DEPT || LITTLE_ELM).trim().toLowerCase();
+  const raw = (storeDept || process.env.HATCH_TELEGRAM_DEFAULT_DEPT || NORTH_DESK).trim().toLowerCase();
   const id = migrateWorkspaceId(raw);
-  return (DEPARTMENT_IDS as readonly string[]).includes(id) ? id : LITTLE_ELM;
+  return (DEPARTMENT_IDS as readonly string[]).includes(id) ? id : NORTH_DESK;
 }
 
 export function telegramLaneForUser(store: TelegramStore, userId: string): TelegramLane {

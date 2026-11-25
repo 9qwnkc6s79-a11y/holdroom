@@ -48,7 +48,7 @@ export const TOOL_SCHEMAS = [
   {
     name: "list_files",
     description: "List Files in a department or the Enterprise union view.",
-    parameters: { departmentId: "little-elm | prosper | hq-ops | enterprise" },
+    parameters: { departmentId: "north-desk | south-desk | hq-ops | enterprise" },
   },
   {
     name: "read_file",
@@ -59,13 +59,13 @@ export const TOOL_SCHEMAS = [
     name: "write_draft",
     description:
       "Write a markdown draft into Files for a department the user can open. ACL-checked. Never writes Enterprise or a peer department the user cannot open.",
-    parameters: { departmentId: "little-elm | prosper | hq-ops", filename: "string", text: "string" },
+    parameters: { departmentId: "north-desk | south-desk | hq-ops", filename: "string", text: "string" },
   },
   {
     name: "handoff_to_department",
     description:
       "Notify a peer department inbox and record what was learned. Does not write their Files. Waits for approval on Hatch OS.",
-    parameters: { toDepartmentId: "little-elm | prosper | hq-ops | legal | finance", summary: "string", facts: "string" },
+    parameters: { toDepartmentId: "north-desk | south-desk | hq-ops | legal | finance", summary: "string", facts: "string" },
   },
   {
     name: "use_vault",
@@ -231,7 +231,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         event: {
           name,
           ok: false,
-          detail: "write_draft needs a departmentId (little-elm, prosper, or hq-ops). Enterprise is not a write target.",
+          detail: "write_draft needs a departmentId (north-desk, south-desk, or hq-ops). Enterprise is not a write target.",
         },
       };
     }
@@ -287,7 +287,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         event: {
           name,
           ok: false,
-          detail: `Unknown department “${to}”. Use little-elm, prosper, or hq-ops.`,
+          detail: `Unknown department “${to}”. Use north-desk, south-desk, or hq-ops.`,
         },
       };
     }

@@ -157,12 +157,12 @@ describe("planTelegramMessage", () => {
     const auto = planTelegramMessage({ ...daniel, text: "/auto" }, { envAllowlist: ["42"], lockedUserId: null });
     assert.deepEqual(auto, { type: "reply", text: AUTO_MODE_TEXT, setMode: "auto" });
     const dept = planTelegramMessage(
-      { ...daniel, text: "/dept prosper" },
+      { ...daniel, text: "/dept south-desk" },
       { envAllowlist: ["42"], lockedUserId: null },
     );
     assert.equal(dept.type, "reply");
     if (dept.type === "reply") {
-      assert.equal(dept.setDepartment, "prosper");
+      assert.equal(dept.setDepartment, "south-desk");
       assert.match(dept.text, /South desk/);
     }
     assert.match(HELP_TEXT, /\/ask/);
@@ -205,12 +205,12 @@ describe("formatTelegramReply", () => {
 
   it("appends sources and denied tools", () => {
     const text = formatTelegramReply({
-      text: "TapMango or text COFFEE.",
-      sources: [{ file: "DEMO_loyalty.md" }, { file: "DEMO_loyalty.md" }],
+      text: "Client onboarding starts with the signed checklist.",
+      sources: [{ file: "Client_onboarding_checklist.md" }, { file: "Client_onboarding_checklist.md" }],
       tools: [{ name: "write_draft", ok: false, detail: "no write" }],
     });
-    assert.match(text, /TapMango/);
-    assert.match(text, /Sources: DEMO_loyalty.md/);
+    assert.match(text, /Client onboarding/);
+    assert.match(text, /Sources: Client_onboarding_checklist.md/);
     assert.match(text, /write_draft denied/);
     const dropped = formatTelegramReply({ text: "Hi", historyDropped: true });
     assert.match(dropped, new RegExp(HISTORY_WINDOW_NOTICE.slice(0, 20)));

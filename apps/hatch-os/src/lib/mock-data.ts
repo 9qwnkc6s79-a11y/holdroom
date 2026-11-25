@@ -1,21 +1,21 @@
-import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, uxIsolation } from "./departments.ts";
+import { ENTERPRISE, HQ_OPS, NORTH_DESK, SOUTH_DESK, uxIsolation } from "./departments.ts";
 import type { BoxStatus, Department, Device, Seat } from "./types.ts";
 
-export { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER };
+export { ENTERPRISE, HQ_OPS, NORTH_DESK, SOUTH_DESK };
 
 export const INITIAL_DEPARTMENTS: Department[] = [
   {
-    id: LITTLE_ELM,
+    id: NORTH_DESK,
     name: "North desk",
     kind: "department",
-    isolation: uxIsolation(LITTLE_ELM),
+    isolation: uxIsolation(NORTH_DESK),
     files: [],
   },
   {
-    id: PROSPER,
+    id: SOUTH_DESK,
     name: "South desk",
     kind: "department",
-    isolation: uxIsolation(PROSPER),
+    isolation: uxIsolation(SOUTH_DESK),
     files: [],
   },
   {
@@ -52,26 +52,26 @@ function seat(
     departments,
     rooms: departments,
     enterprise: Boolean(extra.enterprise),
-    homeDepartment: extra.homeDepartment || departments[0] || LITTLE_ELM,
+    homeDepartment: extra.homeDepartment || departments[0] || NORTH_DESK,
     device: extra.device || "",
     pending: extra.pending,
   };
 }
 
 export const INITIAL_SEATS: Seat[] = [
-  seat("s-partner", "Partner", "Partner", [LITTLE_ELM, PROSPER, HQ_OPS], {
+  seat("s-partner", "Partner", "Partner", [NORTH_DESK, SOUTH_DESK, HQ_OPS], {
     enterprise: true,
     homeDepartment: HQ_OPS,
     device: "Office Mac",
   }),
-  seat("s-north", "North lead", "Admin", [LITTLE_ELM], {
+  seat("s-north", "North lead", "Admin", [NORTH_DESK], {
     enterprise: false,
-    homeDepartment: LITTLE_ELM,
+    homeDepartment: NORTH_DESK,
     device: "North desk tablet",
   }),
-  seat("s-south", "South lead", "Admin", [PROSPER], {
+  seat("s-south", "South lead", "Admin", [SOUTH_DESK], {
     enterprise: false,
-    homeDepartment: PROSPER,
+    homeDepartment: SOUTH_DESK,
     device: "South desk tablet",
   }),
 ];
@@ -87,16 +87,16 @@ export const MOCK_STATUS: BoxStatus = {
   egress_check: {
     status: "checked",
     detail:
-      "Software dry-run. Interim LLM is local Ollama — not OpenAI/Anthropic. FAIL=blocked remains the production accept test.",
+      "Software beta. Interim LLM is local Ollama — not OpenAI/Anthropic. FAIL=blocked remains the production accept test.",
     openai: "FAIL=blocked",
     anthropic: "FAIL=blocked",
   },
-  label: "Software dry-run — appliance not connected",
+  label: "Firm host status check",
   stack: "Hatch-os-ui",
   model: "qwen3:8b (16 GB Mac dogfood)",
   disk_free: "local disk",
-  last_backup: "No appliance backup — dry-run only.",
-  last_egress_check: "dry-run",
+  last_backup: "Beta environment — no local appliance backup.",
+  last_egress_check: "beta",
   source: "mock",
   dryRun: true,
 };

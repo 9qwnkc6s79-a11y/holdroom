@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LITTLE_ELM, migrateWorkspaceId } from "@/lib/departments";
+import { NORTH_DESK, migrateWorkspaceId } from "@/lib/departments";
 import { mirrorVisionJpeg } from "@/lib/image-cache";
 import { toVisionJpeg } from "@/lib/image-bytes";
 import { isRasterImage } from "@/lib/images";
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
     const file = form.get("file");
-    const departmentId = migrateWorkspaceId(String(form.get("departmentId") || form.get("roomId") || LITTLE_ELM));
+    const departmentId = migrateWorkspaceId(String(form.get("departmentId") || form.get("roomId") || NORTH_DESK));
     const inLibrary = String(form.get("inLibrary") || "") === "1" || String(form.get("inLibrary") || "") === "true";
     const folderId = String(form.get("folderId") || "") || null;
     const accessible = String(form.get("accessibleDepartments") || "")
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     accessibleDepartments?: string[];
   } | null;
 
-  const departmentId = migrateWorkspaceId(body?.departmentId || body?.roomId || LITTLE_ELM);
+  const departmentId = migrateWorkspaceId(body?.departmentId || body?.roomId || NORTH_DESK);
   if (body?.action === "delete" && body.fileId) {
     removeFile(departmentId, body.fileId);
     return NextResponse.json({ ok: true });

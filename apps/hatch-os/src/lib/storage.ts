@@ -1,4 +1,4 @@
-import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER, isEnterprise, migrateWorkspaceId } from "./departments";
+import { ENTERPRISE, HQ_OPS, NORTH_DESK, SOUTH_DESK, isEnterprise, migrateWorkspaceId } from "./departments";
 import type { AuthMethod, DepartmentId } from "./types";
 
 const PREFIX = "hatch_os_";
@@ -18,7 +18,7 @@ export const KEYS = {
   threads: `${PREFIX}threads`,
 } as const;
 
-const DEFAULT_DEPARTMENTS: DepartmentId[] = [LITTLE_ELM, PROSPER, HQ_OPS];
+const DEFAULT_DEPARTMENTS: DepartmentId[] = [NORTH_DESK, SOUTH_DESK, HQ_OPS];
 
 function migrateDepartments(ids: DepartmentId[]): DepartmentId[] {
   return ids.map(migrateWorkspaceId).filter((id) => !isEnterprise(id));
@@ -38,7 +38,7 @@ export function readSession() {
   const enterpriseStored = localStorage.getItem(KEYS.enterprise);
   const enterprise = enterpriseStored == null ? role === "Partner" : enterpriseStored === "1";
   const homeDepartment = migrateWorkspaceId(
-    localStorage.getItem(KEYS.home) || (role === "Partner" ? HQ_OPS : departments[0] || LITTLE_ELM),
+    localStorage.getItem(KEYS.home) || (role === "Partner" ? HQ_OPS : departments[0] || NORTH_DESK),
   );
   return {
     deviceName: localStorage.getItem(KEYS.device) || "This browser",
@@ -74,7 +74,7 @@ export function writeSession(input: {
   localStorage.setItem(KEYS.enterprise, enterprise ? "1" : "0");
   localStorage.setItem(
     KEYS.home,
-    migrateWorkspaceId(input.homeDepartment || departments[0] || LITTLE_ELM),
+    migrateWorkspaceId(input.homeDepartment || departments[0] || NORTH_DESK),
   );
   if (input.inviteCode) localStorage.setItem(KEYS.invite, input.inviteCode);
   else localStorage.removeItem(KEYS.invite);
@@ -95,8 +95,8 @@ export function clearSession() {
 }
 
 export function readWorkspace(): DepartmentId {
-  if (typeof window === "undefined") return LITTLE_ELM;
-  return migrateWorkspaceId(localStorage.getItem(KEYS.room) || LITTLE_ELM);
+  if (typeof window === "undefined") return NORTH_DESK;
+  return migrateWorkspaceId(localStorage.getItem(KEYS.room) || NORTH_DESK);
 }
 
 export function writeWorkspace(id: DepartmentId) {
@@ -137,5 +137,5 @@ export function landingWorkspace(session: {
   if (isEnterprise(last) && session.enterprise) return ENTERPRISE;
   if (session.departments.includes(last)) return last;
   if (session.enterprise) return ENTERPRISE;
-  return session.homeDepartment || session.departments[0] || LITTLE_ELM;
+  return session.homeDepartment || session.departments[0] || NORTH_DESK;
 }

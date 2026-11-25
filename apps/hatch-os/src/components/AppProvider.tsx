@@ -16,7 +16,7 @@ import {
   INITIAL_DEPARTMENTS,
   INITIAL_DEVICES,
   INITIAL_SEATS,
-  LITTLE_ELM,
+  NORTH_DESK,
   SEAT_LINE,
 } from "@/lib/mock-data";
 import { isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "@/lib/departments";
@@ -134,7 +134,7 @@ function asSession(data: {
   inviteCode?: string;
   testerLabel?: string;
 }): Session {
-  const departments = (data.departments || data.rooms || [LITTLE_ELM]).map(migrateWorkspaceId).filter((id) => !isEnterprise(id));
+  const departments = (data.departments || data.rooms || [NORTH_DESK]).map(migrateWorkspaceId).filter((id) => !isEnterprise(id));
   const role = data.role || "Partner";
   return {
     deviceName: data.deviceName || "This browser",
@@ -143,7 +143,7 @@ function asSession(data: {
     departments,
     rooms: departments,
     enterprise: data.enterprise ?? role === "Partner",
-    homeDepartment: migrateWorkspaceId(data.homeDepartment || (role === "Partner" ? HQ_OPS : departments[0] || LITTLE_ELM)),
+    homeDepartment: migrateWorkspaceId(data.homeDepartment || (role === "Partner" ? HQ_OPS : departments[0] || NORTH_DESK)),
     pairedAt: new Date().toISOString(),
     inviteCode: data.inviteCode || "",
     testerLabel: data.testerLabel || "",
@@ -153,7 +153,7 @@ function asSession(data: {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<DepartmentId>(LITTLE_ELM);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<DepartmentId>(NORTH_DESK);
   const [departments, setDepartments] = useState<Department[]>(cloneDepartments);
   const [folders, setFolders] = useState<FileFolder[]>([]);
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -400,7 +400,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDevices((prev) =>
           prev.map((d) => (d.current ? { ...d, name: next.deviceName, lastSeen: "This session" } : d)),
         );
-        const land = next.enterprise ? ENTERPRISE : next.homeDepartment || LITTLE_ELM;
+        const land = next.enterprise ? ENTERPRISE : next.homeDepartment || NORTH_DESK;
         setCurrentWorkspaceId(land);
         writeWorkspace(land);
         return true;
@@ -559,7 +559,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (override?: DepartmentId) => {
       if (override && !isEnterprise(override)) return override;
       if (!isEnterprise(currentWorkspaceId)) return currentWorkspaceId;
-      return session?.departments.includes(HQ_OPS) ? HQ_OPS : session?.departments[0] || LITTLE_ELM;
+      return session?.departments.includes(HQ_OPS) ? HQ_OPS : session?.departments[0] || NORTH_DESK;
     },
     [currentWorkspaceId, session],
   );
@@ -744,7 +744,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         departments: [],
         rooms: [],
         enterprise: false,
-        homeDepartment: LITTLE_ELM,
+        homeDepartment: NORTH_DESK,
         device: code,
         pending: true,
       },

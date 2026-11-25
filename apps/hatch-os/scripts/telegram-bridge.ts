@@ -13,7 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { wantsAgentTurn } from "../src/lib/agent-intent.ts";
 import { runChatTurn } from "../src/lib/chat.ts";
-import { ENTERPRISE, HQ_OPS, LITTLE_ELM, PROSPER } from "../src/lib/departments.ts";
+import { ENTERPRISE, HQ_OPS, NORTH_DESK, SOUTH_DESK } from "../src/lib/departments.ts";
 import { applyEnvFile } from "../src/lib/env-file.ts";
 import { llmConfig } from "../src/lib/llm.ts";
 import { createThread, getThread } from "../src/lib/store.ts";
@@ -72,7 +72,7 @@ function requireToken(): string {
   return token;
 }
 
-const PARTNER_DEPARTMENTS = [LITTLE_ELM, PROSPER, HQ_OPS];
+const PARTNER_DEPARTMENTS = [NORTH_DESK, SOUTH_DESK, HQ_OPS];
 
 function incomingFromMessage(message: TelegramMessage): IncomingTelegram | null {
   const from = message.from;

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, existsSync, writeFileSync, readdirSync } from 
 import path from "path";
 import { atomicWriteFile, withFileLock } from "./atomic-json.ts";
 import { canWriteDepartment, normalizeDepartments } from "./acl.ts";
-import { ENTERPRISE, FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER, isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "./departments.ts";
+import { ENTERPRISE, FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK, isEnterprise, migrateWorkspaceId, uxIsolation, workspaceLabel } from "./departments.ts";
 import { DRIVE_STUB_ITEMS } from "./drive.ts";
 import { imageAssetPassage, isAcceptedFilename, kindFromFilename, REJECT_COPY } from "./files.ts";
 import { INITIAL_SEATS } from "./mock-data.ts";
@@ -53,21 +53,20 @@ const UPLOADS = path.join(DATA, "uploads");
 const STATE_VERSION = 5;
 
 const SEED_FOLDERS: Record<string, string[]> = {
-  [LITTLE_ELM]: ["Checklists", "Staff", "Shared from HQ"],
-  [PROSPER]: ["Checklists", "Staff", "Shared from HQ"],
-  [HQ_OPS]: ["Catering", "Loyalty", "Roster"],
+  [NORTH_DESK]: ["Checklists", "Staff", "Shared from Operations"],
+  [SOUTH_DESK]: ["Checklists", "Staff", "Shared from Operations"],
+  [HQ_OPS]: ["Protocols", "Onboarding", "Roster"],
   [LEGAL]: ["Notes"],
   [FINANCE]: ["Notes"],
 };
 
 const SEED_FILE_FOLDER: Record<string, string> = {
-  "DEMO_open_close_checklist.md": "Checklists",
-  "DEMO_north_lead.md": "Staff",
-  "DEMO_south_lead.md": "Staff",
-  "DEMO_loyalty.md": "Loyalty",
-  "DEMO_catering_protocol.md": "Catering",
-  "DEMO_catering_onepager.pdf": "Catering",
-  "DEMO_gm_roster.md": "Roster",
+  "Open_close_checklist.md": "Checklists",
+  "North_desk_lead.md": "Staff",
+  "South_desk_lead.md": "Staff",
+  "Client_onboarding_checklist.md": "Onboarding",
+  "Visitor_protocol.md": "Protocols",
+  "Desk_roster.md": "Roster",
 };
 
 function seedDir() {
@@ -79,7 +78,7 @@ function newId(prefix: string) {
 }
 
 function emptyDepartments(): Department[] {
-  return [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE].map((id) => ({
+  return [NORTH_DESK, SOUTH_DESK, HQ_OPS, LEGAL, FINANCE].map((id) => ({
     id,
     name: workspaceLabel(id),
     kind: "department" as const,
@@ -109,8 +108,8 @@ function seedFolders(): FileFolder[] {
 
 function folderForSeed(departmentId: string, filename: string, folders: FileFolder[]): string | null {
   let folderName = SEED_FILE_FOLDER[filename];
-  if (folderName === "Loyalty" || folderName === "Catering" || folderName === "Roster") {
-    if (departmentId !== HQ_OPS) folderName = "Shared from HQ";
+  if (folderName === "Onboarding" || folderName === "Protocols" || folderName === "Roster") {
+    if (departmentId !== HQ_OPS) folderName = "Shared from Operations";
   }
   return folders.find((f) => f.departmentId === departmentId && f.name === folderName)?.id || null;
 }
@@ -144,7 +143,7 @@ function normalizeSeat(raw: Partial<Seat> & { id: string; name: string }): Seat 
     departments,
     rooms: departments,
     enterprise: raw.enterprise ?? raw.role === "Partner",
-    homeDepartment: migrateWorkspaceId(raw.homeDepartment || departments[0] || LITTLE_ELM),
+    homeDepartment: migrateWorkspaceId(raw.homeDepartment || departments[0] || NORTH_DESK),
     device: raw.device || "",
     pending: raw.pending,
   };
@@ -171,7 +170,7 @@ function extractText(kind: HatchFile["kind"], filename: string, body: Buffer | s
     const strings = [...raw.matchAll(/\(([^)]{8,})\)/g)].map((m) => m[1]).join(" ");
     return (
       strings.trim() ||
-      `PDF uploaded: ${filename}. Text extract is limited in this dry-run — keep a markdown copy for Ask.`
+      `PDF uploaded: ${filename}. Text extract is limited for this PDF — keep a markdown copy if you want full search.`
     );
   }
   return buf.toString("utf8");
@@ -254,12 +253,12 @@ function loadSeed(): DiskState {
     }
   }
 
-  const hqLoyalty = path.join(root, "hq-ops", "DEMO_loyalty.md");
-  const hqCater = path.join(root, "hq-ops", "DEMO_catering_protocol.md");
-  for (const id of [LITTLE_ELM, PROSPER]) {
+  const hqOnboarding = path.join(root, "hq-ops", "Client_onboarding_checklist.md");
+  const hqVisitor = path.join(root, "hq-ops", "Visitor_protocol.md");
+  for (const id of [NORTH_DESK, SOUTH_DESK]) {
     const room = rooms.find((r) => r.id === id);
     if (!room) continue;
-    for (const src of [hqLoyalty, hqCater]) {
+    for (const src of [hqOnboarding, hqVisitor]) {
       if (!existsSync(src)) continue;
       const name = path.basename(src);
       if (room.files.some((f) => f.name === name)) continue;
@@ -338,7 +337,7 @@ function ensure() {
 
 function seedTextIsStale(raw: Partial<DiskState>) {
   return (raw.chunks || []).some((chunk) =>
-    /boundaries|prosper|little elm|rafael|heath|\bcoffee\b/i.test(chunk.text || ""),
+    /boundaries|prosper|little[- ]?elm|rafael|heath|\bcoffee\b|catering|loyalty/i.test(chunk.text || ""),
   );
 }
 
@@ -347,7 +346,7 @@ function readState(): DiskState {
   try {
     const raw = JSON.parse(readFileSync(STATE, "utf8")) as Partial<DiskState>;
     const ids = (raw.rooms || []).map((r) => r.id);
-    if (!ids.includes(LITTLE_ELM) || !ids.includes(PROSPER) || seedTextIsStale(raw)) {
+    if (!ids.includes(NORTH_DESK) || !ids.includes(SOUTH_DESK) || seedTextIsStale(raw) || (raw.rooms || []).some((r) => r.files.some((f) => /DEMO_little_elm|DEMO_catering|DEMO_loyalty/i.test(f.name)))) {
       const fresh = loadSeed();
       fresh.threads = raw.threads || [];
       fresh.agents = raw.agents?.length ? raw.agents.map(normalizeAgent) : fresh.agents;
@@ -625,7 +624,7 @@ export function persistUpload(input: {
   origin?: FileOrigin;
   accessibleDepartments?: string[];
 }): { file: HatchFile; error?: string } {
-  const departmentId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
+  const departmentId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   if (input.accessibleDepartments) {
     const acl = canWriteDepartment({ departmentId, accessibleDepartments: input.accessibleDepartments });
     if (!acl.ok) {

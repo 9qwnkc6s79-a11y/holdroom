@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LITTLE_ELM, migrateWorkspaceId } from "@/lib/departments";
+import { NORTH_DESK, migrateWorkspaceId } from "@/lib/departments";
 import { createThread, listThreads, patchMessage, updateThread } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     agentId?: string;
   } | null;
   const thread = createThread(
-    migrateWorkspaceId(body?.departmentId || LITTLE_ELM),
+    migrateWorkspaceId(body?.departmentId || NORTH_DESK),
     body?.title || "New thread",
     body?.agentId,
   );

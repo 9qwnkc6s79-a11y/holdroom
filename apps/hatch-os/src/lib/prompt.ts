@@ -65,7 +65,7 @@ function sharedContext(input: PromptInput) {
       input.seeingImage
         ? "The latest user message includes a picture you can see. Answer from what is actually visible. Describe the person or scene when asked. If no picture is in the message, say so. Do not say you were only given a filename."
         : "",
-      "Do not invent prices or account numbers. Sample files are labeled DEMO.",
+      "Do not invent prices or account numbers. Do not cite internal test labels.",
       "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
       "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are sample-firm notes, not a substitute for thread memory.",
       "Be concise. After the answer, mention the filename(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
@@ -105,10 +105,10 @@ export function buildAgentMessages(input: PromptInput) {
     "If the user asks to draft, write, create, or save a note/file/memo, you MUST call write_draft. Do not leave the note as prose only.",
     input.defaultDepartmentId
       ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names North desk, South desk, or Operations. Enterprise is not a write target.`
-      : "write_draft requires little-elm, prosper, or hq-ops — never enterprise.",
+      : "write_draft requires north-desk, south-desk, or hq-ops — never enterprise.",
     "Prefer native tool calls (OpenAI tools / Hermes <tool_call>). Fallback trailer if tools are unavailable:",
     tools,
-    'TOOL {"name":"write_draft","arguments":{"departmentId":"little-elm","filename":"notes.md","text":"..."}}',
+    'TOOL {"name":"write_draft","arguments":{"departmentId":"north-desk","filename":"notes.md","text":"..."}}',
     'TOOL {"name":"handoff_to_department","arguments":{"toDepartmentId":"hq-ops","summary":"...","facts":"..."}}',
     "If no file or search action is needed, answer in prose and do not emit a TOOL line.",
     "write_draft, handoff_to_department, delete_file, and use_vault wait for a person to approve on Hatch OS. Do not claim they already happened.",
