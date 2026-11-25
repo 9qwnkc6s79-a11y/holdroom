@@ -13,7 +13,7 @@ import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndp
 import { buildAgentMessages, buildAskMessages } from "./prompt.ts";
 import { missingImageMessage, prepareTurnImages } from "./vision-turn.ts";
 import { readRunpodJob, runpodEndpointId, submitRunpodChat } from "./runpod-jobs.ts";
-import { assertHasTokens, deductUsage, OUT_OF_TOKENS_TEXT } from "./tokens.ts";
+import { assertHasTokens, deductUsage, OUT_OF_CREDIT_TEXT } from "./tokens.ts";
 import {
   appendThreadMessages,
   createThread,
@@ -235,7 +235,7 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
         if (state.testerCode) {
           const gate = await assertHasTokens(state.testerCode);
           if (!gate.ok) {
-            state.visible = [state.visible, OUT_OF_TOKENS_TEXT].filter(Boolean).join("\n\n");
+            state.visible = [state.visible, OUT_OF_CREDIT_TEXT].filter(Boolean).join("\n\n");
             return pack(finishText(state));
           }
         }

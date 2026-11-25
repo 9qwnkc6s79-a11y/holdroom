@@ -1,7 +1,7 @@
 import { toolNeedsApproval } from "./action-cards.ts";
 import { DRAFT_NUDGE, finishSoftDraft, shouldNudgeSoftDraft } from "./agent-draft.ts";
 import { streamAgentLlm, type ChatMessage } from "./llm";
-import { assertHasTokens, deductUsage, OUT_OF_TOKENS_TEXT } from "./tokens.ts";
+import { assertHasTokens, deductUsage, OUT_OF_CREDIT_TEXT } from "./tokens.ts";
 import { buildAgentMessages, type PromptInput } from "./prompt";
 import { stripThinkBlocks } from "./think.ts";
 import {
@@ -62,7 +62,7 @@ export async function runAgentLoop(
     if (input.testerCode && turn > 0) {
       const gate = await assertHasTokens(input.testerCode);
       if (!gate.ok) {
-        const notice = visible ? `${visible}\n\n${OUT_OF_TOKENS_TEXT}` : OUT_OF_TOKENS_TEXT;
+        const notice = visible ? `${visible}\n\n${OUT_OF_CREDIT_TEXT}` : OUT_OF_CREDIT_TEXT;
         return { text: notice, tools: toolResults, sources };
       }
     }

@@ -9,7 +9,7 @@ import { IconChevronLeft, IconChevronRight, IconX } from "@/components/os/Icons"
 import { ConnectApps } from "@/components/os/ConnectApps";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { VaultScreen } from "@/components/os/VaultScreen";
-import type { TokenBalanceView } from "@/lib/token-types";
+import { formatUsd, type TokenBalanceView } from "@/lib/token-types";
 
 const ZONES = [
   "America/New_York",
@@ -237,7 +237,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
               error={tokenError}
               topupState={topupState}
               busy={checkoutBusy}
-              onAdd={async () => {
+              onAdd={async (amountUsd: string) => {
                 const code = session?.inviteCode;
                 if (!code || checkoutBusy) return;
                 setCheckoutBusy(true);
@@ -246,11 +246,11 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
                   const res = await fetch("/api/tokens/checkout", {
                     method: "POST",
                     headers: { "content-type": "application/json", "x-hatch-tester": code },
-                    body: JSON.stringify({ code }),
+                    body: JSON.stringify({ code, amountUsd }),
                   });
                   const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
                   if (!res.ok || !data?.url) {
-                    setTokenError(data?.error || "Token top-ups are not set up yet.");
+                    setTokenError(data?.error || "Credit top-ups are not set up yet.");
                     return;
                   }
                   window.location.assign(data.url);
@@ -380,7 +380,7 @@ function usageLabel(tokens: TokenBalanceView | null) {
   if (!tokens) return "…";
   if (tokens.unlimited) return "Unlimited";
   if (!tokens.metered) return "Not metered";
-  return `${tokens.balance.toLocaleString()} tokens`;
+  return formatUsd(tokens.balanceCents);
 }
 
 function TokenUsagePanel({
@@ -394,22 +394,25 @@ function TokenUsagePanel({
   error: string;
   topupState: string | null;
   busy: boolean;
-  onAdd: () => void;
+  onAdd: (amountUsd: string) => void;
 }) {
+  const [amount, setAmount] = useState("");
   const canBuy = Boolean(tokens && tokens.metered && !tokens.unlimited);
   return (
     <section className="set-card">
       {topupState === "success" ? <p className="set-note">Payment received. Your balance updates once Stripe confirms the payment.</p> : null}
-      {topupState === "cancel" ? <p className="set-note">The checkout was cancelled. No tokens were added.</p> : null}
+      {topupState === "cancel" ? <p className="set-note">The checkout was cancelled. No credit was added.</p> : null}
       <div className="set-row is-static">
         <span className="set-main">
-          <strong>{usageLabel(tokens)}</strong>
+          <strong>{tokens ? (tokens.unlimited ? "Unlimited" : `Credit left ${usageLabel(tokens)}`) : "…"}</strong>
           <span>
             {tokens?.unlimited
               ? "This sign-in is not metered."
               : tokens
-                ? `Used ${tokens.lifetimeUsed.toLocaleString()} tokens on Ask and Agent replies.`
-                : "Loading the token balance…"}
+                ? tokens.lifetimeUsedTokens
+                  ? `Used ${tokens.lifetimeUsedTokens.toLocaleString()} tokens` + (tokens.lifetimeUsedCents ? ` (${formatUsd(tokens.lifetimeUsedCents)})` : "") + " on Ask and Agent replies."
+                  : "No billed usage yet on Ask and Agent replies."
+                : "Loading the credit balance…"}
           </span>
         </span>
       </div>
@@ -417,13 +420,29 @@ function TokenUsagePanel({
       {error ? <p className="os-error">{error}</p> : null}
       {canBuy ? (
         <div className="set-row is-static" style={{ display: "block", paddingTop: 8, paddingBottom: 16 }}>
-          <button type="button" className="os-btn" disabled={busy || !tokens?.checkoutReady} onClick={onAdd}>
-            {busy ? "Opening checkout…" : tokens?.topupTokens ? `Add ${tokens.topupTokens.toLocaleString()} tokens` : "Add tokens"}
+          <label className="set-field">
+            Amount to add
+            <input
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              inputMode="decimal"
+              placeholder="20.00"
+              aria-label="Dollar amount to add"
+            />
+          </label>
+          <button
+            type="button"
+            className="os-btn"
+            disabled={busy || !tokens?.checkoutReady || !amount.trim()}
+            onClick={() => onAdd(amount)}
+            style={{ marginTop: 8 }}
+          >
+            {busy ? "Opening checkout…" : amount.trim() ? `Add ${amount.trim().startsWith("$") ? amount.trim() : `$${amount.trim()}`}` : "Add credit"}
           </button>
           {!tokens?.checkoutReady ? (
-            <p className="fine" style={{ marginTop: 8 }}>Payments are not set up yet. Stripe test mode and a pack size need to be configured.</p>
+            <p className="fine" style={{ marginTop: 8 }}>Payments are not set up yet. A Stripe test-mode key needs to be configured.</p>
           ) : (
-            <p className="fine" style={{ marginTop: 8 }}>Checkout opens a Stripe test-mode page. No live charges run until test keys are replaced.</p>
+            <p className="fine" style={{ marginTop: 8 }}>Checkout opens a Stripe test-mode page. No live charges run until test keys are replaced. Minimum is $0.50.</p>
           )}
         </div>
       ) : null}

@@ -1,17 +1,19 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { formatUsd } from "@/lib/token-types";
 
 interface Account {
   code: string;
   label: string;
   unlimited: boolean;
-  balance: number;
+  balanceCents: number;
   grantedFree: boolean;
-  freeGrant: number;
-  lifetimeUsed: number;
-  lifetimePurchased: number;
-  lifetimeGranted: number;
+  freeGrantCents: number;
+  lifetimeUsedCents: number;
+  lifetimeUsedTokens: number;
+  lifetimePurchasedCents: number;
+  lifetimeGrantedCents: number;
   updatedAt: string;
 }
 
@@ -32,7 +34,7 @@ export default function TokenAdminPage() {
     const data = (await res.json().catch(() => null)) as { error?: string; accounts?: Account[] } | null;
     if (!res.ok) {
       setAccounts(null);
-      setError(data?.error || "Could not open the token list.");
+      setError(data?.error || "Could not open the credit list.");
       return;
     }
     setAccounts(data?.accounts || []);
@@ -45,14 +47,14 @@ export default function TokenAdminPage() {
     const res = await fetch("/api/admin/tokens", {
       method: "POST",
       headers: { "content-type": "application/json", "x-hatch-admin": admin },
-      body: JSON.stringify({ code, amount: Number(amount), note }),
+      body: JSON.stringify({ code, amountUsd: amount, note }),
     });
     const data = (await res.json().catch(() => null)) as { error?: string; applied?: boolean; account?: Account } | null;
     if (!res.ok) {
-      setError(data?.error || "Could not grant tokens.");
+      setError(data?.error || "Could not grant credit.");
       return;
     }
-    setStatus(data?.applied === false ? "That grant was already applied." : "Tokens were added.");
+    setStatus(data?.applied === false ? "That grant was already applied." : "Credit was added.");
     setAmount("");
     await load();
   }
@@ -60,7 +62,7 @@ export default function TokenAdminPage() {
   return (
     <main className="os-gate">
       <div className="os-gate-card" style={{ maxWidth: 720, textAlign: "left" }}>
-        <h1>Tester tokens</h1>
+        <h1>Tester credit</h1>
         <form className="os-form" onSubmit={(event) => void load(event)}>
           <label>Admin code<input value={admin} onChange={(event) => setAdmin(event.target.value)} autoComplete="off" /></label>
           <button className="os-btn" type="submit">Open</button>
@@ -75,10 +77,11 @@ export default function TokenAdminPage() {
                   <strong>{account.code}</strong>
                   <span>
                     {account.label}
-                    {account.unlimited ? " · unlimited" : ` · ${account.balance.toLocaleString()} left`}
-                    {` · used ${account.lifetimeUsed.toLocaleString()}`}
-                    {account.lifetimePurchased ? ` · bought ${account.lifetimePurchased.toLocaleString()}` : ""}
-                    {account.lifetimeGranted ? ` · granted ${account.lifetimeGranted.toLocaleString()}` : ""}
+                    {account.unlimited ? " · unlimited" : ` · ${formatUsd(account.balanceCents)} left`}
+                    {account.lifetimeUsedCents ? ` · used ${formatUsd(account.lifetimeUsedCents)}` : ""}
+                    {account.lifetimeUsedTokens ? ` · ${account.lifetimeUsedTokens.toLocaleString()} tokens` : ""}
+                    {account.lifetimePurchasedCents ? ` · bought ${formatUsd(account.lifetimePurchasedCents)}` : ""}
+                    {account.lifetimeGrantedCents ? ` · granted ${formatUsd(account.lifetimeGrantedCents)}` : ""}
                   </span>
                 </span>
               </div>
@@ -89,9 +92,9 @@ export default function TokenAdminPage() {
         {accounts ? (
           <form className="os-form" onSubmit={(event) => void grant(event)}>
             <label>Invite code<input value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" /></label>
-            <label>Tokens to grant<input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="numeric" /></label>
+            <label>Dollars to grant<input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" /></label>
             <label>Note<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
-            <button className="os-btn" type="submit">Grant tokens</button>
+            <button className="os-btn" type="submit">Grant credit</button>
           </form>
         ) : null}
       </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { creditTokens, listAccounts } from "@/lib/tokens";
+import { creditCents, listAccounts, parseDollarsToCents } from "@/lib/tokens";
 import { safeCode } from "@/lib/testers";
 
 export const dynamic = "force-dynamic";
@@ -18,15 +18,24 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   if (!allowed(req)) return NextResponse.json({ error: "That admin code is not recognized." }, { status: 401 });
-  const body = (await req.json().catch(() => null)) as { code?: string; amount?: number; id?: string; note?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    code?: string;
+    amount?: string | number;
+    amountUsd?: string | number;
+    amountCents?: number;
+    id?: string;
+    note?: string;
+  } | null;
   const code = safeCode(body?.code || "");
-  const amount = Number(body?.amount);
-  if (!code) return NextResponse.json({ error: "An invite code is required." }, { status: 400 });
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ error: "A positive token amount is required." }, { status: 400 });
+  if (!code || code === "STAFF") return NextResponse.json({ error: "An invite code is required." }, { status: 400 });
+  const cents = Number.isFinite(Number(body?.amountCents)) && Number(body?.amountCents) > 0
+    ? Math.round(Number(body?.amountCents))
+    : parseDollarsToCents(body?.amountUsd ?? body?.amount);
+  if (cents == null) {
+    return NextResponse.json({ error: "A positive dollar amount is required." }, { status: 400 });
   }
   const id = (body?.id || "").trim() || `grant-${code.toLowerCase()}-${Date.now()}`;
-  const result = await creditTokens(code, amount, { kind: "grant", id, note: body?.note || "admin grant" });
-  if (!result.ok) return NextResponse.json({ error: result.error || "Could not grant tokens." }, { status: 400 });
+  const result = await creditCents(code, cents, { kind: "grant", id, note: body?.note || "admin grant" });
+  if (!result.ok) return NextResponse.json({ error: result.error || "Could not grant credit." }, { status: 400 });
   return NextResponse.json({ ok: true, applied: result.applied, account: result.account });
 }
