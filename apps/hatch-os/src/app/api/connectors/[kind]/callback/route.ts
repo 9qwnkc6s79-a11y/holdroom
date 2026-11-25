@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { callbackUrl, readState, saveOAuthAccount } from "@/lib/connectors";
+import { IOS_OAUTH_RETURN, callbackUrl, readState, saveOAuthAccount } from "@/lib/connectors";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,6 +12,13 @@ function page(title: string, body: string, status = 200) {
   });
 }
 
+function iosReturn(kind: string, ok: boolean) {
+  const target = new URL(IOS_OAUTH_RETURN);
+  target.searchParams.set("kind", kind);
+  target.searchParams.set("ok", ok ? "1" : "0");
+  return NextResponse.redirect(target.toString());
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ kind: string }> }) {
   const { kind } = await ctx.params;
   const url = new URL(req.url);
@@ -19,16 +26,22 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
   const state = url.searchParams.get("state") || "";
   const jar = await cookies();
   const cookie = jar.get("hatch_oauth")?.value || "";
-  if (!code || !state || state !== cookie) return page("Could not connect", "The sign-in state did not match. Start again from Connect apps.", 400);
-  const parsed = readState(state);
-  if (!parsed || parsed.kind !== kind) return page("Could not connect", "That sign-in session expired. Start again from Connect apps.", 400);
+  const parsed = state ? readState(state) : null;
+  const ios = parsed?.client === "ios";
+  const cookieOk = Boolean(state) && state === cookie;
+  if (!code || !parsed || parsed.kind !== kind || (!cookieOk && !ios)) {
+    if (ios) return iosReturn(kind, false);
+    return page("Could not connect", "The sign-in state did not match. Start again from Connect apps.", 400);
+  }
   try {
     const saved = await exchange(kind, code, callbackUrl(kind as "google", url.origin));
     await saveOAuthAccount(parsed.scope, kind as "google", saved.label, saved.secret);
+    if (ios) return iosReturn(kind, true);
     const res = page("Connected", `${saved.label} is connected. You can return to Hatch.`);
     res.cookies.set("hatch_oauth", "", { path: "/", maxAge: 0 });
     return res;
   } catch (err) {
+    if (ios) return iosReturn(kind, false);
     return page("Could not connect", err instanceof Error ? err.message : "The provider rejected the sign-in.", 400);
   }
 }
@@ -43,7 +56,20 @@ async function exchange(kind: string, code: string, redirect: string) {
       grant_type: "authorization_code",
     });
     const token = await postForm("https://oauth2.googleapis.com/token", body);
-    return { label: "Google", secret: { accessToken: token.access_token, refreshToken: token.refresh_token } };
+    const profile = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${token.access_token || ""}` },
+    });
+    const me = (await profile.json().catch(() => null)) as { email?: string } | null;
+    const email = me?.email || "Google";
+    return {
+      label: email,
+      secret: {
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: Date.now() + Number(token.expires_in || 3600) * 1000,
+        email,
+      },
+    };
   }
   if (kind === "microsoft") {
     const body = new URLSearchParams({
@@ -54,7 +80,20 @@ async function exchange(kind: string, code: string, redirect: string) {
       grant_type: "authorization_code",
     });
     const token = await postForm("https://login.microsoftonline.com/common/oauth2/v2.0/token", body);
-    return { label: "Microsoft 365", secret: { accessToken: token.access_token, refreshToken: token.refresh_token } };
+    const profile = await fetch("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
+      headers: { Authorization: `Bearer ${token.access_token || ""}` },
+    });
+    const me = (await profile.json().catch(() => null)) as { mail?: string; userPrincipalName?: string } | null;
+    const email = me?.mail || me?.userPrincipalName || "Microsoft 365";
+    return {
+      label: email,
+      secret: {
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: Date.now() + Number(token.expires_in || 3600) * 1000,
+        email,
+      },
+    };
   }
   if (kind === "slack") {
     const body = new URLSearchParams({
@@ -83,5 +122,5 @@ async function postForm(url: string, body: URLSearchParams) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok || !json) throw new Error("The provider rejected the code exchange.");
-  return json as { access_token?: string; refresh_token?: string; team?: { name?: string } };
+  return json as { access_token?: string; refresh_token?: string; expires_in?: number; team?: { name?: string } };
 }

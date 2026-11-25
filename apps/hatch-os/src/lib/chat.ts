@@ -12,6 +12,7 @@ import { stripThinkBlocks } from "./think.ts";
 import { toolNeedsApproval } from "./action-cards.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
 import type { ApprovalCard, ChatAttachment, ChatMessage, Source, ToolEvent } from "./types";
+import { searchLibraryPassages } from "./library-passages.ts";
 import { scrubVaultSecrets } from "./vault.ts";
 
 export function newChatMessage(role: ChatMessage["role"], text: string, extra?: Partial<ChatMessage>): ChatMessage {
@@ -44,6 +45,7 @@ export interface ChatTurnInput {
   /** Web UI waits for Approve / Cancel before a send, change, delete, or vault use. */
   approvals?: "wait" | "immediate";
   replyTo?: { text: string };
+  testerCode?: string;
 }
 
 export interface ChatTurnResult {
@@ -80,7 +82,10 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const active = thread || createThread(workspaceId, query.slice(0, 42));
   hooks.onStart?.({ threadId: active.id });
 
-  const sources = retrieveFirm(query);
+  const sources = [
+    ...retrieveFirm(query),
+    ...(input.testerCode ? await searchLibraryPassages(input.testerCode, query) : []),
+  ];
   const listing = fileListing(workspaceId);
   const reads = mentionedReads(query);
   const toolResults: ToolEvent[] = reads.map((r) => r.event);

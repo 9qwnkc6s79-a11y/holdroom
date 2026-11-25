@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callbackUrl, oauthConfigured, signState } from "@/lib/connectors";
+import { GOOGLE_OAUTH_SCOPE, MICROSOFT_OAUTH_SCOPE, callbackUrl, oauthConfigured, signState } from "@/lib/connectors";
 import { vaultConfigured } from "@/lib/vault-crypto";
 
 export const dynamic = "force-dynamic";
@@ -28,9 +28,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
   if (!vaultConfigured()) {
     return NextResponse.json({ configured: false, provider: kind, callbackUrl: back, message: "Encrypted storage is not configured on this system." });
   }
-  const scope = new URL(req.url).searchParams.get("scope") || "staff";
-  const state = signState({ scope, kind });
+  const params = new URL(req.url).searchParams;
+  const scope = params.get("scope") || "staff";
+  const client = params.get("client") === "ios" ? "ios" : "web";
+  const state = signState({ scope, kind, client });
   const redirect = authorizeUrl(kind, back, state);
+  if (params.get("probe") === "1") {
+    return NextResponse.json({
+      configured: true,
+      provider: kind,
+      callbackUrl: back,
+      authorizeUrl: redirect.toString(),
+    });
+  }
   const res = NextResponse.redirect(redirect);
   res.cookies.set("hatch_oauth", state, { httpOnly: true, sameSite: "lax", secure: origin.startsWith("https"), path: "/", maxAge: 600 });
   return res;
@@ -45,10 +55,7 @@ function authorizeUrl(kind: OauthKind, redirect: string, state: string) {
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
     url.searchParams.set("state", state);
-    url.searchParams.set(
-      "scope",
-      "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.readonly",
-    );
+    url.searchParams.set("scope", GOOGLE_OAUTH_SCOPE);
     return url;
   }
   if (kind === "microsoft") {
@@ -58,7 +65,7 @@ function authorizeUrl(kind: OauthKind, redirect: string, state: string) {
     url.searchParams.set("response_type", "code");
     url.searchParams.set("response_mode", "query");
     url.searchParams.set("state", state);
-    url.searchParams.set("scope", "offline_access User.Read Mail.Read Mail.Send Calendars.ReadWrite Files.Read");
+    url.searchParams.set("scope", MICROSOFT_OAUTH_SCOPE);
     return url;
   }
   if (kind === "slack") {

@@ -29,6 +29,25 @@ export interface ConnectorCatalogItem {
   auth: string;
 }
 
+/** Read-only Google scopes, plus openid and email so the account can be labeled. */
+export const GOOGLE_OAUTH_SCOPE =
+  "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly";
+
+/** Read-only Microsoft scopes. User.Read labels the account. Tenant is `common` (no tenant env var). */
+export const MICROSOFT_OAUTH_SCOPE = "offline_access User.Read Mail.Read Files.Read.All Calendars.Read";
+
+/** App scheme the iPhone waits on. Google and Microsoft never see this URL. */
+export const IOS_OAUTH_RETURN = "hatchos://oauth";
+
+export function accountId(kind: string, label: string): string {
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+  return `${kind}--${slug || "account"}`;
+}
+
 export const CONNECTOR_CATALOG: ConnectorCatalogItem[] = [
   { kind: "google", name: "Google", blurb: "Gmail, Calendar, and Drive", auth: "OAuth" },
   { kind: "microsoft", name: "Microsoft 365", blurb: "Outlook mail, calendar, and OneDrive", auth: "OAuth" },
@@ -84,22 +103,29 @@ async function readSecret<T>(scope: string, kind: ConnectorKind): Promise<{ row:
   return { row, secret: decryptJson<T>(row.secret) };
 }
 
-export async function disconnectConnector(scope: string, kind: string) {
-  await deleteRecord(folder(scope), kind);
+export async function disconnectConnector(scope: string, kindOrId: string) {
+  const rows = await readRecords<StoredConnector>(folder(scope));
+  const matches = rows.filter((row) => row.id === kindOrId || row.kind === kindOrId);
+  if (!matches.length) {
+    await deleteRecord(folder(scope), kindOrId);
+    return;
+  }
+  for (const row of matches) await deleteRecord(folder(scope), row.id);
 }
 
-async function saveConnector(scope: string, kind: ConnectorKind, label: string, detail: string, secret: unknown) {
+async function saveConnector(scope: string, kind: ConnectorKind, label: string, detail: string, secret: unknown, id = accountId(kind, label)) {
   if (!vaultConfigured()) throw new Error("Encrypted storage is not configured on this system.");
+  const existing = (await readRecords<StoredConnector>(folder(scope))).find((row) => row.id === id);
   const row: StoredConnector = {
-    id: kind,
+    id,
     kind,
     scope: scopeKey(scope),
     label: label.slice(0, 120),
     detail: detail.slice(0, 240),
-    connectedAt: new Date().toISOString(),
+    connectedAt: existing?.connectedAt || new Date().toISOString(),
     secret: encryptJson(secret),
   };
-  await saveRecord(folder(scope), kind, row);
+  await saveRecord(folder(scope), id, row);
   return publicOf(row);
 }
 
@@ -198,7 +224,7 @@ export function readState(token: string) {
   const expect = createHmac("sha256", vaultKey()).update(body).digest("base64url");
   if (expect !== mac) return null;
   try {
-    return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { scope: string; kind: string };
+    return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { scope: string; kind: string; client?: string };
   } catch {
     return null;
   }
@@ -208,7 +234,52 @@ export async function saveOAuthAccount(scope: string, kind: ConnectorKind, label
   return saveConnector(scope, kind, label, "OAuth connected", secret);
 }
 
-type GoogleSecret = { accessToken: string; refreshToken?: string; email?: string };
+type GoogleSecret = { accessToken: string; refreshToken?: string; expiresAt?: number; email?: string };
+
+export async function refreshAccess(scope: string, kind: "google" | "microsoft"): Promise<{ id: string; accessToken: string; email?: string }[]> {
+  const rows = await readRecords<StoredConnector>(folder(scope));
+  const matches = rows.filter((row) => row.kind === kind);
+  const ready: { id: string; accessToken: string; email?: string }[] = [];
+  for (const row of matches) {
+    let secret: GoogleSecret;
+    try {
+      secret = decryptJson<GoogleSecret>(row.secret);
+    } catch {
+      continue;
+    }
+    if (!secret.accessToken) continue;
+    const fresh = await refreshOAuth(scope, row, secret, kind);
+    if (fresh.accessToken) ready.push({ id: row.id, accessToken: fresh.accessToken, email: fresh.email || row.label });
+  }
+  return ready;
+}
+
+async function refreshOAuth(scope: string, row: StoredConnector, secret: GoogleSecret, kind: "google" | "microsoft"): Promise<GoogleSecret> {
+  if (secret.expiresAt && secret.expiresAt > Date.now() + 60_000) return secret;
+  if (!secret.refreshToken) return secret;
+  const google = kind === "google";
+  const body = new URLSearchParams({
+    client_id: process.env[google ? "HATCH_GOOGLE_CLIENT_ID" : "HATCH_MICROSOFT_CLIENT_ID"] || "",
+    client_secret: process.env[google ? "HATCH_GOOGLE_CLIENT_SECRET" : "HATCH_MICROSOFT_CLIENT_SECRET"] || "",
+    refresh_token: secret.refreshToken,
+    grant_type: "refresh_token",
+  });
+  if (!google) body.set("scope", MICROSOFT_OAUTH_SCOPE);
+  const tokenUrl = google
+    ? "https://oauth2.googleapis.com/token"
+    : "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+  const res = await fetch(tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  const token = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string; expires_in?: number } | null;
+  if (!res.ok || !token?.access_token) return secret;
+  const next: GoogleSecret = {
+    ...secret,
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token || secret.refreshToken,
+    expiresAt: Date.now() + Number(token.expires_in || 3600) * 1000,
+  };
+  await saveConnector(scope, kind, row.label, row.detail, next, row.id);
+  return next;
+}
 type SlackSecret = { token: string };
 type NotionSecret = { token: string };
 type GithubSecret = { token: string };
@@ -216,11 +287,19 @@ type LinearSecret = { token: string };
 type McpSecret = { url: string; token?: string; tools?: string[] };
 
 async function gmailFetch(scope: string, path: string, init?: RequestInit) {
-  const saved = await readSecret<GoogleSecret>(scope, "google");
-  if (!saved) return null;
-  const headers = { Authorization: `Bearer ${saved.secret.accessToken}`, ...(init?.headers || {}) };
+  const accounts = await refreshAccess(scope, "google");
+  const token = accounts[0]?.accessToken;
+  if (!token) return null;
+  const headers = { Authorization: `Bearer ${token}`, ...(init?.headers || {}) };
   const res = await fetch(`https://gmail.googleapis.com/gmail/v1${path}`, { ...init, headers });
   return res;
+}
+
+async function graphGet(scope: string, path: string) {
+  const accounts = await refreshAccess(scope, "microsoft");
+  const token = accounts[0]?.accessToken;
+  if (!token) return null;
+  return fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 function tool(name: string, ok: boolean, detail: string): { event: ToolEvent; extra?: string } {
@@ -280,10 +359,28 @@ async function runEmail(scope: string, name: string, args: Record<string, string
       const q = encodeURIComponent(args.query || args.q || "");
       const res = await gmailFetch(scope, `/users/me/messages?maxResults=5&q=${q}`);
       const data = (await res?.json().catch(() => null)) as { messages?: { id: string }[] } | null;
-      return tool(name, true, data?.messages?.length ? `Gmail matches: ${data.messages.map((m) => m.id).join(", ")}` : "No Gmail matches.");
+      if (data?.messages?.length) {
+        const bits: string[] = [];
+        for (const message of data.messages.slice(0, 5)) {
+          const full = await gmailFetch(scope, `/users/me/messages/${message.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`);
+          const body = (await full?.json().catch(() => null)) as { snippet?: string; payload?: { headers?: { name: string; value: string }[] } } | null;
+          const headers = body?.payload?.headers || [];
+          const subject = headers.find((header) => header.name === "Subject")?.value || body?.snippet || message.id;
+          bits.push(subject);
+        }
+        return tool(name, true, `Gmail: ${bits.join(" · ")}`);
+      }
     }
-    if (!mail) return tool(name, false, "Connect Email, Gmail, or Outlook first.");
-    return tool(name, true, await imapSearch(mail.secret, args.query || args.subject || ""));
+    const outlook = await graphGet(scope, `/me/messages?$top=8&$select=subject,bodyPreview,from`);
+    if (outlook) {
+      const data = (await outlook.json().catch(() => null)) as { value?: { subject?: string; bodyPreview?: string }[] } | null;
+      const q = (args.query || args.q || "").toLowerCase();
+      const rows = (data?.value || []).filter((item) => !q || `${item.subject || ""} ${item.bodyPreview || ""}`.toLowerCase().includes(q));
+      if (rows.length) return tool(name, true, `Outlook: ${rows.map((item) => item.subject || item.bodyPreview || "Message").join(" · ")}`);
+    }
+    if (!mail && !google) return tool(name, false, "Connect Email, Gmail, or Outlook first.");
+    if (mail) return tool(name, true, await imapSearch(mail.secret, args.query || args.subject || ""));
+    return tool(name, true, "No mail matched.");
   }
   if (name === "email_draft") {
     await saveRecord(`connectors/${scopeKey(scope)}`, `draft-${Date.now().toString(36)}`, {
@@ -298,51 +395,46 @@ async function runEmail(scope: string, name: string, args: Record<string, string
     const sent = await smtpSend(mail.secret, { to: args.to, subject: args.subject || "(no subject)", body: args.body || args.text || "" });
     return tool(name, true, sent);
   }
-  if (google) {
-    const raw = Buffer.from(`To: ${args.to}\r\nSubject: ${args.subject || ""}\r\n\r\n${args.body || args.text || ""}`).toString("base64url");
-    const res = await gmailFetch(scope, "/users/me/messages/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ raw }),
-    });
-    if (!res?.ok) return tool(name, false, "Gmail did not send that message.");
-    return tool(name, true, `Sent through Gmail to ${args.to}.`);
-  }
-  return tool(name, false, "Connect Email or Gmail before sending.");
+  if (google) return tool(name, false, "Gmail is connected read-only. Nothing was sent.");
+  return tool(name, false, "Connect Email before sending. Gmail and Outlook on this host are read-only.");
 }
 
 async function runCalendar(scope: string, name: string, args: Record<string, string>) {
-  const google = await readSecret<GoogleSecret>(scope, "google");
-  if (!google) return tool(name, false, "Connect Google Calendar or Outlook first.");
+  const googleAccounts = await refreshAccess(scope, "google");
   if (name === "calendar_list") {
-    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=5&orderBy=startTime&singleEvents=true", {
-      headers: { Authorization: `Bearer ${google.secret.accessToken}` },
-    });
-    const data = (await res.json().catch(() => null)) as { items?: { summary?: string; start?: { dateTime?: string } }[] } | null;
-    const lines = (data?.items || []).map((item) => `${item.start?.dateTime || ""} ${item.summary || "Untitled"}`).join("\n");
-    return tool(name, res.ok, lines || "No upcoming events.");
+    if (googleAccounts[0]) {
+      const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=5&orderBy=startTime&singleEvents=true&timeMin=" + encodeURIComponent(new Date().toISOString()), {
+        headers: { Authorization: `Bearer ${googleAccounts[0].accessToken}` },
+      });
+      const data = (await res.json().catch(() => null)) as { items?: { summary?: string; start?: { dateTime?: string } }[] } | null;
+      const lines = (data?.items || []).map((item) => `${item.start?.dateTime || ""} ${item.summary || "Untitled"}`).join("\n");
+      if (lines) return tool(name, res.ok, lines);
+    }
+    const outlook = await graphGet(scope, "/me/events?$top=5&$select=subject,start&$orderby=start/dateTime");
+    const data = (await outlook?.json().catch(() => null)) as { value?: { subject?: string; start?: { dateTime?: string } }[] } | null;
+    const lines = (data?.value || []).map((item) => `${item.start?.dateTime || ""} ${item.subject || "Untitled"}`).join("\n");
+    if (!googleAccounts[0] && !outlook) return tool(name, false, "Connect Google Calendar or Outlook first.");
+    return tool(name, true, lines || "No upcoming events.");
   }
-  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${google.secret.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      summary: args.title || args.summary || "Hatch event",
-      start: { dateTime: args.start },
-      end: { dateTime: args.end || args.start },
-    }),
-  });
-  return tool(name, res.ok, res.ok ? `Created “${args.title || "event"}”.` : "Calendar did not create that event.");
+  return tool(name, false, "Calendar is connected read-only. Nothing was created.");
 }
 
 async function runFiles(scope: string, name: string, args: Record<string, string>) {
-  const google = await readSecret<GoogleSecret>(scope, "google");
-  if (!google) return tool(name, false, "Connect Google Drive or OneDrive first.");
-  const q = encodeURIComponent(args.query || "");
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?pageSize=5&q=name contains '${q.replace(/'/g, "")}'&fields=files(id,name)`, {
-    headers: { Authorization: `Bearer ${google.secret.accessToken}` },
-  });
-  const data = (await res.json().catch(() => null)) as { files?: { id: string; name: string }[] } | null;
-  return tool(name, res.ok, (data?.files || []).map((file) => `${file.name} (${file.id})`).join("\n") || "No Drive files matched.");
+  const googleAccounts = await refreshAccess(scope, "google");
+  const q = (args.query || "").replace(/'/g, "");
+  if (googleAccounts[0]) {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?pageSize=5&q=${encodeURIComponent(`name contains '${q}'`)}&fields=files(id,name)`, {
+      headers: { Authorization: `Bearer ${googleAccounts[0].accessToken}` },
+    });
+    const data = (await res.json().catch(() => null)) as { files?: { id: string; name: string }[] } | null;
+    const lines = (data?.files || []).map((file) => file.name).join("\n");
+    if (lines) return tool(name, res.ok, lines);
+  }
+  const drive = await graphGet(scope, `/me/drive/root/children?$top=8&$select=name`);
+  const data = (await drive?.json().catch(() => null)) as { value?: { name?: string }[] } | null;
+  const names = (data?.value || []).map((file) => file.name || "").filter((fileName) => !q || fileName.toLowerCase().includes(q.toLowerCase()));
+  if (!googleAccounts[0] && !drive) return tool(name, false, "Connect Google Drive or OneDrive first.");
+  return tool(name, true, names.join("\n") || "No files matched.");
 }
 
 async function runSlack(scope: string, name: string, args: Record<string, string>) {

@@ -113,6 +113,7 @@ export async function POST(req: Request) {
             approvals: body?.approvals || "wait",
             defaultDepartmentId: body?.defaultDepartmentId,
             replyTo: body?.replyTo,
+            testerCode,
           },
           {
             onStart: (info) => {
