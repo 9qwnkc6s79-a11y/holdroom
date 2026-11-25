@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Agent, ChatThread } from "../api/types.ts";
-import { greeting, hostLine, isWaitStatus, jpegName, normalizeInvite, tasksFromThreads } from "./derive.ts";
+import { composeDictation, greeting, hostLine, isWaitStatus, jpegName, normalizeInvite, tasksFromThreads } from "./derive.ts";
 
 const legal: Agent = {
   id: "legal",
@@ -16,6 +16,13 @@ test("greeting follows the local hour", () => {
   assert.equal(greeting(8), "Good morning");
   assert.equal(greeting(12), "Good afternoon");
   assert.equal(greeting(17), "Good evening");
+});
+
+test("live dictation replaces partials without dropping what was already typed", () => {
+  assert.equal(composeDictation("", "hello"), "hello");
+  assert.equal(composeDictation("", "hello there"), "hello there");
+  assert.equal(composeDictation("Draft the note", "about the lease"), "Draft the note about the lease");
+  assert.equal(composeDictation("Draft the note", ""), "Draft the note");
 });
 
 test("photos are renamed to jpeg and warmup copy is not a reply", () => {

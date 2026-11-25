@@ -2,8 +2,8 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const camera = "Hatch OS uses the camera so you can attach a photo to a message.";
 const photos = "Hatch OS uses your photo library so you can attach a photo to a message.";
-const microphone = "Hatch OS uses the microphone so you can talk to Hatch.";
-const speech = "Hatch OS uses speech recognition to turn what you say into text. Recognition stays on this iPhone when on-device speech is available.";
+const microphone = "Hatch OS uses the microphone so you can dictate in the chat. Audio is transcribed on this iPhone.";
+const speech = "Hatch OS uses speech recognition to type what you say. Recognition stays on this iPhone and is not sent to another company.";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -18,7 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   backgroundColor: "#09090B",
   ios: {
     bundleIdentifier: "ai.hatchsystems.os",
-    buildNumber: "3",
+    buildNumber: "4",
     supportsTablet: false,
     infoPlist: {
       CFBundleDisplayName: "Hatch OS",

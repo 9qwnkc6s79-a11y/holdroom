@@ -71,6 +71,15 @@ export function jpegName(name: string): string {
   return `${clean}.jpg`;
 }
 
+/** Live words replace the dictated span. Text already in the box stays put. */
+export function composeDictation(base: string, partial: string): string {
+  const prior = base.trim();
+  const spoken = partial.trim();
+  if (!spoken) return prior;
+  if (!prior) return spoken;
+  return `${prior} ${spoken}`;
+}
+
 /** Wait copy belongs on the status line. It is not the assistant's reply. */
 export function isWaitStatus(text: string): boolean {
   const clean = text.trim();

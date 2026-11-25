@@ -3,12 +3,17 @@ import { Platform } from "react-native";
 
 interface SpeechNative {
   requestPermissions: () => Promise<boolean>;
-  start: (locale: string) => Promise<boolean>;
+  start: (locale: string) => Promise<{ onDevice?: boolean } | boolean>;
+  startCapture: () => Promise<boolean>;
   stop: () => Promise<string | null>;
   addListener: (event: string, listener: (payload: Record<string, unknown>) => void) => { remove: () => void };
 }
 
+export const HOST_STT_UNAVAILABLE =
+  "On-device speech isn’t available on this iPhone, and Hatch’s speech service is not connected on your firm’s host yet.";
+
 export interface SpeechSession {
+  onDevice: boolean;
   stop: () => Promise<string | null>;
 }
 
@@ -41,127 +46,110 @@ async function startIos(
     handlers.onLevel(Math.max(0, Math.min(1, smooth)));
   });
   const error = native.addListener("error", () => undefined);
-  try {
-    const allowed = await native.requestPermissions();
-    if (!allowed) {
-      result.remove();
-      level.remove();
-      error.remove();
-      return { error: "Hatch OS needs the microphone and speech recognition to listen." };
-    }
-    await native.start("en-US");
-  } catch (caught) {
+  const detach = () => {
     result.remove();
     level.remove();
     error.remove();
+  };
+  try {
+    const allowed = await native.requestPermissions();
+    if (!allowed) {
+      detach();
+      return { error: "Hatch OS needs the microphone and speech recognition. Audio stays on this iPhone." };
+    }
+    try {
+      await native.start("en-US");
+      return {
+        onDevice: true,
+        stop: async () => {
+          detach();
+          try {
+            return await native.stop();
+          } catch {
+            return null;
+          }
+        },
+      };
+    } catch {
+      await native.startCapture();
+      return {
+        onDevice: false,
+        stop: async () => {
+          detach();
+          try {
+            return await native.stop();
+          } catch {
+            return null;
+          }
+        },
+      };
+    }
+  } catch (caught) {
+    detach();
     const message = caught instanceof Error ? caught.message : "Speech recognition is not available on this iPhone.";
     return { error: message };
   }
-  return {
-    stop: async () => {
-      result.remove();
-      level.remove();
-      error.remove();
-      try {
-        return await native.stop();
-      } catch {
-        return null;
-      }
-    },
-  };
 }
 
 async function startWeb(handlers: {
   onText: (text: string) => void;
   onLevel: (level: number) => void;
 }): Promise<SpeechSession | { error: string }> {
-  const speechWindow = window as Window & {
-    SpeechRecognition?: SpeechCtor;
-    webkitSpeechRecognition?: SpeechCtor;
-  };
-  const Ctor = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-  if (!Ctor) return { error: "Speech recognition is not available in this browser." };
-  const recognition = new Ctor();
-  recognition.lang = "en-US";
-  recognition.interimResults = true;
-  recognition.continuous = true;
-  recognition.onresult = (event) => {
-    const pieces: string[] = [];
-    for (let index = 0; index < event.results.length; index += 1) {
-      const piece = event.results[index]?.[0]?.transcript;
-      if (piece) pieces.push(piece);
-    }
-    handlers.onText(pieces.join(" ").trim());
-  };
-  let closed = false;
-  let stream: MediaStream | null = null;
-  let audioContext: AudioContext | null = null;
-  let frame = 0;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    return { error: HOST_STT_UNAVAILABLE };
+  }
+  let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const Ctx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (Ctx) {
-      audioContext = new Ctx();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 1024;
-      source.connect(analyser);
-      const bins = new Float32Array(analyser.fftSize);
-      let smooth = 0;
-      const tick = () => {
-        if (closed) return;
-        analyser.getFloatTimeDomainData(bins);
-        let sum = 0;
-        for (const sample of bins) sum += sample * sample;
-        const rms = Math.sqrt(sum / bins.length);
-        smooth = smooth * 0.4 + Math.min(1, rms * 8) * 0.6;
-        handlers.onLevel(smooth);
-        frame = requestAnimationFrame(tick);
-      };
+  } catch {
+    return { error: "Hatch OS needs the microphone. Audio is not sent to another company." };
+  }
+  const chunks: Blob[] = [];
+  const recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (event) => {
+    if (event.data.size) chunks.push(event.data);
+  };
+  let closed = false;
+  let audioContext: AudioContext | null = null;
+  let frame = 0;
+  const Ctx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (Ctx) {
+    audioContext = new Ctx();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    const bins = new Float32Array(analyser.fftSize);
+    let smooth = 0;
+    const tick = () => {
+      if (closed) return;
+      analyser.getFloatTimeDomainData(bins);
+      let sum = 0;
+      for (const sample of bins) sum += sample * sample;
+      const rms = Math.sqrt(sum / bins.length);
+      smooth = smooth * 0.4 + Math.min(1, rms * 8) * 0.6;
+      handlers.onLevel(smooth);
       frame = requestAnimationFrame(tick);
-    }
-  } catch {
-    /* The transcript can still arrive without a level meter. */
+    };
+    frame = requestAnimationFrame(tick);
   }
-  try {
-    recognition.start();
-  } catch {
-    return { error: "Hatch could not start listening." };
-  }
+  recorder.start();
   return {
+    onDevice: false,
     stop: async () => {
       closed = true;
       if (frame) cancelAnimationFrame(frame);
-      try {
-        recognition.stop();
-      } catch {
-        /* Already stopped. */
-      }
-      stream?.getTracks().forEach((track) => track.stop());
+      const blob = await new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
+        try {
+          recorder.stop();
+        } catch {
+          resolve(new Blob(chunks, { type: "audio/webm" }));
+        }
+      });
+      stream.getTracks().forEach((track) => track.stop());
       await audioContext?.close().catch(() => undefined);
-      return null;
+      return URL.createObjectURL(blob);
     },
   };
-}
-
-interface SpeechResult {
-  readonly isFinal: boolean;
-  readonly [index: number]: { transcript: string } | undefined;
-}
-
-interface SpeechEvent {
-  readonly results: { length: number; [index: number]: SpeechResult | undefined };
-}
-
-interface SpeechHandle {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: SpeechEvent) => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-interface SpeechCtor {
-  new (): SpeechHandle;
 }

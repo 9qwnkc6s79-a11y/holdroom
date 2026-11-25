@@ -1,15 +1,16 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Image, Modal, Pressable, TextInput, View } from "react-native";
+import { Image, Modal, PanResponder, Pressable, TextInput, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import type { DraftFile } from "@/api/types";
 import { transcribeClip } from "@/api/client";
 import { T, uiFont } from "@/components/chrome";
 import { IconArrowUp, IconCamera, IconFiles, IconMic, IconPhoto, IconPlus } from "@/components/icons";
-import { startListening, type SpeechSession } from "@/lib/speech";
+import { HOST_STT_UNAVAILABLE, startListening, type SpeechSession } from "@/lib/speech";
+import { composeDictation } from "@/lib/derive";
 import { isPhoto } from "@/lib/photos";
 import { PressableScale } from "@/components/PressableScale";
-import { hapticLight, hapticMedium } from "@/lib/haptics";
+import { hapticLight, hapticMedium, hapticRigid } from "@/lib/haptics";
 import { colors, type } from "@/theme/presenceTokens";
 
 export interface PickedFile {
@@ -45,12 +46,13 @@ export function ChatComposer({
 }) {
   const [open, setOpen] = useState(sheetOpen);
   const [listening, setListening] = useState(recordingPreview);
-  const [elapsed, setElapsed] = useState(recordingPreview ? 4 : 0);
   const [levels, setLevels] = useState<number[]>(() => (recordingPreview ? [0.2, 0.45, 0.7, 0.35, 0.6, 0.25, 0.5, 0.8, 0.4, 0.55, 0.3, 0.65, 0.4, 0.2] : Array(14).fill(0.12)));
   const [pickerError, setPickerError] = useState("");
   const hearing = useRef<SpeechSession | null>(null);
   const heard = useRef("");
-  const clock = useRef<ReturnType<typeof setInterval> | null>(null);
+  const base = useRef("");
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const busy = attachments.some((file) => file.reading);
   const ready = !busy && (value.trim().length > 0 || attachments.some((file) => !file.error));
 
@@ -101,15 +103,19 @@ export function ChatComposer({
     });
   }
 
+  function applyHeard(partial: string) {
+    heard.current = partial;
+    onChangeText(composeDictation(base.current, partial));
+  }
+
   async function dictate() {
     if (listening) return;
     setPickerError("");
     heard.current = "";
+    base.current = valueRef.current.trim();
     void hapticLight();
     const session = await startListening({
-      onText: (text) => {
-        heard.current = text;
-      },
+      onText: (text) => applyHeard(text),
       onLevel: (level) => setLevels((prev) => [...prev.slice(1), level]),
     });
     if ("error" in session) {
@@ -118,34 +124,77 @@ export function ChatComposer({
     }
     hearing.current = session;
     setListening(true);
-    setElapsed(0);
-    clock.current = setInterval(() => setElapsed((value) => value + 1), 1000);
+    if (!session.onDevice) {
+      setPickerError("On-device speech isn’t available. Hatch will use your firm’s host when you stop.");
+    }
   }
 
-  async function finish(keep: boolean) {
+  async function endSession(): Promise<{ onDevice: boolean; clip: string | null }> {
     const session = hearing.current;
     hearing.current = null;
-    if (clock.current) clearInterval(clock.current);
-    clock.current = null;
     setListening(false);
-    const clip = await session?.stop();
-    if (!keep) return;
-    let text = heard.current.trim();
-    if (clip) {
-      try {
-        const server = await transcribeClip({ uri: clip, name: "dictation.wav", mimeType: "audio/wav" });
-        if (server.text.trim() && !server.stub) text = server.text.trim();
-        else if (!text) setPickerError(server.note || "Hatch could not transcribe that.");
-      } catch (error) {
-        if (!text) setPickerError(error instanceof Error ? error.message : "Hatch could not transcribe that.");
-      }
-    } else if (!text) {
-      setPickerError("Hatch could not transcribe that.");
-    }
-    if (text) onChangeText(value.trim() ? `${value.trim()} ${text}` : text);
+    const onDevice = session?.onDevice !== false;
+    const clip = (await session?.stop()) || null;
+    return { onDevice, clip };
   }
 
-  const clockLabel = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
+  async function hostText(clip: string | null): Promise<string> {
+    if (!clip) return "";
+    const server = await transcribeClip({ uri: clip, name: "dictation.wav", mimeType: "audio/wav" });
+    if (server.stub || !server.text.trim()) {
+      setPickerError(HOST_STT_UNAVAILABLE);
+      return "";
+    }
+    return server.text.trim();
+  }
+
+  async function stopRecording() {
+    void hapticMedium();
+    const { onDevice, clip } = await endSession();
+    if (onDevice) return;
+    const text = await hostText(clip).catch(() => {
+      setPickerError(HOST_STT_UNAVAILABLE);
+      return "";
+    });
+    if (text) applyHeard(text);
+    else onChangeText(base.current);
+  }
+
+  async function cancelRecording() {
+    void hapticRigid();
+    await endSession();
+    heard.current = "";
+    onChangeText(base.current);
+  }
+
+  async function sendRecording() {
+    void hapticMedium();
+    const { onDevice, clip } = await endSession();
+    if (!onDevice) {
+      const text = await hostText(clip).catch(() => {
+        setPickerError(HOST_STT_UNAVAILABLE);
+        return "";
+      });
+      if (!text) {
+        onChangeText(base.current);
+        return;
+      }
+      applyHeard(text);
+    }
+    onSend();
+  }
+
+  const actions = useRef({ cancel: () => {}, send: () => {} });
+  actions.current = { cancel: () => void cancelRecording(), send: () => void sendRecording() };
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 18 || gesture.dy < -18,
+      onPanResponderRelease: (_event, gesture) => {
+        if (gesture.dx < -72) actions.current.cancel();
+        else if (gesture.dy < -48) actions.current.send();
+      },
+    }),
+  ).current;
 
   return (
     <View style={{ paddingTop: 8, paddingHorizontal: 16, paddingBottom: 10, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg }}>
@@ -171,19 +220,30 @@ export function ChatComposer({
         </View>
       ) : null}
       {listening ? (
-        <View style={{ minHeight: 48, borderRadius: 24, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 2, height: 22 }}>
-            {levels.map((level, index) => (
-              <View key={index} style={{ width: 3, height: Math.max(4, Math.round(level * 22)), borderRadius: 2, backgroundColor: colors.blueSky }} />
-            ))}
+        <View>
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder="Listening…"
+            placeholderTextColor={colors.muted}
+            multiline
+            style={[uiFont, type.inputText, { color: colors.fg, minHeight: 44, maxHeight: 108, marginBottom: 8 }]}
+          />
+          <T style={[type.metaLabel, { color: colors.muted, textAlign: "center", marginBottom: 6 }]}>^ Swipe up to send</T>
+          <View {...pan.panHandlers} style={{ minHeight: 48, borderRadius: 24, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Stop dictation" onPress={() => void stopRecording()} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.fg, alignItems: "center", justifyContent: "center" }}>
+              <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: colors.bg }} />
+            </Pressable>
+            <T style={[type.metaLabel, { color: colors.muted }]} numberOfLines={1}>{"< Swipe left to cancel"}</T>
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2, height: 22 }}>
+              {levels.map((level, index) => (
+                <View key={index} style={{ width: 3, height: Math.max(4, Math.round(level * 22)), borderRadius: 2, backgroundColor: colors.blueSky }} />
+              ))}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Send" onPress={() => void sendRecording()} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.fg, alignItems: "center", justifyContent: "center" }}>
+              <IconArrowUp size={16} color={colors.bg} strokeWidth={2} />
+            </Pressable>
           </View>
-          <T style={[type.metaLabel, { color: colors.fg, width: 36 }]}>{clockLabel}</T>
-          <Pressable accessibilityRole="button" accessibilityLabel="Cancel dictation" onPress={() => void finish(false)} style={{ paddingHorizontal: 8, minHeight: 32, justifyContent: "center" }}>
-            <T style={[type.metaLabel, { color: colors.muted }]}>Cancel</T>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Done dictating" onPress={() => void finish(true)} style={{ marginLeft: "auto", height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: colors.fg, alignItems: "center", justifyContent: "center" }}>
-            <T style={[type.metaLabel, { color: colors.bg }]}>Done</T>
-          </Pressable>
         </View>
       ) : (
         <View style={{ minHeight: 48, maxHeight: 132, borderRadius: 24, backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.lineCard, paddingLeft: 6, paddingRight: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>

@@ -2,9 +2,9 @@ import AVFoundation
 import ExpoModulesCore
 import Speech
 
-/// On-device speech recognition for Hatch OS voice mode.
-/// Audio is recognized on the iPhone when the locale supports it, and a short
-/// WAV is kept only so the app can fall back to the firm host's /api/transcribe.
+/// On-device speech recognition for Hatch OS.
+/// SFSpeechRecognizer is required to stay on the iPhone. If this locale cannot
+/// do that, recognition is refused and only a WAV is kept for the firm host.
 public class HatchSpeechModule: Module {
   private let audioEngine = AVAudioEngine()
   private var recognizer: SFSpeechRecognizer?
@@ -33,7 +33,18 @@ public class HatchSpeechModule: Module {
     AsyncFunction("start") { (locale: String, promise: Promise) in
       DispatchQueue.main.async {
         do {
-          try self.startSession(locale: locale)
+          try self.startSession(locale: locale, recognize: true)
+          promise.resolve(["onDevice": true])
+        } catch {
+          promise.reject("ERR_SPEECH", error.localizedDescription)
+        }
+      }
+    }
+
+    AsyncFunction("startCapture") { (promise: Promise) in
+      DispatchQueue.main.async {
+        do {
+          try self.startSession(locale: "en-US", recognize: false)
           promise.resolve(true)
         } catch {
           promise.reject("ERR_SPEECH", error.localizedDescription)
@@ -48,29 +59,45 @@ public class HatchSpeechModule: Module {
     }
   }
 
-  private func startSession(locale: String) throws {
+  private func startSession(locale: String, recognize: Bool) throws {
     stopping = false
     stopEngine()
     sampleLock.lock()
     samples.removeAll(keepingCapacity: false)
     sampleLock.unlock()
 
-    let speech = SFSpeechRecognizer(locale: Locale(identifier: locale))
-    guard let speech, speech.isAvailable else {
-      throw SpeechFailure.unavailable
-    }
-    recognizer = speech
-
     let session = AVAudioSession.sharedInstance()
     try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
     try session.setActive(true, options: .notifyOthersOnDeactivation)
 
-    let recognition = SFSpeechAudioBufferRecognitionRequest()
-    recognition.shouldReportPartialResults = true
-    if speech.supportsOnDeviceRecognition {
+    if recognize {
+      let speech = SFSpeechRecognizer(locale: Locale(identifier: locale))
+      guard let speech, speech.isAvailable else {
+        throw SpeechFailure.unavailable
+      }
+      guard speech.supportsOnDeviceRecognition else {
+        throw SpeechFailure.onDeviceUnavailable
+      }
+      recognizer = speech
+      let recognition = SFSpeechAudioBufferRecognitionRequest()
+      recognition.shouldReportPartialResults = true
       recognition.requiresOnDeviceRecognition = true
+      request = recognition
+      task = speech.recognitionTask(with: recognition) { [weak self] result, error in
+        guard let self else { return }
+        if let result {
+          let text = result.bestTranscription.formattedString
+          DispatchQueue.main.async {
+            self.sendEvent("result", ["text": text, "isFinal": result.isFinal, "onDevice": true])
+          }
+        }
+        if let error, !self.stopping {
+          DispatchQueue.main.async {
+            self.sendEvent("error", ["message": error.localizedDescription])
+          }
+        }
+      }
     }
-    request = recognition
 
     let input = audioEngine.inputNode
     let format = input.outputFormat(forBus: 0)
@@ -104,21 +131,6 @@ public class HatchSpeechModule: Module {
 
     audioEngine.prepare()
     try audioEngine.start()
-
-    task = speech.recognitionTask(with: recognition) { [weak self] result, error in
-      guard let self else { return }
-      if let result {
-        let text = result.bestTranscription.formattedString
-        DispatchQueue.main.async {
-          self.sendEvent("result", ["text": text, "isFinal": result.isFinal])
-        }
-      }
-      if let error, !self.stopping {
-        DispatchQueue.main.async {
-          self.sendEvent("error", ["message": error.localizedDescription])
-        }
-      }
-    }
   }
 
   private func stopSession() -> String? {
@@ -203,12 +215,15 @@ public class HatchSpeechModule: Module {
 
 private enum SpeechFailure: LocalizedError {
   case unavailable
+  case onDeviceUnavailable
   case format
 
   var errorDescription: String? {
     switch self {
     case .unavailable:
       return "Speech recognition is not available on this iPhone."
+    case .onDeviceUnavailable:
+      return "On-device speech is not available for this language."
     case .format:
       return "The microphone is not available."
     }

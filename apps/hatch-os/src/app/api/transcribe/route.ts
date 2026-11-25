@@ -12,14 +12,14 @@ export async function POST(req: Request) {
   }
   if (demoModeEnabled()) {
     return Response.json({
-      text: "Voice note.",
+      text: "",
       stub: true,
-      note: "Demo mode. Whisper is not connected on this box.",
+      note: "Hatch’s speech service is not connected on this host. Audio was not sent to another company.",
     });
   }
   return Response.json({
     text: "",
     stub: true,
-    note: "Whisper is not connected on this box yet. Dictation uses the phone’s speech service when it is available.",
+    note: "Hatch’s speech service is not connected on this host. Audio was not sent to another company.",
   });
 }

@@ -19,14 +19,14 @@ import { colors, type } from "@/theme/presenceTokens";
 export default function ChatScreen() {
   useRequireSession();
   const router = useRouter();
-  const params = useLocalSearchParams<{ agentId: string; thread?: string; preview?: string; attach?: string; dictate?: string }>();
+  const params = useLocalSearchParams<{ agentId: string; thread?: string; preview?: string; attach?: string; dictate?: string; said?: string }>();
   const agentId = oneParam(params.agentId) || "";
   const threadId = oneParam(params.thread);
   const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread } = useHatch();
   const agent = agents.find((item) => item.id === agentId) || agents[0];
   const messages = messagesFor(agent?.id || agentId, threadId);
   const phase = phaseFor(agent?.id || agentId);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(oneParam(params.said) || "");
   const [files, setFiles] = useState<DraftFile[]>(() =>
     oneParam(params.preview) === "1"
       ? [{ id: "preview", name: "IMG_2067.png", uri: "/demo-photo.png", mimeType: "image/jpeg", kind: "Image", note: "On your firm’s host" }]
