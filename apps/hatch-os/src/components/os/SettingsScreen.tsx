@@ -9,6 +9,7 @@ import { IconChevronLeft, IconChevronRight, IconX } from "@/components/os/Icons"
 import { ConnectApps } from "@/components/os/ConnectApps";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { VaultScreen } from "@/components/os/VaultScreen";
+import type { TokenBalanceView } from "@/lib/token-types";
 
 const ZONES = [
   "America/New_York",
@@ -45,6 +46,10 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   const [autoZone, setAutoZone] = useState(true);
   const [zone, setZone] = useState("America/Chicago");
   const [hardware, setHardware] = useState("Checking the firm model…");
+  const [tokens, setTokens] = useState<TokenBalanceView | null>(null);
+  const [tokenError, setTokenError] = useState("");
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const topupState = params.get("topup");
 
   useEffect(() => {
     setName(localStorage.getItem("hatch-account") || "Partner");
@@ -70,6 +75,23 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
       })
       .catch(() => setHardware("Offline. Hatch could not reach the status check."));
   }, []);
+
+  useEffect(() => {
+    const code = session?.inviteCode;
+    if (!code) return;
+    let cancelled = false;
+    void fetch("/api/tokens", { cache: "no-store", headers: { "x-hatch-tester": code } })
+      .then((res) => res.json())
+      .then((data: TokenBalanceView) => {
+        if (!cancelled) setTokens(data);
+      })
+      .catch(() => {
+        if (!cancelled) setTokenError("The token balance could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.inviteCode, topupState]);
 
   function applyTheme(value: string) {
     const dark = value === "dark" || (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -106,7 +128,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
             </button>
             <button type="button" className="set-row" onClick={() => setPage("usage")}>
               <span className="set-main"><strong>Usage</strong></span>
-              <span className="set-value">Demo</span>
+              <span className="set-value">{usageLabel(tokens)}</span>
               <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("plan")}>
@@ -210,14 +232,35 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
             </section>
           ) : null}
           {page === "usage" ? (
-            <section className="set-card">
-              <p className="set-note">Demo values. This preview does not measure the firm’s compute.</p>
-              {["Hatch", "Operations", "Legal", "Finance"].map((agent) => (
-                <div key={agent} className="set-row is-static">
-                  <span className="set-main"><strong>{agent}</strong><span>Not measured · demo</span></span>
-                </div>
-              ))}
-            </section>
+            <TokenUsagePanel
+              tokens={tokens}
+              error={tokenError}
+              topupState={topupState}
+              busy={checkoutBusy}
+              onAdd={async () => {
+                const code = session?.inviteCode;
+                if (!code || checkoutBusy) return;
+                setCheckoutBusy(true);
+                setTokenError("");
+                try {
+                  const res = await fetch("/api/tokens/checkout", {
+                    method: "POST",
+                    headers: { "content-type": "application/json", "x-hatch-tester": code },
+                    body: JSON.stringify({ code }),
+                  });
+                  const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+                  if (!res.ok || !data?.url) {
+                    setTokenError(data?.error || "Token top-ups are not set up yet.");
+                    return;
+                  }
+                  window.location.assign(data.url);
+                } catch {
+                  setTokenError("Stripe checkout could not be opened.");
+                } finally {
+                  setCheckoutBusy(false);
+                }
+              }}
+            />
           ) : null}
           {page === "plan" ? (
             <section className="set-card">
@@ -331,4 +374,59 @@ function titleFor(page: Page) {
     appearance: "Appearance",
   };
   return titles[page];
+}
+
+function usageLabel(tokens: TokenBalanceView | null) {
+  if (!tokens) return "…";
+  if (tokens.unlimited) return "Unlimited";
+  if (!tokens.metered) return "Not metered";
+  return `${tokens.balance.toLocaleString()} tokens`;
+}
+
+function TokenUsagePanel({
+  tokens,
+  error,
+  topupState,
+  busy,
+  onAdd,
+}: {
+  tokens: TokenBalanceView | null;
+  error: string;
+  topupState: string | null;
+  busy: boolean;
+  onAdd: () => void;
+}) {
+  const canBuy = Boolean(tokens && tokens.metered && !tokens.unlimited);
+  return (
+    <section className="set-card">
+      {topupState === "success" ? <p className="set-note">Payment received. Your balance updates once Stripe confirms the payment.</p> : null}
+      {topupState === "cancel" ? <p className="set-note">The checkout was cancelled. No tokens were added.</p> : null}
+      <div className="set-row is-static">
+        <span className="set-main">
+          <strong>{usageLabel(tokens)}</strong>
+          <span>
+            {tokens?.unlimited
+              ? "This sign-in is not metered."
+              : tokens
+                ? `Used ${tokens.lifetimeUsed.toLocaleString()} tokens on Ask and Agent replies.`
+                : "Loading the token balance…"}
+          </span>
+        </span>
+      </div>
+      {tokens?.message ? <p className="set-note">{tokens.message}</p> : null}
+      {error ? <p className="os-error">{error}</p> : null}
+      {canBuy ? (
+        <div className="set-row is-static" style={{ display: "block", paddingTop: 8, paddingBottom: 16 }}>
+          <button type="button" className="os-btn" disabled={busy || !tokens?.checkoutReady} onClick={onAdd}>
+            {busy ? "Opening checkout…" : tokens?.topupTokens ? `Add ${tokens.topupTokens.toLocaleString()} tokens` : "Add tokens"}
+          </button>
+          {!tokens?.checkoutReady ? (
+            <p className="fine" style={{ marginTop: 8 }}>Payments are not set up yet. Stripe test mode and a pack size need to be configured.</p>
+          ) : (
+            <p className="fine" style={{ marginTop: 8 }}>Checkout opens a Stripe test-mode page. No live charges run until test keys are replaced.</p>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
 }

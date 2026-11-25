@@ -7,6 +7,7 @@ import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
 import { scheduleImageCaption } from "./image-caption.ts";
 import { forStorage, modelTextForTurn, withImageParts } from "./images.ts";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
+import { deductUsage } from "./tokens.ts";
 import { buildAskMessages } from "./prompt";
 import { missingImageMessage, prepareTurnImages } from "./vision-turn.ts";
 import { inspectThreadHistory } from "./thread-history.ts";
@@ -216,7 +217,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   try {
     if (agentic) {
       const result = await runAgentLoop(
-        { ...promptInput, enterprise: input.enterprise, defaultDepartmentId: input.defaultDepartmentId },
+        { ...promptInput, enterprise: input.enterprise, defaultDepartmentId: input.defaultDepartmentId, testerCode: input.testerCode },
         (delta) => {
           text += delta;
           hooks.onDelta?.(delta);
@@ -237,6 +238,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         text += delta;
         hooks.onDelta?.(delta);
       });
+      if (input.testerCode) void deductUsage(input.testerCode, streamed.usage, "ask").catch(() => undefined);
       text = stripThinkBlocks(streamed.text || text);
       const call = parseToolTrailer(text);
       if (call && input.approvals === "wait" && toolNeedsApproval(call.name)) {

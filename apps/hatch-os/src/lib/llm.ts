@@ -2,6 +2,7 @@ import { runpodApiRoot } from "./runpod-jobs.ts";
 import type { ToolCall } from "./tool-parse";
 import { thinkingOffExtras, visibleStreamText } from "./think.ts";
 import type { OpenAiTool } from "./tools";
+import { parseUsage, type LlmUsage } from "./llm-usage.ts";
 
 /** 16 GB Mac / local Ollama fallback. */
 export const DEFAULT_MODEL = "qwen3:8b";
@@ -588,6 +589,7 @@ export interface ChatMessage {
 export interface StreamLlmResult {
   toolCalls: ToolCall[];
   text: string;
+  usage?: LlmUsage | null;
 }
 
 async function streamLane(
@@ -662,6 +664,7 @@ async function streamEndpoint(
       model: endpoint.model,
       messages,
       stream: true,
+      stream_options: { include_usage: true },
       temperature: 0.2,
       ...thinkingOffExtras(remote),
       ...(remote && tools?.length ? { tools, tool_choice: "auto" } : {}),
@@ -691,8 +694,8 @@ async function streamEndpoint(
       }),
     }).catch(() => null);
     if (native?.ok && native.body) {
-      const text = await readOllamaStream(native.body, onDelta);
-      return { toolCalls: [], text };
+      const streamed = await readOllamaStream(native.body, onDelta);
+      return { toolCalls: [], text: streamed.text, usage: streamed.usage };
     }
     const status = native?.status || openai?.status || 0;
     throw new Error(status ? `Ollama HTTP ${status} at ${endpoint.host}` : `Ollama unreachable at ${endpoint.host}`);
@@ -735,6 +738,7 @@ async function readOpenAiStream(
   let raw = "";
   let emitted = 0;
   const acc: { id?: string; name?: string; arguments?: string }[] = [];
+  let usage: LlmUsage | null = null;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -748,10 +752,11 @@ async function readOpenAiStream(
       if (data === "[DONE]") {
         const clean = visibleStreamText(raw, true);
         if (clean.length > emitted) onDelta(clean.slice(emitted));
-        return { toolCalls: finishCalls(acc), text: clean };
+        return { toolCalls: finishCalls(acc), text: clean, usage };
       }
       try {
         const json = JSON.parse(data) as {
+          usage?: unknown;
           choices?: {
             delta?: {
               content?: string;
@@ -764,6 +769,8 @@ async function readOpenAiStream(
             };
           }[];
         };
+        const found = parseUsage(json.usage ?? json);
+        if (found) usage = found;
         const delta = json.choices?.[0]?.delta;
         if (delta?.content) {
           raw += delta.content;
@@ -791,15 +798,16 @@ async function readOpenAiStream(
   }
   const leftover = visibleStreamText(raw, true);
   if (leftover.length > emitted) onDelta(leftover.slice(emitted));
-  return { toolCalls: finishCalls(acc), text: leftover };
+  return { toolCalls: finishCalls(acc), text: leftover, usage };
 }
 
-async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void): Promise<string> {
+async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text: string) => void): Promise<{ text: string; usage: LlmUsage | null }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let raw = "";
   let emitted = 0;
+  let usage: LlmUsage | null = null;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -809,7 +817,9 @@ async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text
     for (const line of parts) {
       if (!line.trim()) continue;
       try {
-        const json = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+        const json = JSON.parse(line) as { message?: { content?: string }; done?: boolean; prompt_eval_count?: number; eval_count?: number };
+        const found = parseUsage(json);
+        if (found) usage = found;
         if (json.message?.content) {
           raw += json.message.content;
           const clean = visibleStreamText(raw);
@@ -825,5 +835,5 @@ async function readOllamaStream(body: ReadableStream<Uint8Array>, onDelta: (text
   }
   const leftover = visibleStreamText(raw, true);
   if (leftover.length > emitted) onDelta(leftover.slice(emitted));
-  return leftover;
+  return { text: leftover, usage };
 }
