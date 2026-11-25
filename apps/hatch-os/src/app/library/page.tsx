@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { LibraryScreen } from "@/components/os/LibraryScreen";
 
 export default function LibraryPage() {
-  redirect("/chat");
+  return <LibraryScreen />;
 }
