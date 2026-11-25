@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Modal, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { listLibrary, readFileText } from "@/api/client";
 import type { HatchFile, LibraryPassage } from "@/api/types";
@@ -73,7 +73,7 @@ export default function LibraryScreen() {
           <T style={[type.metaLabel, { color: colors.fg }]}>{files.length + passages.length} items</T>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+      <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load(query)} tintColor={colors.fg} />} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         {loading && !files.length && !passages.length ? (
           <EmptyNote title="Loading Library" body="Checking firm files and synced apps…" />
         ) : null}
@@ -145,6 +145,20 @@ export default function LibraryScreen() {
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
             {open?.meta ? <T style={[type.metaLabel, { color: colors.muted, marginBottom: 12 }]}>{open.meta}</T> : null}
             <T style={[type.body, { color: colors.fg }]}>{open?.text || ""}</T>
+            {open ? (
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Ask about this in chat"
+                onPress={() => {
+                  const title = open.title;
+                  setOpen(null);
+                  router.push(`/chat/general?said=${encodeURIComponent(`Summarize and review "${title}" for next steps.`)}`);
+                }}
+                style={{ marginTop: 20, height: 46, borderRadius: 14, backgroundColor: colors.blueButton, alignItems: "center", justifyContent: "center" }}
+              >
+                <T style={[type.ctaLabel, { color: colors.white }]}>Ask about this in chat</T>
+              </PressableScale>
+            ) : null}
           </ScrollView>
         </Screen>
       </Modal>

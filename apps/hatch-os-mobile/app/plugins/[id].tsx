@@ -56,7 +56,8 @@ export default function PluginDetailScreen() {
           return;
         }
         if (Platform.OS === "web") {
-          setNote("Connect opens in the iPhone browser. This preview cannot finish the sign-in.");
+          if (typeof window !== "undefined") window.open(probe.authorizeUrl, "_blank", "noopener,noreferrer");
+          setNote("Opened sign-in in a new tab. Return here after authorizing.");
           return;
         }
         const result = await WebBrowser.openAuthSessionAsync(probe.authorizeUrl, oauthReturnUrl());
@@ -105,6 +106,23 @@ export default function PluginDetailScreen() {
     }
   }
 
+  async function syncAccount(kind: "google" | "microsoft") {
+    if (!session) return;
+    setBusy(true);
+    setError("");
+    setNote("Syncing recent items into Library…");
+    try {
+      const synced = await syncProvider(session.inviteCode, kind, session.homeDepartment);
+      if (synced.detail) setNote(synced.detail);
+      else if (synced.error) setError(synced.error);
+      else setNote("Synced.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sync.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function disconnect(id: string) {
     if (!session) return;
     setError("");
@@ -144,9 +162,16 @@ export default function PluginDetailScreen() {
           <View key={account.id} style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8 }}>
             <T style={[type.rowTitle, { color: colors.fg }]}>{account.label}</T>
             <T style={[type.cardSubcopy, { color: colors.muted }]}>{account.detail || "Connected"}</T>
-            <PressableScale accessibilityRole="button" accessibilityLabel={`Disconnect ${account.label}`} onPress={() => void disconnect(account.id)} style={{ alignSelf: "flex-start", minHeight: 36, justifyContent: "center" }}>
-              <T style={[type.metaLabel, { color: colors.fg }]}>Disconnect</T>
-            </PressableScale>
+            <View style={{ flexDirection: "row", gap: 16 }}>
+              {(account.kind === "google" || account.kind === "microsoft") ? (
+                <PressableScale accessibilityRole="button" accessibilityLabel={`Sync ${account.label}`} disabled={busy} onPress={() => void syncAccount(account.kind === "microsoft" ? "microsoft" : "google")} style={{ minHeight: 36, justifyContent: "center" }}>
+                  <T style={[type.metaLabel, { color: colors.blueSky }]}>{busy ? "Syncing…" : "Sync now"}</T>
+                </PressableScale>
+              ) : null}
+              <PressableScale accessibilityRole="button" accessibilityLabel={`Disconnect ${account.label}`} onPress={() => void disconnect(account.id)} style={{ minHeight: 36, justifyContent: "center" }}>
+                <T style={[type.metaLabel, { color: colors.fg }]}>Disconnect</T>
+              </PressableScale>
+            </View>
           </View>
         ))}
         {plugin.auth === "password" ? (

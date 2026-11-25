@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   ApiError,
   createThread as createThreadRequest,
+  deleteThread as deleteThreadRequest,
   extractFile,
   hostStatus,
   ingestFile,
@@ -57,6 +58,7 @@ interface HatchValue {
   decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled" }) => Promise<string | null>;
   prepareAttachment: (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => Promise<DraftFile>;
   startThread: (agentId: string) => Promise<string | null>;
+  archiveThread: (threadId: string) => Promise<void>;
   messagesFor: (agentId: string, threadId?: string) => ChatMessage[];
   phaseFor: (agentId: string) => SphereState;
 }
@@ -315,11 +317,11 @@ export function HatchProvider({ children }: { children: ReactNode }) {
           if (!isWaitStatus(text)) patchAssistant({ text, done: false }, "thinking", "Thinking…");
         });
         if (payload.phase === "wait" && payload.state && shouldContinue()) {
-          const note = activityLine(payload.note);
+          const note = activityLine(payload.note, payload.tools);
           patchAssistant({ done: false }, "thinking", note);
           if (payload.threadId) writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));
-          payload = await pollTurn(payload.state, (note) => {
-            const line = activityLine(note);
+          payload = await pollTurn(payload.state, (note, tools) => {
+            const line = activityLine(note, tools);
             patchAssistant({ done: false }, "thinking", line);
           }, shouldContinue);
         }
@@ -357,7 +359,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         item.resolve({ text: failed ? "" : shown, failed });
       } catch (error) {
         const text = messageOf(error);
-        patchAssistant({ text, done: true, failed: true, retryQuery: display }, "idle", "Ready for you");
+        patchAssistant({ text, done: true, failed: true, retryQuery: display }, "idle", "");
         item.resolve({ text: "", failed: true });
       }
     },
@@ -480,6 +482,19 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     return thread.id;
   }, []);
 
+  const archiveThread = useCallback(async (threadId: string) => {
+    setThreads((prev) => prev.filter((item) => item.id !== threadId));
+    threadsRef.current = threadsRef.current.filter((item) => item.id !== threadId);
+    for (const [agentId, turn] of Object.entries(turnsRef.current)) {
+      if (turn.threadId === threadId) {
+        writeTurn(agentId, () => undefined);
+      }
+    }
+    if (!demoMode()) {
+      await deleteThreadRequest(threadId).catch(() => undefined);
+    }
+  }, [writeTurn]);
+
   const messagesFor = useCallback(
     (agentId: string, threadId?: string) => {
       const turn = turns[agentId];
@@ -514,10 +529,11 @@ export function HatchProvider({ children }: { children: ReactNode }) {
       decide,
       prepareAttachment,
       startThread,
+      archiveThread,
       messagesFor,
       phaseFor,
     }),
-    [agents, decide, files, hostError, messagesFor, phaseFor, prepareAttachment, refresh, refreshing, send, sphere, startThread, status, threads, turns],
+    [agents, decide, files, hostError, messagesFor, phaseFor, prepareAttachment, refresh, refreshing, send, sphere, archiveThread, startThread, status, threads, turns],
   );
 
   return <HatchContext.Provider value={value}>{children}</HatchContext.Provider>;

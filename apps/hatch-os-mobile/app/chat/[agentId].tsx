@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { DraftFile } from "@/api/types";
@@ -9,7 +9,7 @@ import { IconBack, IconClose, IconDots } from "@/components/icons";
 import { MessageBubble } from "@/components/MessageBubble";
 import { PressableScale } from "@/components/PressableScale";
 import { ShapeAvatar, shapeFor } from "@/components/ShapeAvatar";
-import { agentLabel, oneParam, startersForAgent, threadUnread } from "@/lib/derive";
+import { agentLabel, formatWhen, oneParam, startersForAgent, threadUnread } from "@/lib/derive";
 import { hapticRigid, hapticSuccess } from "@/lib/haptics";
 import { markSeen } from "@/lib/seen";
 import { useHatch } from "@/state/hatch";
@@ -22,7 +22,7 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ agentId: string; thread?: string; preview?: string; attach?: string; dictate?: string; said?: string }>();
   const agentId = oneParam(params.agentId) || "";
   const threadId = oneParam(params.thread);
-  const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread } = useHatch();
+  const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread, archiveThread } = useHatch();
   const agent = agents.find((item) => item.id === agentId) || agents[0];
   const messages = messagesFor(agent?.id || agentId, threadId);
   const phase = phaseFor(agent?.id || agentId);
@@ -35,6 +35,7 @@ export default function ChatScreen() {
   const [actionError, setActionError] = useState("");
   const [deciding, setDeciding] = useState(false);
   const [menu, setMenu] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!threadId) return;
@@ -53,6 +54,16 @@ export default function ChatScreen() {
   }, [agent?.id, messages, phase, turns]);
   const agentIndex = Math.max(0, agents.findIndex((item) => item.id === agent?.id));
   const starters = useMemo(() => startersForAgent(agent), [agent]);
+  const agentThreads = useMemo(
+    () => threads.filter((item) => item.agentId === (agent?.id || agentId) && !item.archived).slice(0, 6),
+    [agent?.id, agentId, threads],
+  );
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, activity?.text]);
 
   async function startFresh(id: string) {
     const created = await startThread(id);
@@ -116,7 +127,7 @@ export default function ChatScreen() {
             <IconDots size={18} color={colors.fg} />
           </PressableScale>
         </View>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} onContentSizeChange={() => { if (messages.length > 0) scrollRef.current?.scrollToEnd({ animated: false }); }} contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
           {messages.length === 0 ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 12 }}>
               <ShapeAvatar name={agent ? agentLabel(agent) : "Hatch"} shape={shapeFor(agentIndex)} size={56} />
@@ -201,6 +212,45 @@ export default function ChatScreen() {
             <MenuRow label="Connect apps" detail="Gmail, Drive, Slack, Notion, and more" onPress={() => { setMenu(false); router.push("/plugins"); }} />
             <MenuRow label="Bot settings" detail="Model & Ethics, permissions, and the firm host" onPress={() => { setMenu(false); router.push("/profile"); }} />
             <MenuRow label="Fresh chat" detail="Starts a new thread. The host keeps this one." onPress={() => { setMenu(false); if (agent) void startFresh(agent.id); }} />
+            {agentThreads.length > 0 ? (
+              <View style={{ paddingHorizontal: 20, paddingTop: 10, gap: 6 }}>
+                <T style={[type.metaLabel, { color: colors.dim }]}>RECENT THREADS</T>
+                {agentThreads.map((item) => {
+                  const active = item.id === threadId || (!threadId && item.id === agentThreads[0]?.id);
+                  return (
+                    <View key={item.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <PressableScale
+                        accessibilityRole="button"
+                        accessibilityLabel={item.title || "Thread"}
+                        onPress={() => {
+                          setMenu(false);
+                          router.replace(`/chat/${agent?.id || agentId}?thread=${encodeURIComponent(item.id)}`);
+                        }}
+                        style={{ flex: 1, paddingVertical: 8 }}
+                      >
+                        <T style={[type.cardSubcopy, { color: active ? colors.blueSky : colors.fg }]} numberOfLines={1}>
+                          {item.title || "Conversation"} · {formatWhen(item.updatedAt)}
+                        </T>
+                      </PressableScale>
+                      <PressableScale
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${item.title || "thread"}`}
+                        onPress={() => {
+                          void archiveThread(item.id);
+                          if (item.id === threadId && agent) {
+                            setMenu(false);
+                            router.replace(`/chat/${agent.id}`);
+                          }
+                        }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                      >
+                        <T style={[type.metaLabel, { color: colors.muted }]}>Delete</T>
+                      </PressableScale>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         </View>
       </Modal>

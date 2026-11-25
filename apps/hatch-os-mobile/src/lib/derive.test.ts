@@ -99,3 +99,8 @@ test("startersForAgent returns 3 non-empty starter prompts", () => {
   assert.equal(list.length, 3);
   assert.ok(list.every((item) => item.length > 5));
 });
+
+test("activityLine falls back to tool details when note is generic", () => {
+  assert.equal(activityLine("Running…", [{ detail: "Gmail: Boundaries Little Elm" }]), "Reading Gmail…");
+  assert.equal(activityLine("", [{ detail: "Google Drive: Lease.docx" }]), "Reading Drive…");
+});

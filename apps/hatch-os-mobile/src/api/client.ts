@@ -12,6 +12,7 @@ import type {
   LibraryPassage,
   PairResponse,
   TokenBalanceView,
+  ToolEvent,
 } from "./types";
 
 let authToken = "";
@@ -91,6 +92,18 @@ export async function listAgents(): Promise<Agent[]> {
 export async function listThreads(): Promise<ChatThread[]> {
   const data = await apiJson<{ threads?: ChatThread[] }>("/api/threads");
   return Array.isArray(data.threads) ? data.threads : [];
+}
+
+export async function deleteThread(threadId: string): Promise<void> {
+  await apiJson<{ ok?: boolean }>(`/api/threads/${encodeURIComponent(threadId)}`, { method: "DELETE" });
+}
+
+export async function renameThread(threadId: string, title: string): Promise<ChatThread> {
+  const data = await apiJson<{ thread: ChatThread }>(`/api/threads/${encodeURIComponent(threadId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+  return data.thread;
 }
 
 export async function createThread(input: { departmentId: string; agentId: string; title: string }): Promise<ChatThread> {
@@ -268,7 +281,7 @@ export async function transcribeClip(file: LocalUpload): Promise<{ text: string;
 
 export async function pollTurn(
   initial: LiveState,
-  onWait: (note: string) => void,
+  onWait: (note: string, tools?: ToolEvent[]) => void,
   shouldContinue: () => boolean,
 ): Promise<LivePayload> {
   let state = initial;
@@ -288,7 +301,7 @@ export async function pollTurn(
       const payload = await postStep(state);
       if (payload.phase === "wait" && payload.state) {
         state = payload.state;
-        onWait(payload.note || "");
+        onWait(payload.note || "", payload.tools);
         await sleep(2500, shouldContinue);
         delay = 2000;
         continue;
