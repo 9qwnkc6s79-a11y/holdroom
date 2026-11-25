@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     });
     if (result.file?.id && !result.error) {
       const rec = readFileRecord(result.file.id);
-      await saveUploadScoped(auth.session.scope, result.file, rec?.text || "", buf).catch(() => undefined);
+      await saveUploadScoped(auth.session.scope, result.file, rec?.text || "", buf);
     }
     if (result.file?.id && result.file.kind === "Image" && isRasterImage(file.name, file.type || "")) {
       try {
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     accessibleDepartments: body?.accessibleDepartments,
   });
   if (result.file?.id && !result.error) {
-    await saveUploadScoped(auth.session.scope, result.file, body?.text || "", buf).catch(() => undefined);
+    await saveUploadScoped(auth.session.scope, result.file, body?.text || "", buf);
   }
   return NextResponse.json(result);
 }
