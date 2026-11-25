@@ -3,6 +3,7 @@ import { runChatTurn } from "@/lib/chat";
 import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
 import { loadEthics } from "@/lib/ethics";
+import { harnessHandles, startHarnessTurn } from "@/lib/harness/live";
 
 export const dynamic = "force-dynamic";
 // Each request only submits or checks a RunPod job. The browser polls, so a
@@ -57,6 +58,22 @@ export async function POST(req: Request) {
 
   if (!demoModeEnabled() && liveRunpodReady()) {
     try {
+      if (harnessHandles({ attachments: body?.attachments })) {
+        const result = await startHarnessTurn({
+          query,
+          departmentId: body?.departmentId,
+          roomId: body?.roomId,
+          threadId: body?.threadId,
+          attachments: body?.attachments,
+          agent: body?.agent,
+          agentId: body?.agentId,
+          actor: body?.actor,
+          replyTo: body?.replyTo,
+          testerCode,
+          startedAt: Date.now(),
+        });
+        return Response.json(result, { headers: ethicsHeaders });
+      }
       const result = await startLiveTurn({
         query,
         context: body?.context,
