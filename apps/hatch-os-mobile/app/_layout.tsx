@@ -82,6 +82,8 @@ export default function RootLayout() {
                         <Stack.Screen name="voice" options={{ presentation: "fullScreenModal", animation: "fade", animationDuration: 320 }} />
                         <Stack.Screen name="chat/[agentId]" />
                         <Stack.Screen name="profile" options={{ animation: "slide_from_bottom" }} />
+                        <Stack.Screen name="library" options={{ animation: "slide_from_bottom" }} />
+                        <Stack.Screen name="ethics" />
                         <Stack.Screen name="plugins/index" options={{ animation: "slide_from_bottom" }} />
                         <Stack.Screen name="plugins/[id]" />
                       </Stack>

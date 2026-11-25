@@ -10,6 +10,7 @@ export interface Session {
   pairedAt: string;
   inviteCode: string;
   testerLabel: string;
+  token?: string;
 }
 
 export interface Agent {
@@ -139,4 +140,41 @@ export interface PairResponse {
   homeDepartment?: string;
   inviteCode?: string;
   testerLabel?: string;
+  token?: string;
+}
+
+export interface LibraryPassage {
+  id: string;
+  title: string;
+  source: string;
+  at: string;
+  text: string;
+}
+
+export interface EthicsProfile {
+  preset: "neutral" | "executive" | "compliance" | "custom";
+  charter: string;
+  redLines: string;
+  posture: "strict" | "balanced" | "direct";
+  tone: "concise" | "warm" | "blunt" | "formal";
+  length: "short" | "balanced" | "detailed";
+  leadWithAnswer: boolean;
+  styleRules: string;
+  model: "hermes" | "qwen";
+  temperature: number;
+  inherit: boolean;
+}
+
+export interface TokenBalanceView {
+  code: string;
+  label: string;
+  unlimited: boolean;
+  metered: boolean;
+  balanceCents: number;
+  lifetimeUsedCents: number;
+  lifetimeUsedTokens: number;
+  lifetimePurchasedCents: number;
+  lifetimeGrantedCents: number;
+  checkoutReady: boolean;
+  message: string;
 }

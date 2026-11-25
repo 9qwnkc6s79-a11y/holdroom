@@ -24,6 +24,7 @@ export default function BotsScreen() {
   }, [params.q]);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
   const phases = useMemo(() => Object.fromEntries(Object.entries(turns).map(([id, turn]) => [id, turn.phase])), [turns]);
   const rows = agentRows(agents, threads, phases);
   const q = query.trim().toLowerCase();
@@ -126,7 +127,7 @@ export default function BotsScreen() {
         </View>
       </ScrollView>
       <View style={{ position: "absolute", left: 16, right: 16, bottom: 28, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Connect apps" onPress={() => router.push("/plugins")} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+        <PressableScale accessibilityRole="button" accessibilityLabel="Apps" onPress={() => setAppsOpen(true)} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
           <IconGrid size={18} color={colors.fg} />
         </PressableScale>
         <View style={{ flex: 1, height: 48, borderRadius: 24, backgroundColor: colors.surface, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -160,6 +161,32 @@ export default function BotsScreen() {
                 </PressableScale>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={appsOpen} transparent animationType="slide" onRequestClose={() => setAppsOpen(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Pressable accessibilityLabel="Close apps" onPress={() => setAppsOpen(false)} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
+          <View style={{ backgroundColor: "#131316", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 28 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingTop: 8 }}>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={() => setAppsOpen(false)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+                <IconClose size={18} color={colors.fg} />
+              </PressableScale>
+              <T style={[type.headerBrand, { color: colors.fg, flex: 1, textAlign: "center" }]}>Apps & Library</T>
+              <View style={{ width: 44 }} />
+            </View>
+            <PressableScale accessibilityRole="button" accessibilityLabel="Library" onPress={() => { setAppsOpen(false); router.push("/library"); }} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+              <T style={[type.rowTitle, { color: colors.fg }]}>Library</T>
+              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Firm files, approved drafts, and synced apps</T>
+            </PressableScale>
+            <PressableScale accessibilityRole="button" accessibilityLabel="Connect apps" onPress={() => { setAppsOpen(false); router.push("/plugins"); }} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+              <T style={[type.rowTitle, { color: colors.fg }]}>Connect apps</T>
+              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Gmail, Drive, Slack, Notion, and more</T>
+            </PressableScale>
+            <PressableScale accessibilityRole="button" accessibilityLabel="Model & Ethics" onPress={() => { setAppsOpen(false); router.push("/ethics"); }} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+              <T style={[type.rowTitle, { color: colors.fg }]}>Model & Ethics</T>
+              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Charter, tone, and firm model</T>
+            </PressableScale>
           </View>
         </View>
       </Modal>

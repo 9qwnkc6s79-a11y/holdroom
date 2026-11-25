@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "expo-router";
-import { pair as pairRequest } from "@/api/client";
+import { pair as pairRequest, setAuthToken, setUnauthorizedHandler, signOutServer } from "@/api/client";
 import type { Session } from "@/api/types";
 import { normalizeInvite } from "@/lib/derive";
 import { kvDelete, kvGet, kvSet } from "@/lib/kv";
@@ -26,6 +26,7 @@ function asSession(data: {
   homeDepartment?: string;
   inviteCode?: string;
   testerLabel?: string;
+  token?: string;
 }, invite: string): Session {
   const departments = (data.departments || data.rooms || []).filter((id) => id && id !== "enterprise");
   const role = data.role === "Associate" ? "Associate" : "Partner";
@@ -39,6 +40,7 @@ function asSession(data: {
     pairedAt: new Date().toISOString(),
     inviteCode: data.inviteCode || invite,
     testerLabel: data.testerLabel || "",
+    token: data.token,
   };
 }
 
@@ -52,8 +54,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (raw) {
         try {
-          setSession(JSON.parse(raw) as Session);
+          const parsed = JSON.parse(raw) as Session;
+          if (parsed?.token) {
+            setAuthToken(parsed.token);
+            setSession(parsed);
+          } else {
+            void kvDelete(KEY);
+            setAuthToken("");
+            setSession(null);
+          }
         } catch {
+          setAuthToken("");
           setSession(null);
         }
       }
@@ -71,6 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const data = await pairRequest(code, "This iPhone");
       if (data.error) return data.error;
       const next = asSession(data, code);
+      setAuthToken(next.token || "");
       await kvSet(KEY, JSON.stringify(next));
       setSession(next);
       return null;
@@ -80,8 +92,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    await signOutServer().catch(() => undefined);
+    setAuthToken("");
     await kvDelete(KEY);
     setSession(null);
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setAuthToken("");
+      void kvDelete(KEY);
+      setSession(null);
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const value = useMemo(() => ({ ready, session, signIn, signOut }), [ready, session, signIn, signOut]);

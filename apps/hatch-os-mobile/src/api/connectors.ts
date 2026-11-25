@@ -23,13 +23,13 @@ export interface OAuthProbe {
   error?: string;
 }
 
-export function loadConnectors(scope: string): Promise<{ connected: ConnectedAccount[]; setup: OAuthSetup[] }> {
-  return apiJson("/api/connectors", { headers: { "x-hatch-tester": scope } });
+export function loadConnectors(_scope?: string): Promise<{ connected: ConnectedAccount[]; setup: OAuthSetup[] }> {
+  return apiJson("/api/connectors");
 }
 
-export function probeOAuth(kind: string, scope: string): Promise<OAuthProbe> {
-  const path = `/api/connectors/${encodeURIComponent(kind)}/start?client=ios&probe=1&scope=${encodeURIComponent(scope)}`;
-  return apiJson(path, { headers: { "x-hatch-tester": scope } });
+export function probeOAuth(kind: string, _scope?: string): Promise<OAuthProbe> {
+  const path = `/api/connectors/${encodeURIComponent(kind)}/start?client=ios&probe=1`;
+  return apiJson(path);
 }
 
 export function oauthReturnUrl(): string {
@@ -39,14 +39,13 @@ export function oauthReturnUrl(): string {
 export function disconnectAccount(scope: string, id: string): Promise<{ ok?: boolean }> {
   return apiJson(`/api/connectors?kind=${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { "x-hatch-tester": scope },
+
   });
 }
 
 export function connectWithToken(scope: string, body: Record<string, string>): Promise<{ connector?: ConnectedAccount; error?: string }> {
   return apiJson("/api/connectors", {
     method: "POST",
-    headers: { "x-hatch-tester": scope },
     body: JSON.stringify({ ...body, scope }),
   });
 }
@@ -54,7 +53,6 @@ export function connectWithToken(scope: string, body: Record<string, string>): P
 export function syncProvider(scope: string, kind: "google" | "microsoft", departmentId: string): Promise<{ ok?: boolean; detail?: string; saved?: number; error?: string }> {
   return apiJson("/api/connectors/sync", {
     method: "POST",
-    headers: { "x-hatch-tester": scope },
     body: JSON.stringify({ scope, kind, departmentId }),
   });
 }

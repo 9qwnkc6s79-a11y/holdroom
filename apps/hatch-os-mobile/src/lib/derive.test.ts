@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Agent, ChatThread } from "../api/types.ts";
-import { composeDictation, greeting, hostLine, isWaitStatus, jpegName, normalizeInvite, tasksFromThreads } from "./derive.ts";
+import { activityLine, composeDictation, greeting, hostLine, isWaitStatus, jpegName, normalizeInvite, startersForAgent, tasksFromThreads } from "./derive.ts";
 
 const legal: Agent = {
   id: "legal",
@@ -86,4 +86,16 @@ test("host line does not surface a vendor name", () => {
     connected: true,
   });
   assert.equal(hostLine(null).connected, false);
+});
+
+test("activityLine preserves live Gmail/Drive status lines", () => {
+  assert.equal(activityLine("Reading Gmail…"), "Reading Gmail…");
+  assert.equal(activityLine("Reading Drive…"), "Reading Drive…");
+  assert.equal(activityLine("Warming up test server…"), "Warming up your firm’s host. The first reply can take a few minutes.");
+});
+
+test("startersForAgent returns 3 non-empty starter prompts", () => {
+  const list = startersForAgent({ id: "general" });
+  assert.equal(list.length, 3);
+  assert.ok(list.every((item) => item.length > 5));
 });

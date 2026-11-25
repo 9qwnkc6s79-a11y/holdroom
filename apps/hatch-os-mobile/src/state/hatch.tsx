@@ -302,7 +302,6 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         context,
         agentId: agent.id,
         actor: `${currentSession.role} · ${currentSession.deviceName}`,
-        agent: true,
         failFast: true,
         approvals: "wait",
         accessibleDepartments: accessibleDepartments(currentSession, agent.writeDepartmentId),
@@ -321,7 +320,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
           if (payload.threadId) writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));
           payload = await pollTurn(payload.state, (note) => {
             const line = activityLine(note);
-            patchAssistant(isWaitStatus(line) ? { done: false } : { text: line, done: false }, "thinking", line);
+            patchAssistant({ done: false }, "thinking", line);
           }, shouldContinue);
         }
         if (!shouldContinue()) {
@@ -344,7 +343,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
             approval,
           },
           approval?.status === "pending" ? "needsApproval" : "idle",
-          "Ready for you",
+          approval?.status === "pending" ? "Needs your approval" : "",
         );
         if (payload.threadId) {
           writeTurn(item.agentId, (current) => (current ? { ...current, threadId: payload.threadId } : current));

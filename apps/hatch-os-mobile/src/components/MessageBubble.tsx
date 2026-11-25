@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, Modal, Pressable, View } from "react-native";
+import { getAuthToken } from "@/api/client";
 import type { ChatAttachment, ChatMessage, ToolEvent } from "@/api/types";
 import { T } from "@/components/chrome";
 import { isWaitStatus } from "@/lib/derive";
@@ -48,6 +49,7 @@ function usePicture(file: ChatAttachment): string {
 
 function Picture({ file }: { file: ChatAttachment }) {
   const uri = usePicture(file);
+  const token = getAuthToken();
   const [open, setOpen] = useState(false);
   if (file.kind !== "Image" || !uri) {
     return <T style={[type.metaLabel, { color: colors.muted }]}>{file.name}</T>;
@@ -55,11 +57,11 @@ function Picture({ file }: { file: ChatAttachment }) {
   return (
     <>
       <Pressable accessibilityRole="image" accessibilityLabel={file.name} onPress={() => setOpen(true)}>
-        <Image source={{ uri }} style={{ width: 180, height: 180, borderRadius: 14, backgroundColor: colors.surface }} resizeMode="cover" />
+        <Image source={uri.startsWith("http") && token ? { uri, headers: { Authorization: `Bearer ${token}` } } : { uri }} style={{ width: 180, height: 180, borderRadius: 14, backgroundColor: colors.surface }} resizeMode="cover" />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable accessibilityLabel="Close photo" onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}>
-          <Image source={{ uri }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+          <Image source={uri.startsWith("http") && token ? { uri, headers: { Authorization: `Bearer ${token}` } } : { uri }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
         </Pressable>
       </Modal>
     </>

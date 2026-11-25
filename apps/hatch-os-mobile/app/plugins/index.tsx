@@ -3,7 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { EmptyNote, Screen, T } from "@/components/chrome";
 import { IconClose, IconSearch } from "@/components/icons";
-import { loadConnectors, type ConnectedAccount } from "@/api/connectors";
+import { loadConnectors, type ConnectedAccount, type OAuthSetup } from "@/api/connectors";
 import { FOR_YOU, PLUGIN_CATEGORIES, PLUGINS, pluginsIn, type PluginDef } from "@/plugins/catalog";
 import { useRequireSession, useSession } from "@/state/session";
 import { colors, type } from "@/theme/presenceTokens";
@@ -20,15 +20,21 @@ export default function PluginsScreen() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<(typeof PLUGIN_CATEGORIES)[number]>("All");
   const [connected, setConnected] = useState<ConnectedAccount[]>([]);
-  const shown = pluginsIn(category, query);
-  const suggestions = FOR_YOU.map((id) => PLUGINS.find((plugin) => plugin.id === id)).filter((plugin): plugin is PluginDef => Boolean(plugin));
+  const [setup, setSetup] = useState<OAuthSetup[]>([]);
+  const msHidden = setup.some((item) => item.kind === "microsoft" && !item.configured);
+  const visible = (item: PluginDef) => !(msHidden && item.provider === "microsoft");
+  const shown = pluginsIn(category, query).filter(visible);
+  const suggestions = FOR_YOU.map((id) => PLUGINS.find((plugin) => plugin.id === id)).filter((plugin): plugin is PluginDef => Boolean(plugin)).filter(visible);
   const connectedCount = connected.length;
 
   useEffect(() => {
     const scope = session?.inviteCode;
     if (!scope) return;
     void loadConnectors(scope)
-      .then((data) => setConnected(data.connected || []))
+      .then((data) => {
+        setConnected(data.connected || []);
+        setSetup(data.setup || []);
+      })
       .catch(() => setConnected([]));
   }, [session?.inviteCode]);
 

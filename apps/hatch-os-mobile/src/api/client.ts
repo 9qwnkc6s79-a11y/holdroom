@@ -8,8 +8,32 @@ import type {
   HostStatus,
   LivePayload,
   LiveState,
+  EthicsProfile,
+  LibraryPassage,
   PairResponse,
+  TokenBalanceView,
 } from "./types";
+
+let authToken = "";
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setAuthToken(token: string) {
+  authToken = token || "";
+}
+
+export function getAuthToken(): string {
+  return authToken;
+}
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  unauthorizedHandler = fn;
+}
+
+function applyAuth(headers: Headers) {
+  if (authToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+  }
+}
 
 export class ApiError extends Error {
   status: number;
@@ -29,6 +53,7 @@ async function readJson<T>(res: Response): Promise<T> {
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
+  applyAuth(headers);
   const body = init?.body;
   if (body && !(body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -42,6 +67,9 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const data = await readJson<T & { error?: string }>(res);
   if (!res.ok) {
+    if (res.status === 401 && authToken && !path.startsWith("/api/auth/pair")) {
+      unauthorizedHandler?.();
+    }
     const message = typeof data.error === "string" ? data.error : `Request failed (${res.status})`;
     throw new ApiError(message, res.status);
   }
@@ -136,7 +164,7 @@ export interface ChatRequest {
   context?: string;
   agentId: string;
   actor: string;
-  agent: true;
+  agent?: boolean;
   failFast: true;
   approvals: "wait";
   accessibleDepartments: string[];
@@ -147,6 +175,7 @@ export interface ChatRequest {
 
 export async function readChatResponse(res: Response, onDelta: (text: string) => void): Promise<LivePayload> {
   if (!res.ok) {
+    if (res.status === 401 && authToken) unauthorizedHandler?.();
     const data = await readJson<{ error?: string }>(res);
     throw new ApiError(data.error || `Request failed (${res.status})`, res.status);
   }
@@ -194,9 +223,11 @@ export async function readChatResponse(res: Response, onDelta: (text: string) =>
 export async function postChat(body: ChatRequest, onDelta: (text: string) => void): Promise<LivePayload> {
   let res: Response;
   try {
+    const headers = new Headers({ "Content-Type": "application/json", Accept: "application/json, text/event-stream" });
+    applyAuth(headers);
     res = await fetch(apiUrl("/api/chat"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      headers,
       body: JSON.stringify(body),
     });
   } catch (error) {
@@ -282,4 +313,50 @@ function sleep(ms: number, shouldContinue: () => boolean): Promise<void> {
       }
     }, 200);
   });
+}
+
+export function signOutServer(): Promise<{ ok?: boolean }> {
+  return apiJson<{ ok?: boolean }>("/api/auth/pair", { method: "DELETE" });
+}
+
+export function listLibrary(query = ""): Promise<{ files: HatchFile[]; passages: LibraryPassage[] }> {
+  return apiJson<{ files?: HatchFile[]; passages?: LibraryPassage[] }>(
+    `/api/library?department=enterprise&q=${encodeURIComponent(query)}`,
+  ).then((data) => ({
+    files: Array.isArray(data.files) ? data.files : [],
+    passages: Array.isArray(data.passages) ? data.passages : [],
+  }));
+}
+
+export async function readFileText(id: string): Promise<string> {
+  const data = await apiJson<{ text?: string }>(`/api/files/${encodeURIComponent(id)}`);
+  return data.text || "";
+}
+
+export function getEthics(agentId?: string): Promise<{ profile: EthicsProfile; defaults: EthicsProfile }> {
+  const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : "";
+  return apiJson<{ profile: EthicsProfile; defaults: EthicsProfile }>(`/api/ethics${query}`);
+}
+
+export function saveEthics(profile: Partial<EthicsProfile>, agentId?: string): Promise<{ profile: EthicsProfile }> {
+  return apiJson<{ profile: EthicsProfile }>("/api/ethics", {
+    method: "PUT",
+    body: JSON.stringify({ profile, agentId }),
+  });
+}
+
+export function resetEthics(agentId?: string): Promise<{ profile: EthicsProfile }> {
+  return apiJson<{ profile: EthicsProfile }>("/api/ethics", {
+    method: "PUT",
+    body: JSON.stringify({ reset: true, agentId }),
+  });
+}
+
+export async function getTokenBalance(): Promise<TokenBalanceView | null> {
+  try {
+    return await apiJson<TokenBalanceView>("/api/tokens");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    return null;
+  }
 }

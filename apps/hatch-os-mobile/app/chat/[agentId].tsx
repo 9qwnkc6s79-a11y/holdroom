@@ -9,7 +9,7 @@ import { IconBack, IconClose, IconDots } from "@/components/icons";
 import { MessageBubble } from "@/components/MessageBubble";
 import { PressableScale } from "@/components/PressableScale";
 import { ShapeAvatar, shapeFor } from "@/components/ShapeAvatar";
-import { agentLabel, oneParam, threadUnread } from "@/lib/derive";
+import { agentLabel, oneParam, startersForAgent, threadUnread } from "@/lib/derive";
 import { hapticRigid, hapticSuccess } from "@/lib/haptics";
 import { markSeen } from "@/lib/seen";
 import { useHatch } from "@/state/hatch";
@@ -41,7 +41,7 @@ export default function ChatScreen() {
     void markSeen(threadId).then(setSeen);
   }, [threadId]);
   const unreadOthers = threads.filter((thread) => thread.id !== threadId && threadUnread(thread, seen)).length;
-  const status = useMemo(() => {
+  const activity = useMemo(() => {
     const live = turns[agent?.id || ""];
     if (phase === "thinking" || phase === "listening" || phase === "speaking") {
       return { color: colors.blueSky, text: live?.status || "Thinking…" };
@@ -49,9 +49,10 @@ export default function ChatScreen() {
     if (messages.some((message) => message.approval?.status === "pending")) {
       return { color: colors.amber, text: "Needs your approval" };
     }
-    return { color: colors.blueSky, text: "Ready for you" };
+    return null;
   }, [agent?.id, messages, phase, turns]);
   const agentIndex = Math.max(0, agents.findIndex((item) => item.id === agent?.id));
+  const starters = useMemo(() => startersForAgent(agent), [agent]);
 
   async function startFresh(id: string) {
     const created = await startThread(id);
@@ -115,16 +116,36 @@ export default function ChatScreen() {
             <IconDots size={18} color={colors.fg} />
           </PressableScale>
         </View>
-        <View style={{ alignItems: "center", paddingBottom: 8 }}>
-          <StatusLine color={status.color} text={status.text} centered />
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
           {messages.length === 0 ? (
-            <View style={{ paddingVertical: 24 }}>
-              <T style={[type.rowTitle, { color: colors.fg }]}>Nothing in this thread yet</T>
-              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 6 }]}>
-                Ask anything. Nothing leaves your firm’s host until you approve.
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 12 }}>
+              <ShapeAvatar name={agent ? agentLabel(agent) : "Hatch"} shape={shapeFor(agentIndex)} size={56} />
+              <T style={[type.signInTitle, { color: colors.fg, textAlign: "center", marginTop: 16 }]}>
+                Hi — I’m {agent ? agentLabel(agent) : "Hatch"}
               </T>
+              <T style={[type.cardSubcopy, { color: colors.muted, textAlign: "center", marginTop: 6, maxWidth: 300 }]}>
+                {agent?.description || "Ask a question, search connected mail and Drive, or draft a memo. Nothing leaves your host until you approve."}
+              </T>
+              <View style={{ marginTop: 18, gap: 8, alignSelf: "stretch", maxWidth: 340, alignItems: "center" }}>
+                {starters.map((starter) => (
+                  <PressableScale
+                    key={starter}
+                    accessibilityRole="button"
+                    accessibilityLabel={starter}
+                    onPress={() => submit(starter)}
+                    style={{
+                      borderRadius: 20,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                      backgroundColor: colors.surface,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                    }}
+                  >
+                    <T style={[type.cardSubcopy, { color: colors.fg, textAlign: "center" }]}>{starter}</T>
+                  </PressableScale>
+                ))}
+              </View>
             </View>
           ) : (
             messages.map((message) => (
@@ -143,6 +164,11 @@ export default function ChatScreen() {
           )}
           {actionError ? <T style={[type.cardSubcopy, { color: colors.fg }]}>{actionError}</T> : null}
         </ScrollView>
+        {activity ? (
+          <View style={{ paddingHorizontal: 18, paddingTop: 6, paddingBottom: 2 }}>
+            <StatusLine color={activity.color} text={activity.text} />
+          </View>
+        ) : null}
         <ChatComposer
           value={draft}
           onChangeText={setDraft}
@@ -171,8 +197,9 @@ export default function ChatScreen() {
               <T style={[type.headerBrand, { color: colors.fg, flex: 1, textAlign: "center" }]}>{agent ? agentLabel(agent) : "Chat"}</T>
               <View style={{ width: 44 }} />
             </View>
-            <MenuRow label="Bot settings" detail="Permissions and the firm host" onPress={() => { setMenu(false); router.push("/profile"); }} />
-            <MenuRow label="Files" detail="Connect a file source or attach one here" onPress={() => { setMenu(false); router.push("/plugins"); }} />
+            <MenuRow label="Library" detail="Search firm files, drafts, and synced apps" onPress={() => { setMenu(false); router.push("/library"); }} />
+            <MenuRow label="Connect apps" detail="Gmail, Drive, Slack, Notion, and more" onPress={() => { setMenu(false); router.push("/plugins"); }} />
+            <MenuRow label="Bot settings" detail="Model & Ethics, permissions, and the firm host" onPress={() => { setMenu(false); router.push("/profile"); }} />
             <MenuRow label="Fresh chat" detail="Starts a new thread. The host keeps this one." onPress={() => { setMenu(false); if (agent) void startFresh(agent.id); }} />
           </View>
         </View>

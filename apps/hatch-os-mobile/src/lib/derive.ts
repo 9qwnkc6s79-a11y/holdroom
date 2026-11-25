@@ -2,6 +2,8 @@ import type { Agent, ChatMessage, ChatThread, FileKind, HostStatus } from "@/api
 import type { SphereState } from "@/shader/sphereStates";
 
 const KNOWN_ROOMS: Record<string, string> = {
+  "north-desk": "North desk",
+  "south-desk": "South desk",
   "little-elm": "North desk",
   prosper: "South desk",
   "hq-ops": "Operations",
@@ -10,7 +12,7 @@ const KNOWN_ROOMS: Record<string, string> = {
   enterprise: "Enterprise",
 };
 
-const ENTERPRISE_ROOMS = ["hq-ops", "legal", "finance", "little-elm", "prosper"];
+const ENTERPRISE_ROOMS = ["hq-ops", "legal", "finance", "north-desk", "south-desk"];
 
 /** The product agent named Hatch reads as a second Hatch inside the app. */
 export function agentLabel(agent: { id: string; name: string }): string {
@@ -19,7 +21,13 @@ export function agentLabel(agent: { id: string; name: string }): string {
 }
 
 export function activityLine(note: string | undefined, tools?: { detail?: string }[]): string {
+  const raw = (note || "").trim();
+  if (raw && !/warming|first message|2–5|2-5|running/i.test(raw)) {
+    return raw.length > 120 ? "Working…" : raw;
+  }
   const detail = [...(tools || [])].reverse().find((tool) => tool.detail)?.detail || "";
+  if (/gmail|mail/i.test(detail)) return "Reading Gmail…";
+  if (/drive|onedrive/i.test(detail)) return "Reading Drive…";
   if (/read/i.test(detail)) return "Reading the file room…";
   if (detail) return /…$/.test(detail) ? detail : `${detail.replace(/\.$/, "")}…`;
   const waited = waitCopy(note);
@@ -232,4 +240,34 @@ export function presenceState(
   if (phases.includes("listening") || phases.includes("thinking")) return "thinking";
   const waiting = threads.some((thread) => (thread.messages || []).some((message) => message.approval?.status === "pending"));
   return waiting ? "needsApproval" : "idle";
+}
+
+export function startersForAgent(agent: { id: string } | undefined): string[] {
+  const id = agent?.id || "";
+  if (id === "legal") {
+    return [
+      "What’s in our engagement notes?",
+      "Summarize key client confidentiality rules",
+      "Draft an engagement letter checklist",
+    ];
+  }
+  if (id === "finance") {
+    return [
+      "Walk me through month-end close",
+      "List items needed for the monthly close",
+      "Draft a month-end sign-off memo",
+    ];
+  }
+  if (id === "operations" || id === "hq-ops") {
+    return [
+      "What’s in the client onboarding checklist?",
+      "Summarize the visitor protocol",
+      "Who leads North desk and South desk?",
+    ];
+  }
+  return [
+    "What’s in our firm file room?",
+    "Summarize the client onboarding checklist",
+    "Draft a short internal status update",
+  ];
 }
