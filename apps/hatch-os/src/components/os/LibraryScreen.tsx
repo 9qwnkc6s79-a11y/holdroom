@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { OsShell } from "@/components/os/OsShell";
+import { IconChevronLeft, IconX } from "@/components/os/Icons";
 import type { HatchFile } from "@/lib/types";
 
 interface LibraryPassage {
@@ -23,6 +24,7 @@ function roomName(id: string) {
 }
 
 export function LibraryScreen() {
+  const router = useRouter();
   const [files, setFiles] = useState<HatchFile[]>([]);
   const [passages, setPassages] = useState<LibraryPassage[]>([]);
   const [query, setQuery] = useState("");
@@ -57,12 +59,7 @@ export function LibraryScreen() {
   }, [load, query]);
 
   const drafts = files.filter((file) => file.origin === "draft");
-  const rooms = new Map<string, HatchFile[]>();
-  for (const file of files) {
-    const list = rooms.get(file.departmentId) || [];
-    list.push(file);
-    rooms.set(file.departmentId, list);
-  }
+  const roomFiles = files.filter((file) => file.origin !== "draft");
 
   async function showFile(file: HatchFile) {
     const res = await fetch(`/api/files/${encodeURIComponent(file.id)}`, { cache: "no-store" });
@@ -75,103 +72,100 @@ export function LibraryScreen() {
   }
 
   return (
-    <OsShell
-      title="Library"
-      lede="Search firm files, approved drafts, and synced docs or mail."
-    >
-      <div className="os-page">
-        <div className="os-search-row">
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search firm files and synced items…"
-            aria-label="Search Library"
-          />
-        </div>
-        {loading && !files.length && !passages.length ? <p>Loading Library…</p> : null}
-        {passages.length ? (
-          <section>
-            <h2>Synced apps</h2>
-            <div className="os-list">
-              {passages.map((passage) => (
-                <article key={passage.id} className="os-row">
-                  <h3>{passage.title}</h3>
-                  <p>{passage.source}</p>
-                  <div className="os-meta">
-                    <button
-                      className="os-btn-ghost"
-                      type="button"
-                      onClick={() => setOpen({ name: passage.title, meta: passage.source, text: passage.text })}
-                    >
-                      Open
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
-        <h2>Finished work</h2>
-        {drafts.length ? (
-          <div className="os-list">
-            {drafts.map((file) => (
-              <article key={file.id} className="os-row">
-                <h3>{file.name}</h3>
-                <p>{roomName(file.departmentId)} · draft</p>
-                <div className="os-meta">
-                  <button className="os-btn-ghost" type="button" onClick={() => void showFile(file)}>
-                    Open
-                  </button>
+    <main className="lib-shell">
+      <header className="lib-head">
+        <button type="button" className="round" aria-label="Back to chat" onClick={() => router.push("/chat")}>
+          <IconChevronLeft />
+        </button>
+        <h1>Library</h1>
+      </header>
+      <div className="lib-search">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search firm files, drafts, and synced docs or mail…"
+          aria-label="Search Library"
+        />
+      </div>
+      {loading && !files.length && !passages.length ? <p className="lib-empty">Loading Library…</p> : null}
+
+      {passages.length ? (
+        <section>
+          <p className="lib-kicker">Synced apps ({passages.length})</p>
+          <div className="lib-card">
+            {passages.map((passage) => (
+              <button
+                key={passage.id}
+                type="button"
+                className="lib-row"
+                onClick={() => setOpen({ name: passage.title, meta: passage.source, text: passage.text })}
+              >
+                <div>
+                  <strong>{passage.title}</strong>
+                  <span>{passage.source}</span>
                 </div>
-              </article>
+                <span>Open</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section>
+        <p className="lib-kicker">Finished work</p>
+        {drafts.length ? (
+          <div className="lib-card">
+            {drafts.map((file) => (
+              <button key={file.id} type="button" className="lib-row" onClick={() => void showFile(file)}>
+                <div>
+                  <strong>{file.name}</strong>
+                  <span>{roomName(file.departmentId)} · draft</span>
+                </div>
+                <span>Open</span>
+              </button>
             ))}
           </div>
         ) : (
-          <p>{query ? "No matching drafts." : "No finished drafts yet. Approve a memo in chat and it will land here."}</p>
+          <p className="lib-empty">{query ? "No matching drafts." : "No finished drafts yet. Approve a memo in chat and it will land here."}</p>
         )}
-        <h2>File room</h2>
-        {rooms.size ? (
-          [...rooms.entries()].map(([id, list]) => (
-            <section key={id}>
-              <h3>{roomName(id)}</h3>
-              <div className="os-list">
-                {list.map((file) => (
-                  <article key={file.id} className="os-row">
-                    <h3>{file.name}</h3>
-                    <p>
-                      {file.kind}
-                      {file.inLibrary ? " · in the library" : ""}
-                      {file.demo ? " · sample" : ""}
-                    </p>
-                    <div className="os-meta">
-                      <button className="os-btn-ghost" type="button" onClick={() => void showFile(file)}>
-                        Open
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ))
-        ) : (
-          <p>{query ? "No matching files in the file room." : "No files in the file room yet."}</p>
-        )}
-        {open ? (
-          <div className="os-dialog" role="presentation" onClick={() => setOpen(null)}>
-            <article role="dialog" aria-label={open.name} onClick={(event) => event.stopPropagation()}>
-              <h2>{open.name}</h2>
-              <p className="os-note">{open.meta}</p>
-              <div className="os-assistant">
-                <MarkdownPreview text={open.text.slice(0, 8000)} />
-              </div>
-              <button className="os-btn" type="button" onClick={() => setOpen(null)}>
-                Close
+      </section>
+
+      <section>
+        <p className="lib-kicker">File room ({roomFiles.length})</p>
+        {roomFiles.length ? (
+          <div className="lib-card">
+            {roomFiles.map((file) => (
+              <button key={file.id} type="button" className="lib-row" onClick={() => void showFile(file)}>
+                <div>
+                  <strong>{file.name}</strong>
+                  <span>{roomName(file.departmentId)} · {file.kind}{file.inLibrary ? " · in library" : ""}</span>
+                </div>
+                <span>Open</span>
               </button>
-            </article>
+            ))}
           </div>
-        ) : null}
-      </div>
-    </OsShell>
+        ) : (
+          <p className="lib-empty">{query ? "No matching files in the file room." : "No files in the file room yet."}</p>
+        )}
+      </section>
+
+      {open ? (
+        <div className="lib-modal" role="presentation" onClick={() => setOpen(null)}>
+          <article className="lib-modal-card" role="dialog" aria-label={open.name} onClick={(event) => event.stopPropagation()}>
+            <div className="lib-modal-head">
+              <h2>{open.name}</h2>
+              <button type="button" className="round" aria-label="Close" onClick={() => setOpen(null)}>
+                <IconX size={16} />
+              </button>
+            </div>
+            <p className="lib-modal-meta">{open.meta}</p>
+            <div className="bubble">
+              <MarkdownPreview text={open.text.slice(0, 8000)} />
+            </div>
+          </article>
+        </div>
+      ) : null}
+    </main>
   );
 }

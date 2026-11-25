@@ -10,3 +10,4 @@ apps/**/node_modules
 apps/**/.next
 apps/**/out
 apps/hatch-os/data
+.env*
