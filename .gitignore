@@ -8,5 +8,11 @@ node_modules
 .DS_Store
 apps/**/node_modules
 apps/**/.next
+apps/**/.expo
+apps/**/dist
+apps/**/web-build
+apps/hatch-os-mobile/ios
+apps/hatch-os-mobile/android
 apps/**/out
 apps/hatch-os/data
+.env*

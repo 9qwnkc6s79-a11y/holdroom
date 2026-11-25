@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { VALID_INVITES } from "@/lib/mock-data";
-import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
-import { testerByCode } from "@/lib/testers";
+import { demoModeEnabled } from "@/lib/demo";
+import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
+import { clearSessionCookie, setSessionCookie, signSessionToken } from "@/lib/session-auth";
+import { appReviewCode, testerByCode } from "@/lib/testers";
 
 export const dynamic = "force-dynamic";
 
@@ -14,60 +15,72 @@ export async function POST(req: Request) {
   } | null;
 
   const invite = (body?.invite || "").trim().toUpperCase();
-  const totp = (body?.totp || "").trim();
   const method = body?.method === "passkey" ? "passkey" : "totp";
-  const device = (body?.device || "").trim() || "This browser";
+  const device = (body?.device || "").trim() || "This device";
 
   if (!invite) {
-    return NextResponse.json({ error: "Ask your admin for an invite code." }, { status: 400 });
+    return NextResponse.json({ error: "Enter your invite code." }, { status: 400 });
   }
 
-  if (VALID_INVITES.noseat.includes(invite) || invite.includes("NOSEAT")) {
-    return NextResponse.json(
-      { error: "No seat for this invite — admin can add one." },
-      { status: 403 },
-    );
+  if (invite.includes("NOSEAT")) {
+    return NextResponse.json({ error: "No seat for this invite — admin can add one." }, { status: 403 });
   }
 
   const tester = testerByCode(invite);
-  // The six-digit box code is only for the staff preview. Tester codes are the whole sign-in.
-  if (!tester && method === "totp" && !/^\d{6}$/.test(totp)) {
+  const adminCode = (process.env.HATCH_ADMIN_CODE || "").trim().toUpperCase();
+  const isAdmin = Boolean(adminCode) && invite === adminCode;
+  const isDemoStaff = demoModeEnabled() && invite === "STAFF-PREVIEW";
+  const reviewCode = appReviewCode();
+  const isAppReview = Boolean(reviewCode) && invite === reviewCode;
+
+  if (!tester && !isAdmin && !isDemoStaff && !isAppReview) {
     return NextResponse.json(
-      { error: "That code was not recognized. Use the code you were sent." },
-      { status: 400 },
+      { error: "This code is not recognized. Ask your admin for a valid code." },
+      { status: 401 },
     );
   }
 
-  const associate = VALID_INVITES.associate.includes(invite);
-  const known =
-    Boolean(tester) ||
-    VALID_INVITES.partner.includes(invite) ||
-    associate ||
-    invite === "BOUNDARIES" ||
-    invite === "COFFEE";
+  const departments = [NORTH_DESK, SOUTH_DESK, HQ_OPS, LEGAL, FINANCE];
+  const enterprise = true;
+  const homeDepartment = HQ_OPS;
+  const scope = isAppReview ? "APP-REVIEW" : tester?.code || (isAdmin ? "ADMIN" : "STAFF-PREVIEW");
+  const label = isAppReview ? "App Review" : tester?.label || (isAdmin ? "Admin" : "Staff preview");
+  const role = "Partner" as const;
 
-  if (!known) {
-    return NextResponse.json(
-      { error: "This invite is not recognized on this box. Ask your admin." },
-      { status: 400 },
-    );
-  }
-
-  const departments = associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE];
-  const enterprise = !associate;
-  const homeDepartment = associate ? LITTLE_ELM : HQ_OPS;
-
-  return NextResponse.json({
-    ok: true,
-    method,
-    deviceName: device,
-    role: associate ? "Associate" : "Partner",
+  const token = signSessionToken({
+    scope,
+    role,
+    label,
     departments,
-    rooms: departments,
     enterprise,
     homeDepartment,
-    note: "Session lives on this phone.",
-    inviteCode: tester?.code || invite,
-    testerLabel: tester?.label || "",
+    appReview: isAppReview,
   });
+
+  const res = NextResponse.json(
+    {
+      ok: true,
+      token,
+      method,
+      deviceName: device,
+      role,
+      departments,
+      rooms: departments,
+      enterprise,
+      homeDepartment,
+      note: "Signed in.",
+      inviteCode: scope,
+      testerLabel: label,
+      appReview: isAppReview,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+  setSessionCookie(res, token, req.url);
+  return res;
+}
+
+export async function DELETE(req: Request) {
+  const res = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  clearSessionCookie(res, req.url);
+  return res;
 }

@@ -1,21 +1,21 @@
 import type { DepartmentId } from "./types";
 
-export const LITTLE_ELM = "little-elm";
-export const PROSPER = "prosper";
+export const NORTH_DESK = "north-desk";
+export const SOUTH_DESK = "south-desk";
 export const HQ_OPS = "hq-ops";
 export const LEGAL = "legal";
 export const FINANCE = "finance";
 export const ENTERPRISE = "enterprise";
 
-export const DEPARTMENT_IDS = [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE] as const;
-export const ALL_WORKSPACES = [ENTERPRISE, LITTLE_ELM, PROSPER, HQ_OPS] as const;
+export const DEPARTMENT_IDS = [NORTH_DESK, SOUTH_DESK, HQ_OPS, LEGAL, FINANCE] as const;
+export const ALL_WORKSPACES = [ENTERPRISE, NORTH_DESK, SOUTH_DESK, HQ_OPS] as const;
 
 /** @deprecated use DEPARTMENT_IDS */
 export const ALL_ROOMS = DEPARTMENT_IDS;
 
 export function migrateWorkspaceId(id: string): DepartmentId {
-  if (id === "fund-a" || id === "matter-alpha") return LITTLE_ELM;
-  if (id === "fund-b" || id === "matter-beta") return PROSPER;
+  if (id === "little-elm" || id === "fund-a" || id === "matter-alpha") return NORTH_DESK;
+  if (id === "prosper" || id === "fund-b" || id === "matter-beta") return SOUTH_DESK;
   if (id === "firm" || id === "hq") return id === "hq" ? HQ_OPS : ENTERPRISE;
   if (id === "enterprise") return ENTERPRISE;
   return id;
@@ -30,14 +30,14 @@ export function isEnterprise(id: string): boolean {
 
 export function isDepartment(id: string): boolean {
   const rid = migrateWorkspaceId(id);
-  return rid === LITTLE_ELM || rid === PROSPER || rid === HQ_OPS || (!isEnterprise(rid) && Boolean(rid));
+  return rid === NORTH_DESK || rid === SOUTH_DESK || rid === HQ_OPS || (!isEnterprise(rid) && Boolean(rid));
 }
 
 export function workspaceLabel(id: string): string {
   const rid = migrateWorkspaceId(id);
   if (rid === ENTERPRISE) return "Enterprise";
-  if (rid === LITTLE_ELM) return "North desk";
-  if (rid === PROSPER) return "South desk";
+  if (rid === NORTH_DESK) return "North desk";
+  if (rid === SOUTH_DESK) return "South desk";
   if (rid === HQ_OPS) return "Operations";
   if (rid === LEGAL) return "Legal";
   if (rid === FINANCE) return "Finance";
@@ -51,8 +51,8 @@ export function belongsToDepartment(sourceRoom: string, departmentId: string): b
   const room = sourceRoom.toLowerCase();
   const id = migrateWorkspaceId(departmentId);
   if (id === ENTERPRISE) return true;
-  if (id === LITTLE_ELM) return room.includes("little elm") || room === "little-elm";
-  if (id === PROSPER) return room.includes("prosper") || room === "prosper";
+  if (id === NORTH_DESK) return room.includes("north") || room.includes("little elm") || room === "little-elm" || room === "north-desk";
+  if (id === SOUTH_DESK) return room.includes("south") || room.includes("prosper") || room === "prosper" || room === "south-desk";
   if (id === HQ_OPS) return room.includes("hq") || room.includes("ops") || room === "hq-ops";
   return room === id.toLowerCase();
 }
@@ -63,13 +63,13 @@ export const belongsToRoom = belongsToDepartment;
 export function uxIsolation(id: string): string {
   const rid = migrateWorkspaceId(id);
   if (rid === ENTERPRISE) {
-    return "Firm-wide workspace. Files and Library show every department plus HQ. Ask may use firm-wide knowledge. Writes still follow your department membership.";
+    return "Firm-wide workspace. Files and Library show every department plus Operations. Ask may use firm-wide knowledge. Writes still follow your department membership.";
   }
-  if (rid === LITTLE_ELM) {
-    return "Sample desk. Chat and files here belong to this desk. Ask may use the sample library. Writes stay in desks you can open.";
+  if (rid === NORTH_DESK) {
+    return "Sample desk. Chat and files here belong to this desk. Ask may use the firm library. Writes stay in desks you can open.";
   }
-  if (rid === PROSPER) {
-    return "Sample desk. Chat and files here belong to this desk. Ask may use the sample library. Writes stay in desks you can open.";
+  if (rid === SOUTH_DESK) {
+    return "Sample desk. Chat and files here belong to this desk. Ask may use the firm library. Writes stay in desks you can open.";
   }
   if (rid === HQ_OPS) {
     return "Sample operations desk. Chat and files here belong to this desk.";

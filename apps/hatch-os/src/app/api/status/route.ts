@@ -3,27 +3,38 @@ import { fetchBoxStatus } from "@/lib/adapters";
 import { demoModeEnabled } from "@/lib/demo.ts";
 import { probeLlm, probeAgentLlm, llmConfig, agentLlmConfig } from "@/lib/llm";
 import { MOCK_STATUS } from "@/lib/mock-data";
+import { operatorUiEnabled } from "@/lib/operator";
+import { verifySessionRequest } from "@/lib/session-auth";
 import type { BoxStatus, EgressCheck } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+function customerHostLabel(connected: boolean, kind: "ask" | "agent") {
+  if (kind === "ask") return connected ? "Ask model ready" : "Ask model offline";
+  return connected ? "Agent model ready" : "Agent model offline";
+}
+
 export async function GET(req: Request) {
-  if (demoModeEnabled()) {
+  const operator = operatorUiEnabled();
+
+  const session = verifySessionRequest(req);
+  if (demoModeEnabled() || session?.appReview) {
     const body: BoxStatus = {
       ...MOCK_STATUS,
       ok: true,
-      label: "Demo mode — the firm model is not called",
+      label: session?.appReview ? "Sample firm host ready" : "Demo mode — the firm model is not called",
       model: "demo",
       demoMode: true,
       modelState: "demo",
-      dryRun: true,
-      source: "mock",
+      dryRun: operator,
+      source: operator ? "mock" : "adapter",
+      egress_check: operator ? MOCK_STATUS.egress_check : { status: "unknown", detail: "Demo mode", openai: null, anthropic: null },
       llm: {
         connected: false,
         reachable: false,
         model: "demo",
         baseUrl: "",
-        host: "demo",
+        host: operator ? "demo" : "",
         label: "Demo mode",
         lane: "ask",
       },
@@ -32,18 +43,18 @@ export async function GET(req: Request) {
         reachable: false,
         model: "demo",
         baseUrl: "",
-        host: "demo",
+        host: operator ? "demo" : "",
         label: "Demo mode",
         lane: "agent",
         dedicated: false,
         usingAskFallback: false,
       },
     };
-    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ...body, authenticated: Boolean(verifySessionRequest(req)) }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const url = new URL(req.url);
-  const demo = url.searchParams.get("egress");
+  const demo = operator ? url.searchParams.get("egress") : null;
   const llm = await probeLlm();
   const agentLlm = await probeAgentLlm();
 
@@ -90,6 +101,48 @@ export async function GET(req: Request) {
   const { primary } = llmConfig();
   const agent = agentLlmConfig();
   const ready = llm.connected && !/timed out/i.test(llm.error || "");
+  const agentReady = agentLlm.connected && !/timed out/i.test(agentLlm.error || "");
+
+  if (!operator) {
+    return NextResponse.json(
+      {
+        ok: llm.reachable,
+        host: "",
+        model: llm.model,
+        label: ready ? "Firm host is ready" : "Firm host is offline",
+        disk_free: status.disk_free,
+        last_backup: "Managed",
+        last_egress_check: status.last_egress_check,
+        dryRun: false,
+        demoMode: false,
+        modelState: ready ? "ready" : "offline",
+        llm: {
+          connected: llm.connected,
+          reachable: llm.reachable,
+          model: llm.model,
+          baseUrl: "",
+          host: "",
+          label: customerHostLabel(ready, "ask"),
+          lane: "ask" as const,
+          error: ready ? undefined : "Temporarily unavailable",
+        },
+        agentLlm: {
+          connected: agentLlm.connected,
+          reachable: agentLlm.reachable,
+          model: agentLlm.model,
+          baseUrl: "",
+          host: "",
+          label: customerHostLabel(agentReady, "agent"),
+          lane: "agent" as const,
+          dedicated: agent.dedicated,
+          usingAskFallback: agent.usingAskFallback,
+          error: agentReady ? undefined : "Temporarily unavailable",
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   return NextResponse.json(
     {
       ...status,

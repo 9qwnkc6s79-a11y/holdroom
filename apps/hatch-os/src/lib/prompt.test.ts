@@ -106,16 +106,16 @@ describe("interleaveHistory follow-up", () => {
     const ragSystem = [
       "Ask. Use thread history for follow-ups.",
       "Library passages (firm-wide):",
-      "[1] DEMO_catering_protocol.md (hq-ops)",
-      "[2] DEMO_open_close_checklist.md (little-elm)",
-      "[3] DEMO_loyalty.md (hq-ops)",
+      "[1] Visitor_protocol.md (hq-ops)",
+      "[2] Open_close_checklist.md (north-desk)",
+      "[3] Client_onboarding_checklist.md (hq-ops)",
       "If the question is only about this conversation, do not cite library files.",
     ].join("\n");
     const messages = interleaveHistory(ragSystem, history, followUp);
     const hello = messages.find((m) => m.role === "user" && m.content === "Hello");
     const rag = messages.find((m) => m.role === "system");
     assert.ok(hello, "prior user turn must be a chat message the model can quote");
-    assert.ok(rag?.content.includes("DEMO_catering_protocol.md"));
+    assert.ok(rag?.content.includes("Visitor_protocol.md"));
     assert.equal(rag?.content.includes("Hello"), false);
     assert.equal(messages.filter((m) => m.role === "user").length, 2);
     assert.equal(messages.at(-1)?.content, followUp);

@@ -1,18 +1,18 @@
 import { looksSoftDraft } from "./agent-intent.ts";
-import { DEPARTMENT_IDS, HQ_OPS, LITTLE_ELM, PROSPER, migrateWorkspaceId } from "./departments.ts";
+import { DEPARTMENT_IDS, HQ_OPS, NORTH_DESK, SOUTH_DESK, migrateWorkspaceId } from "./departments.ts";
 import type { ToolCall } from "./tool-parse.ts";
 import type { ToolEvent } from "./types.ts";
 
 export const DRAFT_NUDGE =
-  "This turn is a draft/write-note. Call write_draft now with departmentId (little-elm, prosper, or hq-ops — not enterprise), a filename, and the note text. Do not answer in prose only.";
+  "This turn is a draft/write-note. Call write_draft now with departmentId (north-desk, south-desk, or hq-ops — not enterprise), a filename, and the note text. Do not answer in prose only.";
 
 export const PROSE_ONLY_DRAFT =
   "No write_draft ran — this stayed as prose. Name North desk, South desk, or Operations (or /dept) and ask again to save the file.";
 
 export function parseMentionedDepartment(text: string): string {
   const raw = text || "";
-  if (/\blittle[\s-]?elm\b/i.test(raw) || /\bnorth desk\b/i.test(raw)) return LITTLE_ELM;
-  if (/\bprosper\b/i.test(raw) || /\bsouth desk\b/i.test(raw)) return PROSPER;
+  if (/\blittle[\s-]?elm\b/i.test(raw) || /\bnorth desk\b/i.test(raw)) return NORTH_DESK;
+  if (/\bprosper\b/i.test(raw) || /\bsouth desk\b/i.test(raw)) return SOUTH_DESK;
   if (/\bhq[\s-]?ops\b|\bhq ops\b/i.test(raw)) return HQ_OPS;
   const id = migrateWorkspaceId(raw.trim().toLowerCase());
   return (DEPARTMENT_IDS as readonly string[]).includes(id) ? id : "";

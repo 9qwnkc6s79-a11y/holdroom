@@ -13,7 +13,7 @@ import {
 } from "./tools";
 import type { Source, ToolEvent } from "./types";
 
-export const AGENT_MAX_TURNS = 4;
+export const AGENT_MAX_TURNS = 6;
 
 export interface AgentLoopInput extends PromptInput {
   workspaceId: string;
@@ -69,7 +69,7 @@ export async function runAgentLoop(
     const visibleTurn = stripThinkBlocks(streamed.text || turnText);
     const calls = mergeCalls(streamed.toolCalls, parseToolCalls(visibleTurn));
     const clean = stripThinkBlocks(stripToolMarkup(visibleTurn));
-    if (clean) visible = visible ? `${visible}\n${clean}` : clean;
+    if (clean && !calls.length) visible = visible ? `${visible}\n${clean}` : clean;
     if (!calls.length) {
       if (shouldNudgeSoftDraft(turn, input.query, toolResults)) {
         messages.push({ role: "assistant", content: visibleTurn || turnText || "(no tool)" });
@@ -107,9 +107,28 @@ export async function runAgentLoop(
         "Tool results:",
         ...toolResults.slice(-calls.length).map((t) => `- ${t.name}: ${t.ok ? "ok" : "denied"} — ${t.detail}`),
         ...extras,
-        "Continue. If you can answer now, answer in prose. If you need another tool, call it.",
+        "Continue. If you can answer now with concrete facts, answer in prose. If you need full content from another tool, call it.",
       ].join("\n"),
     });
+    if (turn === AGENT_MAX_TURNS - 1) {
+      let finalTurnText = "";
+      const finalStreamed = await streamAgentLlm(
+        [
+          ...messages,
+          {
+            role: "user",
+            content: "Synthesize a concrete, complete answer from the tool results above. Do not ask the user to clarify when the data is already present.",
+          },
+        ],
+        (delta) => {
+          finalTurnText += delta;
+          onDelta(delta);
+        },
+        undefined,
+      );
+      const finalClean = stripThinkBlocks(stripToolMarkup(finalStreamed.text || finalTurnText));
+      if (finalClean) visible = visible ? `${visible}\n${finalClean}` : finalClean;
+    }
   }
 
   const finished = finishSoftDraft({

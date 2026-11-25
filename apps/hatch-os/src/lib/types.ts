@@ -1,4 +1,4 @@
-export type DepartmentId = "little-elm" | "prosper" | "hq-ops" | "enterprise" | string;
+export type DepartmentId = "north-desk" | "south-desk" | "hq-ops" | "legal" | "finance" | "enterprise" | string;
 
 /** @deprecated use DepartmentId */
 export type RoomId = DepartmentId;

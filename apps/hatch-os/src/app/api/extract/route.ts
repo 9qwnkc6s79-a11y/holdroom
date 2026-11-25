@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { isRasterImage } from "@/lib/images";
 
@@ -8,6 +9,8 @@ const TEXT_EXT = /\.(txt|md|markdown|csv|json|js|jsx|ts|tsx|py|html|css|yml|yaml
 
 /** Pull readable text out of a chat attachment. Pictures are sent to the model as images, not as this text. */
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) {

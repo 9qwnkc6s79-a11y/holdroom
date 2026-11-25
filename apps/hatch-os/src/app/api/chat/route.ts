@@ -4,6 +4,7 @@ import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
 import { loadEthics } from "@/lib/ethics";
 import { harnessHandles, startHarnessTurn } from "@/lib/harness/live";
+import { requireSession } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
 // Each request only submits or checks a RunPod job. The browser polls, so a
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     roomId?: string;
     departmentId?: string;
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Ask a question." }, { status: 400 });
   }
 
-  const testerCode = (body?.testerCode || "staff").slice(0, 40);
+  const testerCode = auth.session.scope;
   const ethics = await loadEthics(testerCode, body?.agentId);
   const ethicsHeaders = {
     "x-hatch-model": ethics.model,
@@ -56,7 +59,7 @@ export async function POST(req: Request) {
     at: new Date().toISOString(),
   }).catch(() => undefined);
 
-  if (!demoModeEnabled() && liveRunpodReady()) {
+  if (!demoModeEnabled() && !auth.session.appReview && liveRunpodReady()) {
     try {
       if (harnessHandles({ attachments: body?.attachments })) {
         const result = await startHarnessTurn({
@@ -131,6 +134,7 @@ export async function POST(req: Request) {
             defaultDepartmentId: body?.defaultDepartmentId,
             replyTo: body?.replyTo,
             testerCode,
+            sampleMode: Boolean(auth.session.appReview),
           },
           {
             onStart: (info) => {

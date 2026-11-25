@@ -6,12 +6,12 @@ import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
 import { IconPicker } from "@/components/os/IconPicker";
-import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconMic, IconPlus, IconScan, IconSettings, IconWave, IconX } from "@/components/os/Icons";
+import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconPlus, IconScan, IconSettings, IconX } from "@/components/os/Icons";
 import { ModelEthics } from "@/components/os/ModelEthics";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
 import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
-import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { ACCEPT_ATTR, kindFromFilename } from "@/lib/files";
 import { browserImageDataUrl } from "@/lib/image-client";
 import { forStorage, isRasterImage } from "@/lib/images";
@@ -30,18 +30,34 @@ interface LivePayload {
   modelOffline?: boolean;
 }
 
-type SpeechCtor = new () => {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-const DICTATE_HINT =
-  "Use your phone keyboard's mic button to dictate — live voice transcription isn't wired on this test build yet.";
+function startersForAgent(agent: HatchAgent): string[] {
+  if (agent.id === "legal") {
+    return [
+      "What’s in our engagement notes?",
+      "Summarize key client confidentiality rules",
+      "Draft an engagement letter checklist",
+    ];
+  }
+  if (agent.id === "finance") {
+    return [
+      "Walk me through month-end close",
+      "List items needed for the monthly close",
+      "Draft a month-end sign-off memo",
+    ];
+  }
+  if (agent.id === "operations" || agent.id === "hq-ops") {
+    return [
+      "What’s in the client onboarding checklist?",
+      "Summarize the visitor protocol",
+      "Who leads North desk and South desk?",
+    ];
+  }
+  return [
+    "What’s in our firm file room?",
+    "Summarize the client onboarding checklist",
+    "Draft a short internal status update",
+  ];
+}
 
 interface DraftChip {
   id: string;
@@ -137,8 +153,6 @@ export function Messenger() {
   const [hold, setHold] = useState<string | null>(null);
   const [chatSearch, setChatSearch] = useState(false);
   const [find, setFind] = useState("");
-  const [voice, setVoice] = useState(false);
-  const [voiceHint, setVoiceHint] = useState("");
   const [draft, setDraft] = useState("");
   const [chips, setChips] = useState<DraftChip[]>([]);
   const [apps, setApps] = useState(false);
@@ -300,7 +314,7 @@ export function Messenger() {
 
   const actor = session ? `${session.role} · ${session.deviceName}` : "signed-in";
   const accessible = session?.enterprise
-    ? Array.from(new Set([...(session.departments || []), HQ_OPS, LEGAL, FINANCE, LITTLE_ELM, PROSPER, agent?.writeDepartmentId || ""]))
+    ? Array.from(new Set([...(session.departments || []), HQ_OPS, LEGAL, FINANCE, NORTH_DESK, SOUTH_DESK, agent?.writeDepartmentId || ""]))
     : Array.from(new Set([...(session?.departments || []), agent?.writeDepartmentId || ""]));
 
   function unread(item: HatchAgent) {
@@ -401,8 +415,9 @@ export function Messenger() {
         current.map((item) => (item.id === job.assistantId ? { ...item, ...patch } : item)),
       );
     };
+    setStatusNote(waitCopy(job.startedAt, running));
     const timer = window.setInterval(() => {
-      paint({ text: waitCopy(job.startedAt, running), done: false });
+      setStatusNote(waitCopy(job.startedAt, running));
     }, 1000);
     try {
       while (true) {
@@ -432,9 +447,11 @@ export function Messenger() {
         const payload = (await next.json()) as LivePayload;
         if (payload.phase === "wait" && payload.state) {
           state = payload.state;
-          running = /running/i.test(payload.note || "");
+          const rawNote = (payload.note || "").trim();
+          const warming = /warming up/i.test(rawNote);
+          running = !warming && Boolean(rawNote);
           upsertPending({ ...job, state });
-          paint({ text: waitCopy(job.startedAt, running), done: false });
+          setStatusNote(running ? rawNote : waitCopy(job.startedAt, false));
           await new Promise((resolve) => setTimeout(resolve, 2500));
           continue;
         }
@@ -450,10 +467,6 @@ export function Messenger() {
           tools: payload.tools || [],
           approval: payload.approval,
         });
-        if (job.voice && textOut && "speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(textOut).body.slice(0, 400)));
-        }
         window.dispatchEvent(new Event("hatch-refresh"));
         break;
       }
@@ -487,7 +500,7 @@ export function Messenger() {
     const assistant: ChatMessage = {
       id: `local-a-${Date.now()}`,
       role: "assistant",
-      text: waitCopy(startedAt, false),
+      text: "",
       done: false,
       sources: [],
     };
@@ -522,7 +535,7 @@ export function Messenger() {
     const fail = (err: unknown, status?: number) => {
       const textOut = explainFailure(err, status);
       paint({ done: true, failed: true, retryQuery: q, text: textOut });
-      setStatusNote(textOut);
+      setStatusNote("");
     };
     let handed = false;
     try {
@@ -537,7 +550,6 @@ export function Messenger() {
           context: opts?.context || "",
           agentId: target.id,
           actor,
-          agent: true,
           failFast: true,
           approvals: "wait",
           accessibleDepartments: accessible.filter(Boolean),
@@ -572,7 +584,8 @@ export function Messenger() {
             state: payload.state,
           };
           upsertPending(job);
-          paint({ text: waitCopy(startedAt, /running/i.test(payload.note || "")), done: false });
+          const rawNote = (payload.note || "").trim();
+          setStatusNote(rawNote && !/warming up/i.test(rawNote) ? rawNote : waitCopy(startedAt, false));
           handed = true;
           await followJob(job);
           return;
@@ -616,11 +629,7 @@ export function Messenger() {
       const shown = finalText || (modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply.");
       const failed = !finalText || modelOffline;
       paint({ id: messageId, text: shown, done: true, tools, approval, failed, retryQuery: failed ? q : undefined });
-      if (opts?.voice && finalText && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(choicesOf(finalText).body.slice(0, 400)));
-      }
-      if (failed) setStatusNote(shown);
+      if (!failed) setStatusNote("");
       window.dispatchEvent(new Event("hatch-refresh"));
     } catch (err) {
       fail(err, failureStatus(err));
@@ -670,44 +679,6 @@ export function Messenger() {
     }
   }
 
-  function showDictateHint() {
-    setStatusNote(DICTATE_HINT);
-    setVoiceHint(DICTATE_HINT);
-  }
-
-  function dictate(intoVoice = false) {
-    const w = window as Window & { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
-    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!Ctor) {
-      showDictateHint();
-      return;
-    }
-    try {
-      const rec = new Ctor();
-      rec.lang = "en-US";
-      rec.interimResults = false;
-      rec.onresult = (event) => {
-        try {
-          const spoken = event.results?.[0]?.[0]?.transcript || "";
-          if (!spoken) {
-            showDictateHint();
-            return;
-          }
-          if (intoVoice) void send(spoken, { voice: true });
-          else setDraft(spoken);
-        } catch {
-          showDictateHint();
-        }
-      };
-      rec.onerror = () => showDictateHint();
-      rec.onend = () => undefined;
-      rec.start();
-      setStatusNote("Listening…");
-      setVoiceHint("");
-    } catch {
-      showDictateHint();
-    }
-  }
 
   async function saveAgent(patch: Partial<HatchAgent> & { name: string }) {
     await fetch("/api/agents", {
@@ -821,6 +792,7 @@ export function Messenger() {
           </form>
           {apps ? (
             <div className="popover apps-pop">
+              <button type="button" onClick={() => { setApps(false); router.push("/library"); }}>Library</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("home"); setSettingsOpen(true); }}>Settings</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("vault"); setSettingsOpen(true); }}>Vault</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("audit"); setSettingsOpen(true); }}>Audit</button>
@@ -859,7 +831,20 @@ export function Messenger() {
                   stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
                 }}
               >
-                {statusNote ? <p className="working">{statusNote}</p> : null}
+                {!visibleMessages.length && !find ? (
+                  <div className="empty-welcome">
+                    <BlobAvatar color={agent.color} icon={agent.icon} size={56} label={agent.name} />
+                    <h2>Hi{account && account !== "Partner" ? `, ${account}` : ""} — I’m {agent.name}</h2>
+                    <p>{agent.description || "Ask a question, search firm files, or draft a memo."}</p>
+                    <div className="starters" role="list" aria-label="Suggested prompts">
+                      {startersForAgent(agent).map((starter) => (
+                        <button key={starter} type="button" onClick={() => void send(starter)}>
+                          {starter}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {visibleMessages.map((message) => {
                   const parsed = choicesOf(message.text);
                   const mine = message.role === "user";
@@ -933,9 +918,9 @@ export function Messenger() {
                     </div>
                   );
                 })}
-                {streaming ? <p className="working">Working…</p> : null}
                 <div ref={endRef} />
               </div>
+              {statusNote ? <p className="working working-bar" role="status">{statusNote}</p> : streaming ? <p className="working working-bar" role="status">Working…</p> : null}
               {reply ? (
                 <p className="replying">
                   {reply}
@@ -972,18 +957,14 @@ export function Messenger() {
                       }
                     }}
                   />
-                  <button type="button" className="icon" aria-label="Dictate" onClick={() => dictate(false)}>
-                    <IconMic />
+                  <button
+                    type="submit"
+                    className="send"
+                    aria-label="Send"
+                    disabled={!draft.trim() && !chips.length}
+                  >
+                    <IconArrowUp />
                   </button>
-                  {draft.trim() || chips.length ? (
-                    <button type="submit" className="send" aria-label="Send">
-                      <IconArrowUp />
-                    </button>
-                  ) : (
-                    <button type="button" className="voice" aria-label="Voice conversation" onClick={() => setVoice(true)}>
-                      <IconWave />
-                    </button>
-                  )}
                 </div>
               </form>
               {attachOpen ? (
@@ -1018,6 +999,7 @@ export function Messenger() {
 
       {moreOpen && agent ? (
         <div className="sheet" role="dialog" aria-label="Agent menu">
+          <button type="button" onClick={() => { setMoreOpen(false); router.push("/library"); }}>Library</button>
           <button type="button" onClick={() => { setMoreOpen(false); setInfoOpen(true); }}>Agent info</button>
           <button type="button" onClick={() => { setMoreOpen(false); setAgentSettings(true); }}>Settings</button>
           <button type="button" onClick={() => { setMoreOpen(false); setChatSearch((value) => !value); }}>Search in chat</button>
@@ -1076,19 +1058,6 @@ export function Messenger() {
             }
           }}
         />
-      ) : null}
-
-      {voice && agent ? (
-        <div className="voice-screen">
-          <button type="button" className="round voice-close" onClick={() => setVoice(false)} aria-label="Close voice"><IconX /></button>
-          <BlobAvatar color={agent.color} icon={agent.icon} size={120} label={agent.name} />
-          <p>{agent.name}</p>
-          <div className="wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
-          <button type="button" className="voice big" onClick={() => dictate(true)} aria-label="Talk">
-            <IconWave />
-          </button>
-          <p className="fine">{voiceHint || "Talk uses this browser’s speech recognition, then Hatch answers aloud. If that isn’t available here, use the keyboard mic."}</p>
-        </div>
       ) : null}
 
       {settingsOpen ? <SettingsScreen key={settingsPage} initialPage={settingsPage} onClose={() => setSettingsOpen(false)} /> : null}

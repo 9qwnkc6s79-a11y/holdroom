@@ -1,13 +1,18 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
-import { LITTLE_ELM, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
+import { NORTH_DESK, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
 import { createFolder, filesIn, listFolders } from "@/lib/store";
+import { hydrateUploadsScoped } from "@/lib/thread-store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const departmentId = migrateWorkspaceId(
-    new URL(req.url).searchParams.get("department") || LITTLE_ELM,
+    new URL(req.url).searchParams.get("department") || NORTH_DESK,
   );
+  await hydrateUploadsScoped(auth.session.scope, departmentId);
   return NextResponse.json(
     {
       department: workspaceLabel(departmentId),
@@ -20,6 +25,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     action?: string;
     departmentId?: string;

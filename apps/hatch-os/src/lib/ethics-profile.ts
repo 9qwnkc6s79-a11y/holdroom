@@ -112,7 +112,7 @@ const LENGTH_LINE: Record<ReplyLength, string> = {
 
 export function compileEthics(profile: EthicsProfile, opts?: { toolTurn?: boolean }) {
   const lines = [
-    "Hatch runs open-weight models on dedicated hardware. This firm sets the principles, guardrails, and voice. No outside AI lab’s policy is in force here.",
+    "This beta runs open-weight models on isolated test GPUs; firm deployments run on your own Hatch box. This firm sets the principles, guardrails, and voice. No outside AI lab’s policy is in force here.",
     `Firm charter: ${profile.charter}`,
     profile.redLines.trim() ? `Firm red lines (always enforce, or stop and ask for approval): ${profile.redLines}` : "",
     POSTURE_LINE[profile.posture],

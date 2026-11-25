@@ -285,7 +285,7 @@ describe("hermesEndpointId / connectHelp", () => {
 describe("Hermes tool markup", () => {
   it("parses <tool_call> and TOOL trailers", () => {
     const hermes = parseToolCalls(
-      `Working.\n<tool_call>\n{"name":"write_draft","arguments":{"departmentId":"little-elm","filename":"notes.md","text":"hi"}}\n</tool_call>`,
+      `Working.\n<tool_call>\n{"name":"write_draft","arguments":{"departmentId":"north-desk","filename":"notes.md","text":"hi"}}\n</tool_call>`,
     );
     assert.equal(hermes[0]?.name, "write_draft");
     assert.equal(hermes[0]?.arguments.filename, "notes.md");

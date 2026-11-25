@@ -12,7 +12,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { approvalCardForCall } from "../approvals.ts";
 import { newChatMessage } from "../chat.ts";
-import { LITTLE_ELM, migrateWorkspaceId } from "../departments.ts";
+import { NORTH_DESK, migrateWorkspaceId } from "../departments.ts";
 import { compileEthics, loadEthics } from "../ethics.ts";
 import { forStorage } from "../images.ts";
 import { agentLlmConfig, llmConfig, type LlmEndpoint } from "../llm.ts";
@@ -240,7 +240,7 @@ async function drive(state: HarnessLiveState, startedAt: number): Promise<Harnes
 export async function startHarnessTurn(input: HarnessTurnInput): Promise<HarnessTurnResult> {
   const startedAt = Date.now();
   const scope = input.testerCode || "staff";
-  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
+  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   const query = input.query.trim();
   const agent = resolveAgent(input.agentId);
   const existing = input.threadId ? getThread(input.threadId) : null;
@@ -304,7 +304,7 @@ export async function advanceHarnessTurn(state: HarnessLiveState): Promise<Harne
       return pack(state, {
         phase: "wait",
         state,
-        note: waking ? "Waking the firm model… the first message after a break can take 2–5 minutes." : currentStatus(state.harness),
+        note: waking ? "Warming up the firm model… the first message after a break can take 2–5 minutes." : currentStatus(state.harness),
       });
     }
     const purpose = state.job.purpose;

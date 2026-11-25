@@ -6,7 +6,7 @@ import { compileEthics, loadEthics } from "./ethics.ts";
 import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
-import { LITTLE_ELM, migrateWorkspaceId } from "./departments.ts";
+import { NORTH_DESK, migrateWorkspaceId } from "./departments.ts";
 import { scheduleImageCaption } from "./image-caption.ts";
 import { chooseChatLane, forStorage, modelTextForTurn, withImageParts, withoutImagePayload } from "./images.ts";
 import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
@@ -25,9 +25,10 @@ import { thinkingOffExtras } from "./think.ts";
 import { inspectThreadHistory } from "./thread-history.ts";
 import { connectorSchemas, executeTool, mentionedReads, openaiToolSchemas, type ToolCall } from "./tools.ts";
 import type { ApprovalCard, ChatAttachment, Source, ToolEvent } from "./types.ts";
+import { ensureThreadScoped, getThreadScoped, saveThreadScoped } from "./thread-store.ts";
 import { scrubVaultSecrets } from "./vault.ts";
 
-const MAX_MODEL_TURNS = 4;
+const MAX_MODEL_TURNS = 6;
 
 export interface LiveTurnState {
   version: 1;
@@ -50,6 +51,7 @@ export interface LiveTurnState {
   pendingImages?: string[];
   imageFileIds?: string[];
   turnsLeft: number;
+  forceSynthesize?: boolean;
   testerCode?: string;
   startedAt?: number;
   temperature?: number;
@@ -99,12 +101,13 @@ export function liveRunpodReady(): boolean {
 }
 
 export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
-  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
+  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   const query = input.query.trim();
   const prepared = await prepareTurnImages(input.attachments);
   const modelQuery = modelTextForTurn(query, input.context, prepared.hasImage);
   const agent = resolveAgent(input.agentId);
-  const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
+  const scope = input.testerCode || "staff";
+  const thread = input.threadId ? await getThreadScoped(scope, input.threadId) : createThread(workspaceId, query.slice(0, 42), agent.id);
   const active = thread || createThread(workspaceId, query.slice(0, 42), agent.id);
   const sources = [
     ...retrieveFirm(query),
@@ -116,10 +119,10 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
     replyTo: input.replyTo,
   });
-  appendThreadMessages(active.id, [user]);
+  await saveThreadScoped(scope, appendThreadMessages(active.id, [user]));
   if (prepared.hasImage && !prepared.dataUrls.length) {
     const missed = newChatMessage("assistant", missingImageMessage((input.attachments || []).map((file) => file.name)), { done: true });
-    appendThreadMessages(active.id, [missed]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [missed]));
     return {
       phase: "done",
       threadId: active.id,
@@ -143,7 +146,7 @@ export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const history = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query }).turns;
   const ethics = await loadEthics(input.testerCode || "staff", agent.id);
   const connected = await listConnectors(input.testerCode || "staff");
-  const toolTurn = ethics.model === "hermes" || wantsAgentTurn(query, false);
+  const toolTurn = ethics.model === "hermes" || connected.length > 0 || wantsAgentTurn(query, false);
   const lane = chooseChatLane({ hasImage: prepared.hasImage, agent: input.agent, toolTurn });
   const prompt = {
     workspaceId,
@@ -191,6 +194,9 @@ function pack(result: LiveTurnResult): LiveTurnResult {
 }
 
 export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnResult> {
+  if (state.testerCode && state.threadId) {
+    await ensureThreadScoped(state.testerCode, state.threadId);
+  }
   if (state.job) {
     const endpoint = endpointFor(state.job.lane, state.job.endpointId);
     if (!endpoint) return finishError(state, "That model endpoint is not configured.");
@@ -198,7 +204,7 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
     if (!job.done && !job.failed) {
       const note =
         job.status === "IN_PROGRESS"
-          ? "The firm model is running."
+          ? activityNoteForState(state)
           : "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.";
       return pack({ phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId });
     }
@@ -214,7 +220,9 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
           : detail,
       );
     }
-    state.visible = [state.visible, job.text].filter(Boolean).join("\n\n");
+    if (!job.toolCalls.length || state.forceSynthesize) {
+      state.visible = [state.visible, job.text].filter(Boolean).join("\n\n");
+    }
     const needsApproval = (call: ToolCall) => toolNeedsApproval(call.name) || connectorToolNeedsApproval(call.name, call.arguments);
     const held = job.toolCalls.find(needsApproval);
     const safe = job.toolCalls.filter((call) => !needsApproval(call));
@@ -229,7 +237,9 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
         if (result.extra) extras.push(result.extra);
       }
       if (held) return finishApproval(state, held);
-      if (safe.length && state.turnsLeft > 0) {
+      if (safe.length && !state.forceSynthesize) {
+        const finalPass = state.turnsLeft <= 0;
+        if (finalPass) state.forceSynthesize = true;
         state.llmMessages = [
           ...state.llmMessages,
           { role: "assistant", content: job.text || "(tool call)" },
@@ -239,14 +249,16 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
               "Tool results:",
               ...state.tools.slice(-safe.length).map((tool) => `- ${tool.name}: ${tool.ok ? "ok" : "denied"} — ${tool.detail}`),
               ...extras,
-              "Continue. If you can answer now, answer in prose. If you need another tool, call it.",
+              finalPass
+                ? "You have all the tool results above. Do NOT call more tools. Write a clear, concrete briefing directly answering the user's question (current status, latest decision, who is waiting on whom, key dates, attachment names, next steps, and genuine open questions). Do not ask for clarification."
+                : "Continue. If you already have full email/file content to answer concretely (status, latest decision, who is waiting on whom, dates, attachment names, next steps, open questions), answer directly now. If you only saw a subject/title and still need the full body or another source, call email_read / cloud_files_read / read_file now.",
             ].join("\n"),
           },
         ];
         return pack(await submit(state));
       }
     }
-    return pack(finishText(state));
+    return pack(await finishText(state));
   }
   return pack(await submit(state));
 }
@@ -263,9 +275,9 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   const jobId = await submitRunpodChat(endpoint, {
     model: endpoint.model,
     messages: outbound,
-    tools: lane === "agent" ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
+    tools: lane === "agent" && !state.forceSynthesize ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
     temperature: state.temperature,
-    extras: { ...thinkingOffExtras(true), ...(seeing ? { max_tokens: 2048 } : {}) },
+    extras: { ...thinkingOffExtras(true), ...(seeing || lane === "agent" ? { max_tokens: 2048 } : {}) },
   });
   state.job = { id: jobId, endpointId, lane };
   return {
@@ -300,7 +312,7 @@ function toolContext(state: LiveTurnState) {
   };
 }
 
-function finishApproval(state: LiveTurnState, call: ToolCall): LiveTurnResult {
+async function finishApproval(state: LiveTurnState, call: ToolCall): Promise<LiveTurnResult> {
   const approval = approvalCardForCall(call, { agentId: state.agentId });
   const text = state.visible.trim() || approval.summary;
   const message = {
@@ -311,7 +323,7 @@ function finishApproval(state: LiveTurnState, call: ToolCall): LiveTurnResult {
     tools: state.tools,
     approval,
   };
-  appendThreadMessages(state.threadId, [message]);
+  await saveThreadScoped(state.testerCode || "staff", appendThreadMessages(state.threadId, [message]));
   return {
     phase: "done",
     threadId: state.threadId,
@@ -324,7 +336,7 @@ function finishApproval(state: LiveTurnState, call: ToolCall): LiveTurnResult {
   };
 }
 
-function finishText(state: LiveTurnState): LiveTurnResult {
+async function finishText(state: LiveTurnState): Promise<LiveTurnResult> {
   if (state.imageFileIds?.length) scheduleImageCaption(state.imageFileIds);
   const text = state.visible.trim() || "The model returned an empty reply.";
   const message = {
@@ -334,7 +346,7 @@ function finishText(state: LiveTurnState): LiveTurnResult {
     sources: state.sources,
     tools: state.tools,
   };
-  appendThreadMessages(state.threadId, [message]);
+  await saveThreadScoped(state.testerCode || "staff", appendThreadMessages(state.threadId, [message]));
   return {
     phase: "done",
     threadId: state.threadId,
@@ -346,7 +358,7 @@ function finishText(state: LiveTurnState): LiveTurnResult {
   };
 }
 
-function finishError(state: LiveTurnState, detail: string): LiveTurnResult {
+async function finishError(state: LiveTurnState, detail: string): Promise<LiveTurnResult> {
   const text = `The model is offline. ${detail} Nothing was sent to an outside AI lab.`;
   const message = {
     ...newChatMessage("assistant", text),
@@ -355,7 +367,7 @@ function finishError(state: LiveTurnState, detail: string): LiveTurnResult {
     sources: [],
     tools: state.tools,
   };
-  appendThreadMessages(state.threadId, [message]);
+  await saveThreadScoped(state.testerCode || "staff", appendThreadMessages(state.threadId, [message]));
   return {
     phase: "done",
     threadId: state.threadId,
@@ -366,4 +378,18 @@ function finishError(state: LiveTurnState, detail: string): LiveTurnResult {
     modelOffline: true,
     title: getThread(state.threadId)?.title,
   };
+}
+
+function activityNoteForState(state: LiveTurnState): string {
+  const last = state.tools[state.tools.length - 1];
+  if (state.forceSynthesize) return "Writing your briefing…";
+  if (last) {
+    if (last.name.startsWith("email_")) return "Reading Gmail…";
+    if (last.name.startsWith("cloud_files_")) return "Reading Drive…";
+    if (last.name === "search_library" || last.name === "read_file" || last.name === "list_files") return "Searching file room…";
+    if (last.name.startsWith("slack_")) return "Reading Slack…";
+    if (last.name.startsWith("calendar_")) return "Checking calendar…";
+    return "Working on your reply…";
+  }
+  return state.lane === "agent" ? "Searching your workspace…" : "Thinking…";
 }

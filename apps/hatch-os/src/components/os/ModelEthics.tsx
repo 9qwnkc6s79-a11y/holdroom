@@ -15,7 +15,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
       try { setProfile(JSON.parse(cached) as EthicsProfile); } catch { /* ignore a bad cache */ }
     }
     const url = agentId ? `/api/ethics?agentId=${encodeURIComponent(agentId)}` : "/api/ethics";
-    void fetch(url, { headers: { "x-hatch-tester": scope }, cache: "no-store" })
+    void fetch(url, { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { profile?: EthicsProfile }) => {
         if (data.profile) setProfile(data.profile);
@@ -37,7 +37,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
     setNote("");
     const res = await fetch("/api/ethics", {
       method: "PUT",
-      headers: { "Content-Type": "application/json", "x-hatch-tester": scope },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(reset ? { scope, agentId, reset: true } : { scope, agentId, profile }),
     });
     const data = (await res.json().catch(() => null)) as { profile?: EthicsProfile; error?: string } | null;
@@ -59,7 +59,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
           Use the workspace Model & Ethics
         </label>
       ) : (
-        <p className="set-note">Hatch runs open-weight models on dedicated hardware, so the firm sets its own principles, guardrails, and voice instead of an outside AI lab.</p>
+        <p className="set-note">This beta runs open-weight models on isolated test GPUs (and firm deployments run on your own Hatch box), so the firm sets its own principles, guardrails, and voice instead of an outside AI lab.</p>
       )}
       {error ? <p className="os-error" role="alert">{error}</p> : null}
       {note ? <p className="set-note" role="status">{note}</p> : null}

@@ -10,7 +10,7 @@ export function demoModeEnabled() {
 
 export function modelOfflineMessage(detail?: string) {
   const why = detail ? ` (${detail})` : "";
-  return `The model is offline${why}. Hatch could not reach the firm’s model, so this reply was not generated. Nothing was sent to an outside AI lab. Restore the RunPod endpoints, or set HATCH_DEMO_MODE=1 to walk the interface.`;
+  return `The firm model is temporarily offline${why}. Nothing was sent to an outside AI lab. Try again in a moment.`;
 }
 
 export async function streamText(text: string, onDelta?: (delta: string) => void) {

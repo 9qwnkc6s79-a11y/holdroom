@@ -1,7 +1,7 @@
 import type { DepartmentId } from "./types.ts";
 
 export const DRIVE_STUB_NOTE =
-  "Google Drive is not connected. These are sample files for the test firm, not a live account.";
+  "Google Drive is not connected. These are sample files for the firm, not a live account.";
 
 export interface DriveStubItem {
   id: string;
@@ -13,10 +13,10 @@ export interface DriveStubItem {
 
 export const DRIVE_STUB_ITEMS: DriveStubItem[] = [
   {
-    id: "drv-le-hours",
+    id: "drv-north-hours",
     name: "Sample_firm_north_desk_hours.md",
     path: "Sample firm Drive / North desk / hours.md",
-    departmentHint: "little-elm",
+    departmentHint: "north-desk",
     text: [
       "# Sample firm — North desk hours",
       "",
@@ -27,8 +27,8 @@ export const DRIVE_STUB_ITEMS: DriveStubItem[] = [
   },
   {
     id: "drv-hq-notes",
-    name: "Sample firm_Drive_HQ_ops_notes.md",
-    path: "Sample firm Drive / HQ Ops / Q3_notes.md",
+    name: "Sample_firm_Drive_operations_notes.md",
+    path: "Sample firm Drive / Operations / Q3_notes.md",
     departmentHint: "hq-ops",
     text: [
       "# Sample firm — operations notes",
@@ -37,10 +37,10 @@ export const DRIVE_STUB_ITEMS: DriveStubItem[] = [
     ].join("\n"),
   },
   {
-    id: "drv-prosper-close",
+    id: "drv-south-close",
     name: "Sample_firm_south_desk_close.md",
     path: "Sample firm Drive / South desk / close_notes.md",
-    departmentHint: "prosper",
+    departmentHint: "south-desk",
     text: [
       "# Sample firm — South desk close",
       "",

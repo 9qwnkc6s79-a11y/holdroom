@@ -48,7 +48,7 @@ export const TOOL_SCHEMAS = [
   {
     name: "list_files",
     description: "List Files in a department or the Enterprise union view.",
-    parameters: { departmentId: "little-elm | prosper | hq-ops | enterprise" },
+    parameters: { departmentId: "north-desk | south-desk | hq-ops | enterprise" },
   },
   {
     name: "read_file",
@@ -59,13 +59,13 @@ export const TOOL_SCHEMAS = [
     name: "write_draft",
     description:
       "Write a markdown draft into Files for a department the user can open. ACL-checked. Never writes Enterprise or a peer department the user cannot open.",
-    parameters: { departmentId: "little-elm | prosper | hq-ops", filename: "string", text: "string" },
+    parameters: { departmentId: "north-desk | south-desk | hq-ops", filename: "string", text: "string" },
   },
   {
     name: "handoff_to_department",
     description:
       "Notify a peer department inbox and record what was learned. Does not write their Files. Waits for approval on Hatch OS.",
-    parameters: { toDepartmentId: "little-elm | prosper | hq-ops | legal | finance", summary: "string", facts: "string" },
+    parameters: { toDepartmentId: "north-desk | south-desk | hq-ops | legal | finance", summary: "string", facts: "string" },
   },
   {
     name: "use_vault",
@@ -122,15 +122,15 @@ export function openaiToolSchemas(extra: OpenAiTool[] = []): OpenAiTool[] {
 
 export function connectorSchemas(kinds: Set<string>): OpenAiTool[] {
   const has = (...names: string[]) => names.some((name) => kinds.has(name));
-  const specs: { name: string; description: string; parameters: string[]; when: boolean }[] = [
-    { name: "email_search", description: "Search the connected mailbox. Does not send anything.", parameters: ["query"], when: has("email", "google", "microsoft") },
-    { name: "email_read", description: "Read matching mailbox headers. Does not send anything.", parameters: ["query"], when: has("email", "google", "microsoft") },
+  const specs: { name: string; description: string; parameters: string[]; required?: string[]; when: boolean }[] = [
+    { name: "email_search", description: "Search connected mailbox threads by keywords and return matching threads with full message bodies, dates, participants, and attachment names. Does not send anything.", parameters: ["query", "threadId"], required: ["query"], when: has("email", "google", "microsoft") },
+    { name: "email_read", description: "Read a full email thread by threadId or search query, returning all messages, dates, participants, attachment names, and full bodies. Does not send anything.", parameters: ["query", "threadId"], required: ["query"], when: has("email", "google", "microsoft") },
     { name: "email_draft", description: "Prepare an email draft. Does not send it.", parameters: ["to", "subject", "body"], when: has("email", "google", "microsoft") },
     { name: "email_send", description: "Send an email. Always waits for approval. Never claim it was sent before approval.", parameters: ["to", "subject", "body"], when: has("email", "google", "microsoft") },
     { name: "calendar_list", description: "List upcoming calendar events.", parameters: ["query"], when: has("google", "microsoft") },
     { name: "calendar_create", description: "Create a calendar event. Waits for approval.", parameters: ["title", "start", "end"], when: has("google", "microsoft") },
-    { name: "cloud_files_search", description: "Search Drive or OneDrive by name.", parameters: ["query"], when: has("google", "microsoft") },
-    { name: "cloud_files_read", description: "Read cloud file names that match a query.", parameters: ["query"], when: has("google", "microsoft") },
+    { name: "cloud_files_search", description: "Search Drive or OneDrive files by query and return metadata plus readable text content for top matches.", parameters: ["query"], when: has("google", "microsoft") },
+    { name: "cloud_files_read", description: "Read the full text content of a Drive or OneDrive file by fileId or query.", parameters: ["query", "fileId"], required: ["query"], when: has("google", "microsoft") },
     { name: "slack_list_channels", description: "List Slack channels.", parameters: ["query"], when: has("slack") },
     { name: "slack_read_messages", description: "Read recent Slack messages in a channel.", parameters: ["channel"], when: has("slack") },
     { name: "slack_post_message", description: "Post a Slack message. Waits for approval.", parameters: ["channel", "text"], when: has("slack") },
@@ -151,7 +151,7 @@ export function connectorSchemas(kinds: Set<string>): OpenAiTool[] {
       parameters: {
         type: "object" as const,
         properties: Object.fromEntries(spec.parameters.map((key) => [key, { type: "string" }])),
-        required: spec.parameters,
+        required: spec.required || spec.parameters,
       },
     },
   }));
@@ -231,7 +231,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         event: {
           name,
           ok: false,
-          detail: "write_draft needs a departmentId (little-elm, prosper, or hq-ops). Enterprise is not a write target.",
+          detail: "write_draft needs a departmentId (north-desk, south-desk, or hq-ops). Enterprise is not a write target.",
         },
       };
     }
@@ -287,7 +287,7 @@ export function executeTool(call: ToolCall, ctx: ToolContext): { event: ToolEven
         event: {
           name,
           ok: false,
-          detail: `Unknown department “${to}”. Use little-elm, prosper, or hq-ops.`,
+          detail: `Unknown department “${to}”. Use north-desk, south-desk, or hq-ops.`,
         },
       };
     }

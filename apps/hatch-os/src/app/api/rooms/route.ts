@@ -1,10 +1,13 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { listDepartments } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 /** Alias of /api/departments for older clients. */
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const departments = listDepartments();
   return NextResponse.json(
     {
