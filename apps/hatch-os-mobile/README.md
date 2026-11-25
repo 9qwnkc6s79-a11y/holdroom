@@ -1,0 +1,64 @@
+# Hatch OS for iPhone
+
+Presence v4, the dark iPhone app for Hatch OS. It is an Expo SDK 55 project and it talks to the Hatch OS host that already serves the web app. The Next.js app in `apps/hatch-os` is unchanged. This package is not a workspace of the repo root, so the static site and the `hatch-os` Vercel project do not build it.
+
+## Run
+
+```bash
+cd apps/hatch-os-mobile
+npm install
+npx expo start
+```
+
+Press `i` for the iOS simulator. After sign-in the app opens on your bots. Profile is the initials button. Connect apps is the grid button. `npx expo start --web` runs the same UI in a browser. The browser build needs CanvasKit for the live sphere:
+
+```bash
+mkdir -p public
+cp node_modules/canvaskit-wasm/bin/full/canvaskit.wasm public/canvaskit.wasm
+```
+
+Without that file, the sphere uses the still frame from the design. The iPhone build uses Skia directly and does not need the file. A browser on another origin is also subject to CORS. The installed app is not: it calls the host the way any native client does.
+
+## Environment
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `EXPO_PUBLIC_HATCH_API_BASE` | `https://hatch-os-beta.vercel.app` | Firm host. Same routes the web app uses. |
+| `EXPO_PUBLIC_HATCH_DEMO` | unset | `1` shows the on-device seed in `src/demo/seed.ts` instead of the host. Production EAS profiles do not set it. |
+
+Copy `.env.example` to `.env` to override it. EAS profiles in `eas.json` set the same default.
+
+## Sign-in
+
+The phone stores the invite session on the device (SecureStore on iOS, local storage on web) and sends the same JSON the web app sends. `/api/auth/pair`, `/api/chat`, `/api/chat/step`, `/api/extract`, `/api/ingest`, `/api/transcribe`, `/api/agents`, `/api/threads`, `/api/files`, `/api/approvals`, and `/api/status` do not use a cookie. The only cookie in the host is the browser OAuth handoff for connected apps, which this version does not open.
+
+Invite codes are whatever your firm’s host already accepts, including codes longer than the `XXXX-XXXX` placeholder.
+
+Image attachments use `/api/extract` and `/api/ingest`, the same path as the web app. That extract route does not OCR images. It returns a note, and the file is still saved on the host by filename.
+
+Voice uses on-device speech recognition on iPhone. If that returns no words, the clip is posted to `/api/transcribe`. The host currently answers that route with a stub and does not transcribe audio.
+
+## TestFlight
+
+`eas.json` → `submit.production.ios.ascAppId` is `6838890464` (App Store Connect app Hatch OS, SKU `hatch-os-ios`, Apple Team `L7S46ZMK8Y`). The first `eas build` links an EAS project id for the `djkeene` account. This repo does not invent one. Production profiles leave `EXPO_PUBLIC_HATCH_DEMO` unset. A non-interactive build needs `EXPO_TOKEN` for the `djkeene` Expo account, plus an App Store Connect API key (`EXPO_ASC_API_KEY_PATH`, `EXPO_ASC_KEY_ID`, `EXPO_ASC_ISSUER_ID`, `EXPO_APPLE_TEAM_ID`, `EXPO_APPLE_TEAM_TYPE`). Those are not in this repo.
+
+```bash
+cd apps/hatch-os-mobile
+npx eas login
+npx eas build --platform ios --profile production
+npx eas submit --platform ios --profile production
+```
+
+`preview` is an internal install. `development` is a dev client. `appVersionSource` is `local`. The iOS build number is `4` and the bundle id is `ai.hatchsystems.os`.
+
+Gmail, Drive, Calendar, Outlook, and OneDrive connect through the host’s OAuth routes. The iPhone opens that page and returns to `hatchos://oauth`. The host needs `HATCH_GOOGLE_CLIENT_ID`, `HATCH_GOOGLE_CLIENT_SECRET`, `HATCH_MICROSOFT_CLIENT_ID`, `HATCH_MICROSOFT_CLIENT_SECRET`, and `HATCH_VAULT_KEY`. SharePoint, Dropbox, Box, and Teams stay on Coming soon until the host has them.
+
+`ITSAppUsesNonExemptEncryption` is false. The app uses HTTPS only.
+
+## Checks
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+```

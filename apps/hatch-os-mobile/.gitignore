@@ -1,0 +1,11 @@
+node_modules
+public/canvaskit.wasm
+.expo
+dist
+web-build
+/ios
+/android
+.expo-shared
+*.tsbuildinfo
+npm-debug.log*
+.metro-health-check*
