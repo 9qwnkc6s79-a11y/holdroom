@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     context?: string;
     accessibleDepartments?: string[];
     enterprise?: boolean;
-    attachments?: { fileId: string; name: string; kind: "PDF" | "Office" | "Markdown" | "Image" }[];
+    attachments?: { fileId: string; name: string; kind: "PDF" | "Office" | "Markdown" | "Image"; text?: string; note?: string; image?: string }[];
     agent?: boolean;
     agentId?: string;
     actor?: string;

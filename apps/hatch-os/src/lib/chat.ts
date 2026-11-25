@@ -4,8 +4,11 @@ import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { demoModeEnabled, modelOfflineMessage, planDemoReply, streamText } from "./demo.ts";
 import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
+import { scheduleImageCaption } from "./image-caption.ts";
+import { forStorage, modelTextForTurn, withImageParts } from "./images.ts";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
 import { buildAskMessages } from "./prompt";
+import { missingImageMessage, prepareTurnImages } from "./vision-turn.ts";
 import { inspectThreadHistory } from "./thread-history.ts";
 import { appendThreadMessages, createThread, fileListing, getThread, recordAuditEntry, retrieveFirm } from "./store";
 import { stripThinkBlocks } from "./think.ts";
@@ -70,7 +73,8 @@ export interface ChatTurnHooks {
 export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {}): Promise<ChatTurnResult> {
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
   const query = (input.query || "").trim();
-  const modelQuery = [query, (input.context || "").trim()].filter(Boolean).join("\n\n");
+  const prepared = await prepareTurnImages(input.attachments);
+  const modelQuery = modelTextForTurn(query, input.context, prepared.hasImage);
   const accessibleDepartments = input.accessibleDepartments || [];
   if (!query) {
     throw new Error("Ask a question.");
@@ -87,7 +91,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const extra = reads.map((r) => r.extra).filter(Boolean);
 
   const userMsg = newChatMessage("user", query, {
-    attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
+    attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
     replyTo: input.replyTo,
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
@@ -132,7 +136,24 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   const inspected = inspectThreadHistory(getThread(active.id)?.messages || [], { excludeLastUser: query });
   const history = inspected.turns;
 
-  const agentic = wantsAgentTurn(query, input.agent);
+  if (prepared.hasImage && !prepared.dataUrls.length) {
+    const detail = missingImageMessage((input.attachments || []).map((file) => file.name));
+    const missed: ChatMessage = { ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults };
+    appendThreadMessages(active.id, [missed]);
+    return {
+      threadId: active.id,
+      title: getThread(active.id)?.title,
+      text: detail,
+      sources: [],
+      tools: toolResults,
+      error: true,
+      messageId: missed.id,
+      historyDropped: inspected.dropped,
+      lane: "ask",
+    };
+  }
+
+  const agentic = prepared.hasImage ? false : wantsAgentTurn(query, input.agent);
   const probe = agentic ? await probeAgentLlm() : await probeLlm();
   const { primary } = agentic ? agentLlmConfig() : llmConfig();
   const runpodReady = isRunpodUrl(primary.rawBase) && Boolean(primary.apiKey);
@@ -182,6 +203,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     accessibleDepartments,
     history,
     defaultDepartmentId: input.defaultDepartmentId,
+    seeingImage: prepared.hasImage,
   };
 
   let text = "";
@@ -205,7 +227,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         if (!text.trim()) text = pendingApproval.summary;
       }
     } else {
-      const messages = buildAskMessages(promptInput);
+      const messages = withImageParts(buildAskMessages(promptInput), prepared.dataUrls);
       const streamed = await streamLlm(messages, (delta) => {
         text += delta;
         hooks.onDelta?.(delta);
@@ -238,6 +260,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       approval: pendingApproval,
     };
     appendThreadMessages(active.id, [final]);
+    if (prepared.hasImage && prepared.fileIds.length) scheduleImageCaption(prepared.fileIds);
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -251,7 +274,12 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "LLM failed";
-    const help = input.failFast ? modelOfflineMessage(msg) : `${msg}\n\n${connectHelp(probe)}`;
+    const rejected = prepared.hasImage && /image|multimodal|vision|content type|unsupported/i.test(msg);
+    const help = rejected
+      ? `The firm model rejected the picture. The Ask worker needs vLLM 0.17 or newer with the Qwen3.8 vision tower loaded, not a text-only setup. ${msg} Nothing was sent to an outside AI lab.`
+      : input.failFast
+        ? modelOfflineMessage(msg)
+        : `${msg}\n\n${connectHelp(probe)}`;
     const failed: ChatMessage = { ...assistantMsg, text: help, done: true, sources: [], tools: toolResults };
     appendThreadMessages(active.id, [failed]);
     return {

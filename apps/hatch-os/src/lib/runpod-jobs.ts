@@ -5,7 +5,7 @@ import { stripThinkBlocks } from "./think.ts";
 
 export interface RunpodChatBody {
   model: string;
-  messages: { role: string; content: string }[];
+  messages: { role: string; content: string | { type: string; text?: string; image_url?: { url: string } }[] }[];
   tools?: OpenAiTool[];
   extras?: Record<string, unknown>;
   temperature?: number;
@@ -28,6 +28,8 @@ export function runpodApiRoot(rawBase: string): string | null {
 }
 
 export async function submitRunpodChat(endpoint: LlmEndpoint, body: RunpodChatBody): Promise<string> {
+  const { assertFirmModelHost } = await import("./llm.ts");
+  assertFirmModelHost(endpoint.rawBase);
   const root = runpodApiRoot(endpoint.rawBase);
   if (!root) throw new Error(`Cannot find a RunPod endpoint id in ${endpoint.host}`);
   const res = await fetch(`${root}/run`, {

@@ -26,6 +26,25 @@ export function isRunpodUrl(raw: string) {
   return /runpod\.ai/i.test(raw);
 }
 
+const FRONTIER_HOST =
+  /(^|\.)((api\.)?openai\.com|openai\.azure\.com|anthropic\.com|claude\.ai|generativelanguage\.googleapis\.com|groq\.com|openrouter\.ai|together\.xyz|mistral\.ai)$/i;
+
+/** Firm content stays on the Hatch model. A frontier host is refused before any request. */
+export function isFrontierLlmHost(hostOrUrl: string): boolean {
+  try {
+    const raw = hostOrUrl.includes("://") ? hostOrUrl : `https://${hostOrUrl}`;
+    return FRONTIER_HOST.test(new URL(raw).hostname);
+  } catch {
+    return FRONTIER_HOST.test(hostOrUrl);
+  }
+}
+
+export function assertFirmModelHost(hostOrUrl: string) {
+  if (isFrontierLlmHost(hostOrUrl)) {
+    throw new Error("Hatch does not send firm content to an outside AI lab.");
+  }
+}
+
 export type LlmKind = "remote" | "ollama";
 
 export interface LlmEndpoint {
@@ -555,9 +574,13 @@ export async function probeAgentLlm(): Promise<LlmProbe> {
   return probeLane("agent");
 }
 
+export type LlmContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | LlmContentPart[];
   name?: string;
   tool_call_id?: string;
 }
@@ -607,14 +630,31 @@ export async function streamAgentLlm(
   return streamLane("agent", messages, onDelta, tools);
 }
 
+function asOllamaMessages(messages: ChatMessage[]) {
+  return messages.map((message) => {
+    if (typeof message.content === "string") return { role: message.role, content: message.content };
+    const text = message.content
+      .filter((part) => part.type === "text")
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n");
+    const images = message.content
+      .filter((part) => part.type === "image_url")
+      .map((part) => (part.type === "image_url" ? part.image_url.url.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/i, "") : ""))
+      .filter(Boolean);
+    return images.length ? { role: message.role, content: text, images } : { role: message.role, content: text };
+  });
+}
+
 async function streamEndpoint(
   endpoint: LlmEndpoint,
   messages: ChatMessage[],
   onDelta: (text: string) => void,
   tools?: OpenAiTool[],
 ): Promise<StreamLlmResult> {
+  assertFirmModelHost(endpoint.rawBase);
   const headers = headersFor(endpoint);
   const remote = endpoint.kind === "remote";
+  const hasImage = messages.some((message) => typeof message.content !== "string");
   const openai = await fetch(`${endpoint.openaiRoot}/chat/completions`, {
     method: "POST",
     headers,
@@ -644,7 +684,7 @@ async function streamEndpoint(
       headers,
       body: JSON.stringify({
         model: endpoint.model,
-        messages,
+        messages: hasImage ? asOllamaMessages(messages) : messages,
         stream: true,
         think: false,
         options: { temperature: 0.2 },

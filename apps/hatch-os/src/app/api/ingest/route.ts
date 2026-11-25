@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { LITTLE_ELM, migrateWorkspaceId } from "@/lib/departments";
+import { mirrorVisionJpeg } from "@/lib/image-cache";
+import { toVisionJpeg } from "@/lib/image-bytes";
+import { isRasterImage } from "@/lib/images";
 import { persistUpload, removeFile, setLibraryFlag } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -28,6 +33,14 @@ export async function POST(req: Request) {
       folderId,
       accessibleDepartments: accessible.length ? accessible : undefined,
     });
+    if (result.file?.id && result.file.kind === "Image" && isRasterImage(file.name, file.type || "")) {
+      try {
+        const jpeg = await toVisionJpeg(buf);
+        await mirrorVisionJpeg(result.file.id, jpeg);
+      } catch {
+        /* Chat can still send a data URL from the browser, or read the original file. */
+      }
+    }
     return NextResponse.json(result);
   }
 

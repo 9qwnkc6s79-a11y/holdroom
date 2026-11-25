@@ -118,6 +118,8 @@ export interface ChatAttachment {
   text?: string;
   /** Why the file was not read, when text is empty. */
   note?: string;
+  /** Resized JPEG data URL for this request only. Never stored or polled back. */
+  image?: string;
 }
 
 export interface ChatMessage {
