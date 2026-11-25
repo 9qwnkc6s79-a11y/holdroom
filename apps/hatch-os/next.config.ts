@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ["sharp"],
+  // sharp picks its native binary at runtime, so the file tracer does not follow it.
+  outputFileTracingIncludes: {
+    "/api/**": ["./node_modules/sharp/**/*", "./node_modules/@img/**/*"],
+  },
   images: { unoptimized: true },
   async redirects() {
     return [
