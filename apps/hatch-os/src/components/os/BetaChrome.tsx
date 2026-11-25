@@ -25,6 +25,7 @@ export function BetaChrome() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const sentSession = useRef("");
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setBanner(localStorage.getItem("hatch-beta-ack") !== "1");
@@ -53,6 +54,27 @@ export function BetaChrome() {
       window.removeEventListener("hatch-feedback", openSheet);
     };
   }, [session?.inviteCode]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!banner || !bannerRef.current) {
+      root.style.setProperty("--beta-banner-h", "0px");
+      return;
+    }
+    const update = () => {
+      const h = bannerRef.current ? Math.ceil(bannerRef.current.getBoundingClientRect().height) : 0;
+      root.style.setProperty("--beta-banner-h", `${h}px`);
+    };
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(bannerRef.current);
+    window.addEventListener("resize", update);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", update);
+      root.style.setProperty("--beta-banner-h", "0px");
+    };
+  }, [banner]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -88,8 +110,11 @@ export function BetaChrome() {
   return (
     <>
       {banner ? (
-        <div className="beta-banner" role="status">
-          <p>Hatch beta — please don’t upload confidential client files during testing; this build runs on cloud test hardware, not your firm’s dedicated box.</p>
+        <div ref={bannerRef} className="beta-banner" role="status">
+          <p>
+            <span className="beta-long">Hatch beta — test hardware only; please avoid uploading confidential client files.</span>
+            <span className="beta-short">Hatch beta · avoid confidential files</span>
+          </p>
           <button type="button" onClick={() => { localStorage.setItem("hatch-beta-ack", "1"); setBanner(false); }}>Got it</button>
         </div>
       ) : null}
@@ -111,7 +136,7 @@ export function BetaChrome() {
                 reader.readAsDataURL(file);
               }} />
             </label>
-            <p className="fine">Sends with {session?.testerLabel || "your sign-in"}, this page, {APP_VERSION}, and this browser. The models for this test run on RunPod, not on a firm’s own hardware.</p>
+            <p className="fine">Sends with {session?.testerLabel || "your sign-in"}, this page, {APP_VERSION}, and this browser. Models for this beta run on isolated cloud test hardware.</p>
             {note ? <p className="os-error">{note}</p> : null}
             <button className="os-btn" type="submit" disabled={busy || !text.trim()}>Send</button>
           </form>

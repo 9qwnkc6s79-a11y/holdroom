@@ -6,15 +6,15 @@ describe("looksAgenticQuery", () => {
   it("routes draft / write / list-files to the agent lane", () => {
     assert.equal(looksAgenticQuery("Draft a note for Little Elm about catering."), true);
     assert.equal(looksAgenticQuery("List files in HQ Ops."), true);
-    assert.equal(looksAgenticQuery("Please write_draft for prosper"), true);
+    assert.equal(looksAgenticQuery("Please write_draft for south-desk"), true);
     assert.equal(looksAgenticQuery("handoff this to HQ Ops"), true);
     assert.equal(looksAgenticQuery("use tools to find the catering protocol"), true);
     assert.equal(looksAgenticQuery("search the library for loyalty"), true);
-    assert.equal(looksAgenticQuery("read file DEMO_loyalty.md"), true);
+    assert.equal(looksAgenticQuery("read file Client_onboarding_checklist.md"), true);
   });
 
   it("keeps plain Ask questions on Qwen", () => {
-    assert.equal(looksAgenticQuery("How does loyalty work — TapMango or text COFFEE?"), false);
+    assert.equal(looksAgenticQuery("What are the office hours for North desk?"), false);
     assert.equal(looksAgenticQuery("Who is the GM at Little Elm?"), false);
     assert.equal(looksAgenticQuery("What is the catering protocol?"), false);
   });

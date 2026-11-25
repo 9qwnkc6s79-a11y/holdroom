@@ -23,10 +23,10 @@ describe("soft draft agent reliability", () => {
       query: "Draft a short note about opening",
       text: "Open at 6am. Check the pastry case.",
       tools: [],
-      defaultDepartmentId: "little-elm",
+      defaultDepartmentId: "north-desk",
     });
     assert.equal(forced.toolCall?.name, "write_draft");
-    assert.equal(forced.toolCall?.arguments.departmentId, "little-elm");
+    assert.equal(forced.toolCall?.arguments.departmentId, "north-desk");
     assert.equal(forced.notice, undefined);
     assert.match(String(forced.toolCall?.arguments.text), /Open at 6am/);
   });
@@ -34,12 +34,12 @@ describe("soft draft agent reliability", () => {
   it("does not invent a department when none is sticky or named", () => {
     const prose = finishSoftDraft({
       query: "Draft a short note",
-      text: "Remember to text COFFEE.",
+      text: "Remember to send the follow-up note.",
       tools: [],
     });
     assert.equal(prose.toolCall, undefined);
     assert.equal(prose.notice, PROSE_ONLY_DRAFT);
-    assert.equal(resolveDraftDepartment("Draft a note for Prosper"), "prosper");
+    assert.equal(resolveDraftDepartment("Draft a note for South desk"), "south-desk");
   });
 
   it("leaves a successful write_draft alone", () => {
@@ -47,7 +47,7 @@ describe("soft draft agent reliability", () => {
       query: "Draft a short note",
       text: "Saved.",
       tools: [{ name: "write_draft" }],
-      defaultDepartmentId: "little-elm",
+      defaultDepartmentId: "north-desk",
     });
     assert.equal(done.toolCall, undefined);
     assert.equal(done.notice, undefined);

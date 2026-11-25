@@ -72,14 +72,14 @@
   background: var(--bg);
   font-variant-numeric: tabular-nums;
 }
-.msg { min-height: 100dvh; }
+.msg { height: calc(100dvh - var(--beta-banner-h, 0px)); min-height: 0; overflow: hidden; }
 .msg.is-wide { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); }
 .msg.is-wide .inbox {
   background: var(--elev);
   border-right: 1px solid var(--line);
 }
 
-.inbox, .chat { min-height: 100dvh; display: flex; flex-direction: column; position: relative; background: var(--bg); }
+.inbox, .chat { height: 100%; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--bg); overflow: hidden; }
 .chat { background: var(--bg); }
 
 .inbox-top, .chat-top, .settings-top {
@@ -144,7 +144,7 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.rows { list-style: none; margin: 0; padding: 8px 8px 120px; }
+.rows { list-style: none; margin: 0; padding: 8px 8px 120px; flex: 1; min-height: 0; overflow-y: auto; }
 .row {
   width: 100%; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 12px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 14px;
@@ -243,6 +243,7 @@
   border-radius: 999px; background: var(--primary); color: var(--on-primary); border: 0;
 }
 .composer .send:hover { background: var(--primary-hover); }
+.composer .send:disabled { opacity: 0.35; cursor: default; }
 .file-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
 .file-chip {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; max-width: 100%;
@@ -371,6 +372,51 @@
 }
 .check { display: flex !important; align-items: center; gap: 10px; color: var(--title); font-size: 15px; }
 .chat-empty { margin: auto; color: var(--muted); }
+.empty-welcome {
+  margin: 24px auto;
+  max-width: 440px;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 20px 12px;
+}
+.empty-welcome h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: var(--title);
+}
+.empty-welcome p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--secondary);
+  line-height: 1.45;
+}
+.starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+.starters button {
+  background: var(--card);
+  color: var(--title);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+  width: auto;
+  min-height: 40px;
+}
+.starters button:hover {
+  background: var(--hover-bg);
+}
 .find { margin: 0 16px 8px; width: calc(100% - 32px); }
 
 .set-sheet {
@@ -480,14 +526,25 @@ input, textarea, select { font-size: 16px; }
 }
 .feedback-sheet .os-btn:disabled { opacity: 0.45; }
 .beta-banner {
-  position: sticky; top: 0; z-index: 50; display: flex; gap: 12px; align-items: center;
-  padding: var(--safe-top) 14px 10px; background: var(--elev); color: var(--ink);
-  font-size: 14px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 15; display: flex; gap: 10px; align-items: center;
+  padding: max(8px, var(--safe-inset-top, env(safe-area-inset-top, 0px))) 14px 8px;
+  background: var(--elev); color: var(--ink);
+  font-size: 13px; line-height: 1.3; border-bottom: 1px solid var(--line);
 }
-.beta-banner p { margin: 0; flex: 1; }
+.beta-banner p { margin: 0; flex: 1; min-width: 0; }
+.beta-banner .beta-short { display: none; }
 .beta-banner button {
-  background: var(--primary); color: var(--on-primary); border-radius: 999px; padding: 8px 12px; width: auto;
-  font-weight: 600;
+  background: var(--primary); color: var(--on-primary); border-radius: 999px; padding: 6px 12px; width: auto;
+  font-weight: 600; font-size: 13px; white-space: nowrap; flex: none;
+}
+@media (max-width: 760px) {
+  .beta-banner .beta-long { display: none; }
+  .beta-banner .beta-short {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 .agent-menu button {
   display: flex; width: 100%; background: transparent; color: var(--ink); box-shadow: none;

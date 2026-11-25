@@ -8,7 +8,7 @@ import { IconArrowUp, IconPaperclip } from "@/components/os/Icons";
 import { OsShell } from "@/components/os/OsShell";
 import { actionTitle } from "@/lib/action-cards";
 import { agentById } from "@/lib/agents";
-import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { ACCEPT_ATTR } from "@/lib/files";
 import type { ApprovalCard, ChatMessage, ChatThread, ToolEvent } from "@/lib/types";
 
@@ -82,7 +82,7 @@ export function ChatScreen() {
 
   const actor = session ? `${session.role} · ${session.deviceName}` : "signed-in";
   const accessible = session?.enterprise
-    ? Array.from(new Set([...(session.departments || []), HQ_OPS, LEGAL, FINANCE, LITTLE_ELM, PROSPER]))
+    ? Array.from(new Set([...(session.departments || []), HQ_OPS, LEGAL, FINANCE, NORTH_DESK, SOUTH_DESK]))
     : session?.departments || [];
 
   async function attach(file?: File | null) {

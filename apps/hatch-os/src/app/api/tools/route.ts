@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAgentLoop } from "@/lib/agent";
-import { LITTLE_ELM, migrateWorkspaceId } from "@/lib/departments";
+import { NORTH_DESK, migrateWorkspaceId } from "@/lib/departments";
 import { agentLlmConfig, probeAgentLlm } from "@/lib/llm";
 import { fileListing, listAudit, retrieveFirm } from "@/lib/store";
 import { TOOL_SCHEMAS, executeTool, mentionedReads } from "@/lib/tools";
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     enterprise?: boolean;
   } | null;
 
-  const workspaceId = migrateWorkspaceId(body?.workspaceId || body?.departmentId || LITTLE_ELM);
+  const workspaceId = migrateWorkspaceId(body?.workspaceId || body?.departmentId || NORTH_DESK);
   const accessibleDepartments = body?.accessibleDepartments || [];
   const query = (body?.query || "").trim();
 

@@ -1,22 +1,10 @@
-"use client";
+import { notFound } from "next/navigation";
+import { operatorUiEnabled } from "@/lib/operator";
+import { MoreView } from "@/components/operator/MoreView";
 
-import Link from "next/link";
-import { Shell } from "@/components/Shell";
+export const dynamic = "force-dynamic";
 
 export default function MorePage() {
-  return (
-    <Shell>
-      <div className="panel">
-        <p className="screen-kicker">More</p>
-        <h1>Box and account.</h1>
-        <div className="more-list">
-          <Link href="/status">Status</Link>
-          <Link href="/admin">Admin</Link>
-          <Link href="/settings">Settings</Link>
-          <Link href="/departments">Enterprise / Departments</Link>
-          <Link href="/offline">Can’t reach Hatch (demo)</Link>
-        </div>
-      </div>
-    </Shell>
-  );
+  if (!operatorUiEnabled()) notFound();
+  return <MoreView />;
 }

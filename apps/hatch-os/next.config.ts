@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/ask", destination: "/chat", permanent: false },
-      { source: "/rooms", destination: "/departments", permanent: false },
     ];
   },
   async headers() {

@@ -3,7 +3,7 @@ import { wantsAgentTurn } from "./agent-intent";
 import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { demoModeEnabled, modelOfflineMessage, planDemoReply, streamText } from "./demo.ts";
-import { LITTLE_ELM, migrateWorkspaceId } from "./departments";
+import { NORTH_DESK, migrateWorkspaceId } from "./departments";
 import { scheduleImageCaption } from "./image-caption.ts";
 import { forStorage, modelTextForTurn, withImageParts } from "./images.ts";
 import { agentLlmConfig, connectHelp, isRunpodUrl, llmConfig, probeAgentLlm, probeLlm, streamLlm } from "./llm";
@@ -73,7 +73,7 @@ export interface ChatTurnHooks {
 
 /** Same Ask (Qwen) / agent (Hermes) turn as `/api/chat` and the Chat tab. */
 export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {}): Promise<ChatTurnResult> {
-  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
+  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   const query = (input.query || "").trim();
   const prepared = await prepareTurnImages(input.attachments);
   const modelQuery = modelTextForTurn(query, input.context, prepared.hasImage);

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { ENTERPRISE, LITTLE_ELM, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
+import { ENTERPRISE, NORTH_DESK, migrateWorkspaceId, workspaceLabel } from "@/lib/departments";
 import { libraryIn, listDepartments } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const departmentId = migrateWorkspaceId(new URL(req.url).searchParams.get("department") || new URL(req.url).searchParams.get("room") || LITTLE_ELM);
+  const departmentId = migrateWorkspaceId(new URL(req.url).searchParams.get("department") || new URL(req.url).searchParams.get("room") || NORTH_DESK);
   if (departmentId !== ENTERPRISE && !listDepartments().some((d) => d.id === departmentId)) {
     return NextResponse.json({ error: "Unknown department." }, { status: 404 });
   }

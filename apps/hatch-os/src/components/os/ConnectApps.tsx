@@ -52,9 +52,13 @@ export function ConnectApps({ scope }: { scope: string }) {
   }, [kind]);
 
   const rows = useMemo(() => {
+    const msReady = Boolean(setup.find((item) => item.kind === "microsoft")?.configured);
     const q = query.trim().toLowerCase();
-    return catalog.filter((item) => !q || `${item.name} ${item.blurb} ${item.kind}`.toLowerCase().includes(q));
-  }, [catalog, query]);
+    return catalog.filter((item) => {
+      if (item.kind === "microsoft" && !msReady) return false;
+      return !q || `${item.name} ${item.blurb} ${item.kind}`.toLowerCase().includes(q);
+    });
+  }, [catalog, setup, query]);
 
   const active = catalog.find((item) => item.kind === kind) || null;
   const live = connected.find((item) => item.kind === kind);
@@ -147,7 +151,7 @@ export function ConnectApps({ scope }: { scope: string }) {
               <button type="button" className="os-btn" onClick={() => void beginOAuth(active.kind)}>Connect {active.name}</button>
               {active.kind === "slack" || active.kind === "notion" ? <p className="fine">Or paste a token below. OAuth is used when its credentials are set.</p> : null}
               {!setup.find((item) => item.kind === active.kind)?.configured ? (
-                <p className="fine">Needs {active.name} OAuth credentials in Vercel. Callback: {setup.find((item) => item.kind === active.kind)?.callbackUrl}</p>
+                <p className="fine">{active.name} OAuth credentials are not configured on this server yet.</p>
               ) : null}
             </div>
           ) : null}

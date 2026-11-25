@@ -59,7 +59,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
           Use the workspace Model & Ethics
         </label>
       ) : (
-        <p className="set-note">Hatch runs open-weight models on dedicated hardware, so the firm sets its own principles, guardrails, and voice instead of an outside AI lab.</p>
+        <p className="set-note">This beta runs open-weight models on isolated test GPUs (and firm deployments run on your own Hatch box), so the firm sets its own principles, guardrails, and voice instead of an outside AI lab.</p>
       )}
       {error ? <p className="os-error" role="alert">{error}</p> : null}
       {note ? <p className="set-note" role="status">{note}</p> : null}

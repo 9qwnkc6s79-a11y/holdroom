@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { VALID_INVITES } from "@/lib/mock-data";
-import { FINANCE, HQ_OPS, LEGAL, LITTLE_ELM, PROSPER } from "@/lib/departments";
+import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { testerByCode } from "@/lib/testers";
 
 export const dynamic = "force-dynamic";
@@ -53,9 +53,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const departments = associate ? [LITTLE_ELM] : [LITTLE_ELM, PROSPER, HQ_OPS, LEGAL, FINANCE];
+  const departments = associate ? [NORTH_DESK] : [NORTH_DESK, SOUTH_DESK, HQ_OPS, LEGAL, FINANCE];
   const enterprise = !associate;
-  const homeDepartment = associate ? LITTLE_ELM : HQ_OPS;
+  const homeDepartment = associate ? NORTH_DESK : HQ_OPS;
 
   return NextResponse.json({
     ok: true,

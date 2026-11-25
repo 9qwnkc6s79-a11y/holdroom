@@ -6,7 +6,7 @@ import { compileEthics, loadEthics } from "./ethics.ts";
 import { resolveAgent } from "./store.ts";
 import { approvalCardForCall } from "./approvals.ts";
 import { newChatMessage } from "./chat.ts";
-import { LITTLE_ELM, migrateWorkspaceId } from "./departments.ts";
+import { NORTH_DESK, migrateWorkspaceId } from "./departments.ts";
 import { scheduleImageCaption } from "./image-caption.ts";
 import { chooseChatLane, forStorage, modelTextForTurn, withImageParts, withoutImagePayload } from "./images.ts";
 import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
@@ -99,7 +99,7 @@ export function liveRunpodReady(): boolean {
 }
 
 export async function startLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
-  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || LITTLE_ELM);
+  const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   const query = input.query.trim();
   const prepared = await prepareTurnImages(input.attachments);
   const modelQuery = modelTextForTurn(query, input.context, prepared.hasImage);

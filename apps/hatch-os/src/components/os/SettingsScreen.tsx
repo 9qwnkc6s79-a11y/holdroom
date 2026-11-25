@@ -40,7 +40,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   const requested = params.get("tab");
   const [page, setPage] = useState<Page>(isPage(requested) ? requested : initialPage);
   const [name, setName] = useState("Partner");
-  const [email, setEmail] = useState("demo@this-preview");
+  const [email, setEmail] = useState("");
   const [theme, setTheme] = useState("system");
   const [autoZone, setAutoZone] = useState(true);
   const [zone, setZone] = useState("America/Chicago");
@@ -48,7 +48,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
 
   useEffect(() => {
     setName(localStorage.getItem("hatch-account") || "Partner");
-    setEmail(localStorage.getItem("hatch-email") || "demo@this-preview");
+    setEmail(localStorage.getItem("hatch-email") || "");
     const themeStored = localStorage.getItem("hatch-theme") || "light";
     setTheme(themeStored);
     applyTheme(themeStored);
@@ -64,7 +64,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
     void fetch("/api/status", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { demoMode?: boolean; modelState?: string; label?: string }) => {
-        if (data.demoMode) setHardware("Demo mode. The firm model is not called. Ask is Qwen and tools are Hermes when a RunPod key is set.");
+        if (data.demoMode) setHardware("Demo mode is active. Firm models are not called.");
         else if (data.modelState === "offline") setHardware("Offline. Hatch could not reach the firm model.");
         else setHardware(data.label || "The firm model responded.");
       })
@@ -100,13 +100,13 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
               <InitialAvatar label={name} size={44} />
               <span className="set-main">
                 <strong>{name}</strong>
-                <span>{email}</span>
+                <span>{email || "Add your email"}</span>
               </span>
               <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("usage")}>
               <span className="set-main"><strong>Usage</strong></span>
-              <span className="set-value">Demo</span>
+              <span className="set-value">Beta</span>
               <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
             <button type="button" className="set-row" onClick={() => setPage("plan")}>
@@ -204,24 +204,24 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
                 <input value={name} onChange={(event) => { setName(event.target.value); localStorage.setItem("hatch-account", event.target.value); }} />
               </label>
               <label className="set-field">Email
-                <input value={email} onChange={(event) => { setEmail(event.target.value); localStorage.setItem("hatch-email", event.target.value); }} />
+                <input value={email} placeholder="name@firm.com" onChange={(event) => { setEmail(event.target.value); localStorage.setItem("hatch-email", event.target.value); }} />
               </label>
-              <p className="fine">This is the demo profile on this preview, not a verified mailbox.</p>
+              <p className="fine">Saved in this browser for your workspace profile.</p>
             </section>
           ) : null}
           {page === "usage" ? (
             <section className="set-card">
-              <p className="set-note">Demo values. This preview does not measure the firm’s compute.</p>
+              <p className="set-note">Usage tracking is enabled on beta test workspaces.</p>
               {["Hatch", "Operations", "Legal", "Finance"].map((agent) => (
                 <div key={agent} className="set-row is-static">
-                  <span className="set-main"><strong>{agent}</strong><span>Not measured · demo</span></span>
+                  <span className="set-main"><strong>{agent}</strong><span>Active</span></span>
                 </div>
               ))}
             </section>
           ) : null}
           {page === "plan" ? (
             <section className="set-card">
-              <div className="set-row is-static"><span className="set-main"><strong>Firm</strong><span>Dedicated hardware, on the firm’s network. This preview is the interface only.</span></span></div>
+              <div className="set-row is-static"><span className="set-main"><strong>Firm</strong><span>Private cloud workspace during beta; dedicated firm box available on Firm and Enterprise plans.</span></span></div>
             </section>
           ) : null}
           {page === "vault" ? <VaultScreen embedded /> : null}
@@ -260,7 +260,7 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
           {page === "hardware" ? (
             <section className="set-card">
               <div className="set-row is-static"><span className="set-main"><strong>Model endpoints</strong><span>{hardware}</span></span></div>
-              <p className="fine">Ask is Qwen on diqb3ykkxo0i16. Tools are Hermes on gy5a9f9lpjz2y7. Both scale to zero.</p>
+              <p className="fine">Ask runs Qwen 3.8 27B for direct drafting and reading. Agent and tool turns run Hermes 4.3 36B on isolated test GPUs.</p>
             </section>
           ) : null}
           {page === "devices" ? (
