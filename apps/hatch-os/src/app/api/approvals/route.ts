@@ -1,6 +1,8 @@
 import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { applyApprovalDecision } from "@/lib/approvals";
+import { getThread } from "@/lib/store";
+import { ensureThreadScoped, saveThreadScoped } from "@/lib/thread-store";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ export async function POST(req: Request) {
   if (body.decision !== "approved" && body.decision !== "cancelled") {
     return NextResponse.json({ error: "Choose approve or cancel." }, { status: 400 });
   }
+  await ensureThreadScoped(auth.session.scope, body.threadId);
   const result = await applyApprovalDecision({
     threadId: body.threadId,
     messageId: body.messageId,
@@ -29,8 +32,9 @@ export async function POST(req: Request) {
     actor: body.actor,
     accessibleDepartments: body.accessibleDepartments,
     enterprise: body.enterprise,
-    testerCode: body.testerCode,
+    testerCode: auth.session.scope,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+  await saveThreadScoped(auth.session.scope, getThread(body.threadId));
   return NextResponse.json({ ok: true, message: result.message, event: result.event || null });
 }

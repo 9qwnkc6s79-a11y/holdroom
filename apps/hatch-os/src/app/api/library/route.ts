@@ -3,6 +3,7 @@ import { ENTERPRISE, migrateWorkspaceId, workspaceLabel } from "@/lib/department
 import { listLibraryPassages } from "@/lib/library-passages";
 import { requireSession } from "@/lib/session-auth";
 import { libraryIn, listDepartments } from "@/lib/store";
+import { hydrateUploadsScoped } from "@/lib/thread-store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function GET(req: Request) {
   if (departmentId !== ENTERPRISE && !listDepartments().some((d) => d.id === departmentId)) {
     return NextResponse.json({ error: "Unknown department." }, { status: 404 });
   }
+  await hydrateUploadsScoped(auth.session.scope, departmentId);
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
   const rawFiles = libraryIn(departmentId);
   const rawPassages = await listLibraryPassages(auth.session.scope);
