@@ -50,4 +50,13 @@ describe("runpod jobs", () => {
     ]);
     assert.equal(parsed.text, "hatch ask ok");
   });
+
+  it("reads usage from a vLLM completion", () => {
+    const parsed = parseRunpodChatOutput({
+      choices: [{ message: { content: "hello", role: "assistant" } }],
+      usage: { prompt_tokens: 11, completion_tokens: 4, total_tokens: 15 },
+    });
+    assert.equal(parsed.text, "hello");
+    assert.deepEqual(parsed.usage, { promptTokens: 11, completionTokens: 4, totalTokens: 15 });
+  });
 });

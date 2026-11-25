@@ -10,7 +10,8 @@
     "test": "node --experimental-strip-types --test src/lib/*.test.ts",
     "test:e2e": "playwright test",
     "telegram": "tsx scripts/telegram-bridge.ts",
-    "telegram:keep": "bash scripts/keep-telegram.sh"
+    "telegram:keep": "bash scripts/keep-telegram.sh",
+    "tokens": "node --experimental-strip-types scripts/tokens-admin.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.9.0",
@@ -18,7 +19,8 @@
     "next": "15.5.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "stripe": "^23.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

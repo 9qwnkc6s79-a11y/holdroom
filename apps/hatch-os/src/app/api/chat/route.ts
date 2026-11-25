@@ -1,4 +1,5 @@
 import { consumeDailyMessage, saveRecord } from "@/lib/beta-store";
+import { assertHasTokens, outOfTokensPayload } from "@/lib/tokens";
 import { runChatTurn } from "@/lib/chat";
 import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
@@ -41,6 +42,10 @@ export async function POST(req: Request) {
     "x-hatch-temperature": String(ethics.temperature),
     "Cache-Control": "no-store",
   };
+  const tokens = await assertHasTokens(testerCode);
+  if (!tokens.ok) {
+    return Response.json(outOfTokensPayload(), { headers: ethicsHeaders });
+  }
   const slot = await consumeDailyMessage(testerCode);
   if (!slot.ok) {
     return Response.json({

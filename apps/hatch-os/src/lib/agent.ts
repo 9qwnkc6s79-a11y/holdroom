@@ -1,6 +1,7 @@
 import { toolNeedsApproval } from "./action-cards.ts";
 import { DRAFT_NUDGE, finishSoftDraft, shouldNudgeSoftDraft } from "./agent-draft.ts";
 import { streamAgentLlm, type ChatMessage } from "./llm";
+import { assertHasTokens, deductUsage, OUT_OF_CREDIT_TEXT } from "./tokens.ts";
 import { buildAgentMessages, type PromptInput } from "./prompt";
 import { stripThinkBlocks } from "./think.ts";
 import {
@@ -20,6 +21,7 @@ export interface AgentLoopInput extends PromptInput {
   accessibleDepartments: string[];
   enterprise?: boolean;
   defaultDepartmentId?: string;
+  testerCode?: string;
 }
 
 export interface AgentLoopResult {
@@ -57,6 +59,13 @@ export async function runAgentLoop(
   const tools = openaiToolSchemas();
 
   for (let turn = 0; turn < AGENT_MAX_TURNS; turn++) {
+    if (input.testerCode && turn > 0) {
+      const gate = await assertHasTokens(input.testerCode);
+      if (!gate.ok) {
+        const notice = visible ? `${visible}\n\n${OUT_OF_CREDIT_TEXT}` : OUT_OF_CREDIT_TEXT;
+        return { text: notice, tools: toolResults, sources };
+      }
+    }
     let turnText = "";
     const streamed = await streamAgentLlm(
       messages,
@@ -66,6 +75,7 @@ export async function runAgentLoop(
       },
       tools,
     );
+    if (input.testerCode) void deductUsage(input.testerCode, streamed.usage, "agent").catch(() => undefined);
     const visibleTurn = stripThinkBlocks(streamed.text || turnText);
     const calls = mergeCalls(streamed.toolCalls, parseToolCalls(visibleTurn));
     const clean = stripThinkBlocks(stripToolMarkup(visibleTurn));

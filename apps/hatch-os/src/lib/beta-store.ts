@@ -62,6 +62,16 @@ export async function saveRecord(folder: string, name: string, data: unknown) {
   await writeText(`${folder}/${name}.json`, JSON.stringify(data));
 }
 
+export async function readRecord<T>(folder: string, name: string): Promise<T | null> {
+  const raw = await readText(`${folder}/${name}.json`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function readRecords<T>(folder: string): Promise<T[]> {
   if (blobEnabled()) {
     const found: T[] = [];

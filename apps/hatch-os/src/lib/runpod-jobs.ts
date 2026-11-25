@@ -2,6 +2,7 @@ import type { LlmEndpoint } from "./llm.ts";
 import type { OpenAiTool } from "./tools.ts";
 import { parseToolCalls, stripToolMarkup, type ToolCall } from "./tool-parse.ts";
 import { stripThinkBlocks } from "./think.ts";
+import { parseUsage, type LlmUsage } from "./llm-usage.ts";
 
 export interface RunpodChatBody {
   model: string;
@@ -67,6 +68,7 @@ export interface RunpodJobView {
   failed: boolean;
   text: string;
   toolCalls: ToolCall[];
+  usage?: LlmUsage | null;
   error?: string;
 }
 
@@ -84,25 +86,31 @@ export async function readRunpodJob(endpoint: LlmEndpoint, jobId: string): Promi
   const status = json.status || "UNKNOWN";
   const failed = status === "FAILED" || status === "CANCELLED" || status === "TIMED_OUT";
   const done = status === "COMPLETED";
-  const parsed = done ? parseRunpodChatOutput(json.output) : { text: "", toolCalls: [] as ToolCall[] };
+  const parsed = done ? parseRunpodChatOutput(json.output) : { text: "", toolCalls: [] as ToolCall[], usage: null };
   return {
     status,
     done,
     failed,
     text: parsed.text,
     toolCalls: parsed.toolCalls,
+    usage: parsed.usage,
     error: failed ? json.error || `RunPod job ${status}` : undefined,
   };
 }
 
 /** Accept the shapes the vLLM worker returns: a completion, a wrapper, a one-item array, or streamed chunks. */
-export function parseRunpodChatOutput(output: unknown): { text: string; toolCalls: ToolCall[] } {
+export function parseRunpodChatOutput(output: unknown): { text: string; toolCalls: ToolCall[]; usage: LlmUsage | null } {
   const pieces = Array.isArray(output) ? output : [output];
   let text = "";
   const toolCalls: ToolCall[] = [];
+  let usage: LlmUsage | null = parseUsage(output);
   for (const piece of pieces) {
+    const found = parseUsage(piece);
+    if (found) usage = found;
     const completion = unwrapCompletion(piece);
     if (!completion) continue;
+    const fromCompletion = parseUsage(completion);
+    if (fromCompletion) usage = fromCompletion;
     const choice = completion.choices?.[0];
     const message = choice?.message;
     if (typeof message?.content === "string") text += message.content;
@@ -127,7 +135,7 @@ export function parseRunpodChatOutput(output: unknown): { text: string; toolCall
   for (const extra of parseToolCalls(clean)) {
     if (!toolCalls.some((call) => call.name === extra.name)) toolCalls.push(extra);
   }
-  return { text: stripToolMarkup(clean), toolCalls };
+  return { text: stripToolMarkup(clean), toolCalls, usage };
 }
 
 function unwrapCompletion(value: unknown): Completion | null {
@@ -146,6 +154,7 @@ function unwrapCompletion(value: unknown): Completion | null {
 }
 
 interface Completion {
+  usage?: unknown;
   choices?: {
     message?: {
       content?: string;
