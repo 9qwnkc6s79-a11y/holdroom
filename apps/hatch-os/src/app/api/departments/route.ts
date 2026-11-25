@@ -1,10 +1,13 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { ENTERPRISE, uxIsolation } from "@/lib/departments";
 import { filesIn, listDepartments, listFolders, listHandoffs } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const departments = listDepartments();
   const enterpriseFiles = filesIn(ENTERPRISE);
   return NextResponse.json(

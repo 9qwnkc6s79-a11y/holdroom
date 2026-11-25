@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal-links";
 import { AuditScreen } from "@/components/os/AuditScreen";
 import { InitialAvatar } from "@/components/os/Avatar";
 import { IconChevronLeft, IconChevronRight, IconX } from "@/components/os/Icons";
@@ -45,6 +46,9 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   const [autoZone, setAutoZone] = useState(true);
   const [zone, setZone] = useState("America/Chicago");
   const [hardware, setHardware] = useState("Checking the firm model…");
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     setName(localStorage.getItem("hatch-account") || "Partner");
@@ -88,6 +92,27 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
   function leave() {
     signOut();
     router.push("/signin");
+  }
+
+  async function deleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch("/api/auth/account", { method: "DELETE" });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setDeleteError(data?.error || "Could not delete account data.");
+        setDeleting(false);
+        return;
+      }
+      localStorage.clear();
+      signOut();
+      router.push("/signin");
+    } catch {
+      setDeleteError("Could not reach the firm host to delete account data.");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -194,7 +219,37 @@ export function SettingsScreen({ onClose, initialPage = "home" }: { onClose?: ()
               <span className="chev" aria-hidden="true"><IconChevronRight /></span>
             </button>
           </section>
+          <section className="set-card">
+            <a className="set-row" href={PRIVACY_URL} target="_blank" rel="noreferrer">
+              <span className="set-main"><strong>Privacy Policy</strong></span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
+            </a>
+            <a className="set-row" href={TERMS_URL} target="_blank" rel="noreferrer">
+              <span className="set-main"><strong>Terms of Service</strong></span>
+              <span className="chev" aria-hidden="true"><IconChevronRight /></span>
+            </a>
+          </section>
           <button type="button" className="set-signout" onClick={leave}>Sign out</button>
+          {!confirmDelete ? (
+            <button type="button" className="set-signout" style={{ color: "#b91c1c" }} onClick={() => setConfirmDelete(true)}>
+              Delete account &amp; data
+            </button>
+          ) : (
+            <section className="set-card" style={{ padding: "14px 16px" }}>
+              <p className="set-note" style={{ margin: "0 0 10px" }}>
+                This deletes your saved threads, uploaded files, connected app tokens, and settings from the firm host.
+              </p>
+              {deleteError ? <p className="os-error">{deleteError}</p> : null}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="set-signout" style={{ flex: 1, margin: 0, color: "#b91c1c" }} disabled={deleting} onClick={() => void deleteAccount()}>
+                  {deleting ? "Deleting…" : "Confirm delete"}
+                </button>
+                <button type="button" className="set-signout" style={{ flex: 1, margin: 0 }} disabled={deleting} onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+              </div>
+            </section>
+          )}
         </>
       ) : (
         <Subpage title={titleFor(page)} onBack={() => setPage("home")}>

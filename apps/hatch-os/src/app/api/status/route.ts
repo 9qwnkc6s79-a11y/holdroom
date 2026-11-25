@@ -4,6 +4,7 @@ import { demoModeEnabled } from "@/lib/demo.ts";
 import { probeLlm, probeAgentLlm, llmConfig, agentLlmConfig } from "@/lib/llm";
 import { MOCK_STATUS } from "@/lib/mock-data";
 import { operatorUiEnabled } from "@/lib/operator";
+import { verifySessionRequest } from "@/lib/session-auth";
 import type { BoxStatus, EgressCheck } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +17,12 @@ function customerHostLabel(connected: boolean, kind: "ask" | "agent") {
 export async function GET(req: Request) {
   const operator = operatorUiEnabled();
 
-  if (demoModeEnabled()) {
+  const session = verifySessionRequest(req);
+  if (demoModeEnabled() || session?.appReview) {
     const body: BoxStatus = {
       ...MOCK_STATUS,
       ok: true,
-      label: "Demo mode — the firm model is not called",
+      label: session?.appReview ? "Sample firm host ready" : "Demo mode — the firm model is not called",
       model: "demo",
       demoMode: true,
       modelState: "demo",
@@ -48,7 +50,7 @@ export async function GET(req: Request) {
         usingAskFallback: false,
       },
     };
-    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ...body, authenticated: Boolean(verifySessionRequest(req)) }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const url = new URL(req.url);

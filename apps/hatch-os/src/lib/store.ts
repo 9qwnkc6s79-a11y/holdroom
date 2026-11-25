@@ -336,8 +336,10 @@ function ensure() {
 }
 
 function seedTextIsStale(raw: Partial<DiskState>) {
-  return (raw.chunks || []).some((chunk) =>
-    /boundaries|prosper|little[- ]?elm|rafael|heath|\bcoffee\b|catering|loyalty/i.test(chunk.text || ""),
+  return (raw.chunks || []).some(
+    (chunk) =>
+      chunk.id.startsWith("seed-") &&
+      /boundaries|prosper|little[- ]?elm|rafael|heath|\bcoffee\b|catering|loyalty/i.test(chunk.text || ""),
   );
 }
 
@@ -346,7 +348,7 @@ function readState(): DiskState {
   try {
     const raw = JSON.parse(readFileSync(STATE, "utf8")) as Partial<DiskState>;
     const ids = (raw.rooms || []).map((r) => r.id);
-    if (!ids.includes(NORTH_DESK) || !ids.includes(SOUTH_DESK) || seedTextIsStale(raw) || (raw.rooms || []).some((r) => r.files.some((f) => /DEMO_little_elm|DEMO_catering|DEMO_loyalty/i.test(f.name)))) {
+    if (!ids.includes(NORTH_DESK) || !ids.includes(SOUTH_DESK) || seedTextIsStale(raw) || (raw.rooms || []).some((r) => r.files.some((f) => f.origin === "seed" && /DEMO_little_elm|DEMO_catering|DEMO_loyalty/i.test(f.name)))) {
       const fresh = loadSeed();
       fresh.threads = raw.threads || [];
       fresh.agents = raw.agents?.length ? raw.agents.map(normalizeAgent) : fresh.agents;
@@ -1138,5 +1140,63 @@ export function listAudit(): AuditEntry[] {
 export function resetSeed() {
   withFileLock(STATE, () => {
     atomicWriteFile(STATE, JSON.stringify(loadSeed(), null, 2));
+  });
+}
+
+export function upsertThreadRecord(thread: ChatThread): ChatThread {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const normalized: ChatThread = {
+      ...thread,
+      departmentId: migrateWorkspaceId(thread.departmentId || NORTH_DESK),
+      messages: Array.isArray(thread.messages) ? thread.messages : [],
+    };
+    const idx = state.threads.findIndex((t) => t.id === normalized.id);
+    if (idx >= 0) state.threads[idx] = normalized;
+    else state.threads.unshift(normalized);
+    writeState(state);
+    return normalized;
+  });
+}
+
+export function removeThreadRecord(threadId: string): boolean {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const next = state.threads.filter((t) => t.id !== threadId);
+    if (next.length === state.threads.length) return false;
+    state.threads = next;
+    writeState(state);
+    return true;
+  });
+}
+
+export function upsertUploadRecord(file: HatchFile, text: string, bytesBase64?: string): HatchFile {
+  return withFileLock(STATE, () => {
+    const state = readState();
+    const normalized = normalizeFile(file, file.departmentId || NORTH_DESK);
+    const room = state.rooms.find((r) => r.id === normalized.departmentId);
+    if (room) {
+      const idx = room.files.findIndex((f) => f.id === normalized.id);
+      if (idx >= 0) room.files[idx] = normalized;
+      else room.files.unshift(normalized);
+    }
+    if (text && !state.chunks.some((c) => c.id.startsWith(`${normalized.id}-`))) {
+      chunkText(text).forEach((part, i) => {
+        state.chunks.push({
+          id: `${normalized.id}-${i}`,
+          departmentId: normalized.departmentId,
+          roomId: normalized.departmentId,
+          file: normalized.name,
+          text: part,
+        });
+      });
+    }
+    if (bytesBase64) {
+      const dest = path.join(UPLOADS, normalized.departmentId);
+      mkdirSync(dest, { recursive: true });
+      writeFileSync(path.join(dest, `${normalized.id}-${normalized.name}`), Buffer.from(bytesBase64, "base64"));
+    }
+    writeState(state);
+    return normalized;
   });
 }

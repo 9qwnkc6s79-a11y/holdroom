@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/session-auth";
 import { demoModeEnabled } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
@@ -5,6 +6,8 @@ export const maxDuration = 60;
 
 /** On-box Whisper stand-in. Audio is not stored and not sent to a public lab. */
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const form = await req.formData().catch(() => null);
   const file = form?.get("audio");
   if (!(file instanceof File) || file.size === 0) {

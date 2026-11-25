@@ -2,15 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useHatch } from "@/components/AppProvider";
-import { TESTER_HOST } from "@/lib/version";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal-links";
 
 export default function SignInPage() {
   const { pair, pairError, session } = useHatch();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const testerSite = typeof window !== "undefined" && window.location.hostname === TESTER_HOST;
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/status", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { demoMode?: boolean }) => setDemoMode(Boolean(data.demoMode)))
+      .catch(() => setDemoMode(false));
+  }, []);
 
   if (session) return <p className="boot-note">Opening Hatch…</p>;
 
@@ -18,14 +25,14 @@ export default function SignInPage() {
     event.preventDefault();
     const code = String(new FormData(event.currentTarget).get("invite") || "");
     setBusy(true);
-    const ok = await pair({ invite: code, device: "This phone", method: "totp" });
+    const ok = await pair({ invite: code, device: "This browser", method: "totp" });
     setBusy(false);
     if (ok) router.push("/chat");
   }
 
   async function onDemo() {
     setBusy(true);
-    const ok = await pair({ invite: "BOUNDARIES", totp: "000000", device: "Demo", method: "totp" });
+    const ok = await pair({ invite: "STAFF-PREVIEW", device: "Staff preview", method: "totp" });
     setBusy(false);
     if (ok) router.push("/chat");
   }
@@ -40,13 +47,17 @@ export default function SignInPage() {
           <label>Your code<input name="invite" autoComplete="one-time-code" autoCapitalize="characters" required /></label>
           <button className="os-btn" type="submit" disabled={busy}>Sign in</button>
         </form>
-        {testerSite ? null : (
+        {demoMode ? (
           <button className="demo-go" type="button" onClick={() => void onDemo()} disabled={busy}>
-            Staff preview — not for testers
+            Staff preview — demo mode
           </button>
-        )}
+        ) : null}
         <p className="os-fine">
           This beta runs on cloud test hardware, not a firm’s own box. <Link href="/offline">Offline</Link>
+        </p>
+        <p className="os-fine">
+          <a href={PRIVACY_URL} target="_blank" rel="noreferrer">Privacy Policy</a> ·{" "}
+          <a href={TERMS_URL} target="_blank" rel="noreferrer">Terms of Service</a>
         </p>
       </div>
     </div>

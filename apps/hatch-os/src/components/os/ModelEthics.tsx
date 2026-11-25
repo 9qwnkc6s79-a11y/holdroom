@@ -15,7 +15,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
       try { setProfile(JSON.parse(cached) as EthicsProfile); } catch { /* ignore a bad cache */ }
     }
     const url = agentId ? `/api/ethics?agentId=${encodeURIComponent(agentId)}` : "/api/ethics";
-    void fetch(url, { headers: { "x-hatch-tester": scope }, cache: "no-store" })
+    void fetch(url, { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { profile?: EthicsProfile }) => {
         if (data.profile) setProfile(data.profile);
@@ -37,7 +37,7 @@ export function ModelEthics({ scope, agentId }: { scope: string; agentId?: strin
     setNote("");
     const res = await fetch("/api/ethics", {
       method: "PUT",
-      headers: { "Content-Type": "application/json", "x-hatch-tester": scope },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(reset ? { scope, agentId, reset: true } : { scope, agentId, profile }),
     });
     const data = (await res.json().catch(() => null)) as { profile?: EthicsProfile; error?: string } | null;

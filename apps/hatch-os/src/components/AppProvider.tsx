@@ -417,6 +417,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setPairError("");
     setToast("");
+    void fetch("/api/auth/pair", { method: "DELETE" }).catch(() => undefined);
   }, []);
 
   const ask = useCallback(

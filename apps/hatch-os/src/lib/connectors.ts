@@ -4,6 +4,15 @@ import { decryptJson, encryptJson, vaultConfigured, vaultKey } from "./vault-cry
 import { checkImap, checkSmtp, imapSearch, smtpSend, type MailAccount } from "./mail-probe.ts";
 import { safeCode } from "./testers.ts";
 import type { ToolEvent } from "./types.ts";
+import {
+  buildGmailFallbackQueries,
+  extractPdfTextLite,
+  extractSearchTerms,
+  formatGmailThread,
+  formatOutlookMessages,
+  type GmailThread,
+  type OutlookMessage,
+} from "./connector-read.ts";
 
 export const BETA_ORIGIN = "https://hatch-os-beta.vercel.app";
 
@@ -286,15 +295,6 @@ type GithubSecret = { token: string };
 type LinearSecret = { token: string };
 type McpSecret = { url: string; token?: string; tools?: string[] };
 
-async function gmailFetch(scope: string, path: string, init?: RequestInit) {
-  const accounts = await refreshAccess(scope, "google");
-  const token = accounts[0]?.accessToken;
-  if (!token) return null;
-  const headers = { Authorization: `Bearer ${token}`, ...(init?.headers || {}) };
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1${path}`, { ...init, headers });
-  return res;
-}
-
 async function graphGet(scope: string, path: string) {
   const accounts = await refreshAccess(scope, "microsoft");
   const token = accounts[0]?.accessToken;
@@ -302,8 +302,11 @@ async function graphGet(scope: string, path: string) {
   return fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
-function tool(name: string, ok: boolean, detail: string): { event: ToolEvent; extra?: string } {
-  return { event: { name, ok, detail: detail.slice(0, 500), input: detail.slice(0, 180) }, extra: ok ? detail.slice(0, 4000) : undefined };
+function tool(name: string, ok: boolean, detail: string, extra?: string): { event: ToolEvent; extra?: string } {
+  return {
+    event: { name, ok, detail: detail.slice(0, 500), input: detail.slice(0, 180) },
+    extra: ok ? (extra ?? detail).slice(0, 16000) : undefined,
+  };
 }
 
 const WRITE_TOOLS = new Set([
@@ -351,35 +354,126 @@ export async function runConnectorTool(
   }
 }
 
+async function gmailApi(token: string, path: string) {
+  return fetch(`https://gmail.googleapis.com/gmail/v1${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(12_000),
+  });
+}
+
+async function readGoogleDriveText(token: string, file: { id: string; name: string; mimeType?: string; size?: string }): Promise<string> {
+  const mime = (file.mimeType || "").toLowerCase();
+  const headers = { Authorization: `Bearer ${token}` };
+  let url = "";
+  let mode: "text" | "pdf" | "none" = "none";
+  if (mime === "application/vnd.google-apps.document" || mime === "application/vnd.google-apps.presentation") {
+    url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}/export?mimeType=text%2Fplain`;
+    mode = "text";
+  } else if (mime === "application/vnd.google-apps.spreadsheet") {
+    url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}/export?mimeType=text%2Fcsv`;
+    mode = "text";
+  } else if (mime.startsWith("text/") || mime === "application/json" || /\.(txt|md|markdown|csv|json)$/i.test(file.name)) {
+    url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`;
+    mode = "text";
+  } else if (mime === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    const bytes = Number(file.size || 0);
+    if (!bytes || bytes <= 4_000_000) {
+      url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`;
+      mode = "pdf";
+    }
+  }
+  if (!url || mode === "none") return "";
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(12_000) });
+    if (!res.ok) return "";
+    if (mode === "pdf") {
+      const buf = Buffer.from(await res.arrayBuffer());
+      return extractPdfTextLite(buf).slice(0, 4500);
+    }
+    return (await res.text()).replace(/\u0000/g, "").trim().slice(0, 4500);
+  } catch {
+    return "";
+  }
+}
+
 async function runEmail(scope: string, name: string, args: Record<string, string>) {
   const mail = await readSecret<MailAccount>(scope, "email");
-  const google = await readSecret<GoogleSecret>(scope, "google");
+  const googleAccounts = await refreshAccess(scope, "google");
   if (name === "email_search" || name === "email_read") {
-    if (google) {
-      const q = encodeURIComponent(args.query || args.q || "");
-      const res = await gmailFetch(scope, `/users/me/messages?maxResults=5&q=${q}`);
-      const data = (await res?.json().catch(() => null)) as { messages?: { id: string }[] } | null;
-      if (data?.messages?.length) {
-        const bits: string[] = [];
-        for (const message of data.messages.slice(0, 5)) {
-          const full = await gmailFetch(scope, `/users/me/messages/${message.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`);
-          const body = (await full?.json().catch(() => null)) as { snippet?: string; payload?: { headers?: { name: string; value: string }[] } } | null;
-          const headers = body?.payload?.headers || [];
-          const subject = headers.find((header) => header.name === "Subject")?.value || body?.snippet || message.id;
-          bits.push(subject);
+    const rawQuery = (args.query || args.q || args.subject || "").trim();
+    const explicitThreadId = (args.threadId || args.thread_id || "").trim();
+    if (googleAccounts.length) {
+      const formattedThreads: { subject: string; messageCount: number; summary: string; text: string }[] = [];
+      for (const account of googleAccounts.slice(0, 2)) {
+        if (explicitThreadId) {
+          const res = await gmailApi(account.accessToken, `/users/me/threads/${encodeURIComponent(explicitThreadId)}?format=full`);
+          if (res.ok) {
+            const thread = (await res.json().catch(() => null)) as GmailThread | null;
+            if (thread?.messages?.length) {
+              formattedThreads.push(formatGmailThread(thread, { maxTotalChars: 9000 }));
+              break;
+            }
+          }
+          continue;
         }
-        return tool(name, true, `Gmail: ${bits.join(" · ")}`);
+        const queries = buildGmailFallbackQueries(rawQuery);
+        let threadIds: string[] = [];
+        for (const q of queries.length ? queries : [""]) {
+          const listPath = q
+            ? `/users/me/threads?maxResults=5&q=${encodeURIComponent(q)}`
+            : "/users/me/threads?maxResults=5";
+          const res = await gmailApi(account.accessToken, listPath);
+          const data = (await res.json().catch(() => null)) as { threads?: { id: string }[] } | null;
+          if (data?.threads?.length) {
+            threadIds = data.threads.map((t) => t.id).filter(Boolean);
+            break;
+          }
+        }
+        if (threadIds.length) {
+          const fetched = await Promise.all(
+            threadIds.slice(0, 3).map(async (id) => {
+              const res = await gmailApi(account.accessToken, `/users/me/threads/${encodeURIComponent(id)}?format=full`);
+              if (!res.ok) return null;
+              return (await res.json().catch(() => null)) as GmailThread | null;
+            }),
+          );
+          for (const thread of fetched) {
+            if (thread?.messages?.length) {
+              formattedThreads.push(formatGmailThread(thread, { maxTotalChars: 5500 }));
+            }
+          }
+        }
+      }
+      if (formattedThreads.length) {
+        const chip = `Gmail: ${formattedThreads.map((t) => t.summary).join(" · ")}`;
+        const fullExtra = formattedThreads.map((t) => t.text).join("\n\n");
+        return tool(name, true, chip, fullExtra);
       }
     }
-    const outlook = await graphGet(scope, `/me/messages?$top=8&$select=subject,bodyPreview,from`);
+    const outlook = await graphGet(
+      scope,
+      "/me/messages?$top=10&$select=id,conversationId,subject,body,bodyPreview,from,toRecipients,receivedDateTime,hasAttachments&$orderby=receivedDateTime%20desc",
+    );
     if (outlook) {
-      const data = (await outlook.json().catch(() => null)) as { value?: { subject?: string; bodyPreview?: string }[] } | null;
-      const q = (args.query || args.q || "").toLowerCase();
-      const rows = (data?.value || []).filter((item) => !q || `${item.subject || ""} ${item.bodyPreview || ""}`.toLowerCase().includes(q));
-      if (rows.length) return tool(name, true, `Outlook: ${rows.map((item) => item.subject || item.bodyPreview || "Message").join(" · ")}`);
+      const data = (await outlook.json().catch(() => null)) as { value?: OutlookMessage[] } | null;
+      const terms = extractSearchTerms(rawQuery);
+      const qLower = rawQuery.toLowerCase();
+      const rows = (data?.value || []).filter((item) => {
+        if (!qLower) return true;
+        const hay = `${item.subject || ""} ${item.bodyPreview || ""} ${item.body?.content || ""}`.toLowerCase();
+        if (hay.includes(qLower)) return true;
+        return terms.length ? terms.some((t) => hay.includes(t)) : true;
+      });
+      if (rows.length) {
+        const formatted = formatOutlookMessages(rows.slice(0, 4));
+        return tool(name, true, `Outlook: ${formatted.summary}`, formatted.text);
+      }
     }
-    if (!mail && !google) return tool(name, false, "Connect Email, Gmail, or Outlook first.");
-    if (mail) return tool(name, true, await imapSearch(mail.secret, args.query || args.subject || ""));
+    if (!mail && !googleAccounts.length && !outlook) return tool(name, false, "Connect Email, Gmail, or Outlook first.");
+    if (mail) {
+      const text = await imapSearch(mail.secret, rawQuery);
+      return tool(name, true, `Mail: ${rawQuery || "Inbox"} (${text.slice(0, 120).replace(/\s+/g, " ")})`, text);
+    }
     return tool(name, true, "No mail matched.");
   }
   if (name === "email_draft") {
@@ -390,12 +484,12 @@ async function runEmail(scope: string, name: string, args: Record<string, string
     });
     return tool(name, true, `Draft prepared to ${args.to || "(no recipient)"}: ${args.subject || "(no subject)"}. It was not sent.`);
   }
-  if (!args.to || !args.body && !args.text) return tool(name, false, "A recipient and a message are required.");
+  if (!args.to || (!args.body && !args.text)) return tool(name, false, "A recipient and a message are required.");
   if (mail) {
     const sent = await smtpSend(mail.secret, { to: args.to, subject: args.subject || "(no subject)", body: args.body || args.text || "" });
     return tool(name, true, sent);
   }
-  if (google) return tool(name, false, "Gmail is connected read-only. Nothing was sent.");
+  if (googleAccounts.length) return tool(name, false, "Gmail is connected read-only. Nothing was sent.");
   return tool(name, false, "Connect Email before sending. Gmail and Outlook on this host are read-only.");
 }
 
@@ -421,20 +515,98 @@ async function runCalendar(scope: string, name: string, args: Record<string, str
 
 async function runFiles(scope: string, name: string, args: Record<string, string>) {
   const googleAccounts = await refreshAccess(scope, "google");
-  const q = (args.query || "").replace(/'/g, "");
-  if (googleAccounts[0]) {
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?pageSize=5&q=${encodeURIComponent(`name contains '${q}'`)}&fields=files(id,name)`, {
-      headers: { Authorization: `Bearer ${googleAccounts[0].accessToken}` },
-    });
-    const data = (await res.json().catch(() => null)) as { files?: { id: string; name: string }[] } | null;
-    const lines = (data?.files || []).map((file) => file.name).join("\n");
-    if (lines) return tool(name, res.ok, lines);
+  const rawQuery = (args.query || args.q || "").trim();
+  const fileId = (args.fileId || args.file_id || "").trim();
+  const cleanQ = rawQuery.replace(/'/g, "");
+  if (googleAccounts.length) {
+    const token = googleAccounts[0].accessToken;
+    type DriveFileMeta = { id: string; name: string; mimeType?: string; modifiedTime?: string; size?: string; owners?: { displayName?: string; emailAddress?: string }[] };
+    let files: DriveFileMeta[] = [];
+    if (fileId) {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,modifiedTime,size,owners(displayName,emailAddress)`,
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+      );
+      if (res.ok) {
+        const single = (await res.json().catch(() => null)) as DriveFileMeta | null;
+        if (single?.id) files = [single];
+      }
+    } else {
+      const terms = extractSearchTerms(cleanQ).map((t) => t.replace(/'/g, "")).filter(Boolean);
+      const candidates: string[] = [];
+      if (cleanQ) {
+        candidates.push(`trashed = false and (name contains '${cleanQ}' or fullText contains '${cleanQ}')`);
+      }
+      if (terms.length) {
+        const orClauses = terms.slice(0, 5).map((t) => `name contains '${t}' or fullText contains '${t}'`).join(" or ");
+        candidates.push(`trashed = false and (${orClauses})`);
+      }
+      if (!candidates.length) candidates.push("trashed = false");
+      for (const qExpr of candidates) {
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files?pageSize=6&orderBy=modifiedTime%20desc&q=${encodeURIComponent(qExpr)}&fields=files(id,name,mimeType,modifiedTime,size,owners(displayName,emailAddress))`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+        );
+        const data = (await res.json().catch(() => null)) as { files?: DriveFileMeta[] } | null;
+        if (data?.files?.length) {
+          files = data.files;
+          break;
+        }
+      }
+    }
+    if (files.length) {
+      const contents = await Promise.all(
+        files.slice(0, 3).map(async (f) => ({
+          file: f,
+          text: await readGoogleDriveText(token, f),
+        })),
+      );
+      const chip = `Drive: ${files.map((f) => f.name).join(" · ")}`;
+      const extra = contents
+        .map(({ file, text }) => {
+          const owner = file.owners?.[0]?.displayName || file.owners?.[0]?.emailAddress || "";
+          return [
+            `=== Drive File: ${file.name} [fileId: ${file.id}] ===`,
+            `Type: ${file.mimeType || "unknown"}${file.modifiedTime ? ` | Modified: ${file.modifiedTime}` : ""}${owner ? ` | Owner: ${owner}` : ""}`,
+            text || "(binary/non-text file; metadata only)",
+          ].join("\n");
+        })
+        .join("\n\n");
+      return tool(name, true, chip, extra);
+    }
   }
-  const drive = await graphGet(scope, `/me/drive/root/children?$top=8&$select=name`);
-  const data = (await drive?.json().catch(() => null)) as { value?: { name?: string }[] } | null;
-  const names = (data?.value || []).map((file) => file.name || "").filter((fileName) => !q || fileName.toLowerCase().includes(q.toLowerCase()));
-  if (!googleAccounts[0] && !drive) return tool(name, false, "Connect Google Drive or OneDrive first.");
-  return tool(name, true, names.join("\n") || "No files matched.");
+  const drive = await graphGet(
+    scope,
+    cleanQ
+      ? `/me/drive/root/search(q='${encodeURIComponent(cleanQ)}')?$top=6&$select=id,name,size,lastModifiedDateTime,file`
+      : "/me/drive/root/children?$top=8&$select=id,name,size,lastModifiedDateTime,file",
+  );
+  const data = (await drive?.json().catch(() => null)) as { value?: { id?: string; name?: string; lastModifiedDateTime?: string; file?: { mimeType?: string } }[] } | null;
+  const terms = extractSearchTerms(cleanQ);
+  const rows = (data?.value || []).filter((f) => {
+    if (!cleanQ) return true;
+    const hay = (f.name || "").toLowerCase();
+    return hay.includes(cleanQ.toLowerCase()) || terms.some((t) => hay.includes(t));
+  });
+  if (rows.length) {
+    const details = await Promise.all(
+      rows.slice(0, 3).map(async (f) => {
+        const mime = f.file?.mimeType || "";
+        let text = "";
+        if (f.id && (mime.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(f.name || ""))) {
+          const r = await graphGet(scope, `/me/drive/items/${encodeURIComponent(f.id)}/content`);
+          if (r?.ok) text = (await r.text()).slice(0, 4000);
+        }
+        return [
+          `=== OneDrive File: ${f.name || "Untitled"}${f.lastModifiedDateTime ? ` | Modified: ${f.lastModifiedDateTime}` : ""} ===`,
+          text || "(metadata only)",
+        ].join("\n");
+      }),
+    );
+    return tool(name, true, `OneDrive: ${rows.map((r) => r.name || "Untitled").join(" · ")}`, details.join("\n\n"));
+  }
+  if (!googleAccounts.length && !drive) return tool(name, false, "Connect Google Drive or OneDrive first.");
+  return tool(name, true, "No files matched.");
 }
 
 async function runSlack(scope: string, name: string, args: Record<string, string>) {

@@ -1,9 +1,12 @@
+import { requireSession } from "@/lib/session-auth";
 import { NextResponse } from "next/server";
 import { deleteRoutine, listRoutines, saveRoutine } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   return NextResponse.json(
     {
       routines: listRoutines(),
@@ -15,6 +18,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as {
     id?: string;
     agentId?: string;
@@ -36,6 +41,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const id = new URL(req.url).searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "Missing routine." }, { status: 400 });
   const removed = deleteRoutine(id);

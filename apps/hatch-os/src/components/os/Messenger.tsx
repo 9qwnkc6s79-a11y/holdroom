@@ -447,9 +447,11 @@ export function Messenger() {
         const payload = (await next.json()) as LivePayload;
         if (payload.phase === "wait" && payload.state) {
           state = payload.state;
-          running = /running/i.test(payload.note || "");
+          const rawNote = (payload.note || "").trim();
+          const warming = /warming up/i.test(rawNote);
+          running = !warming && Boolean(rawNote);
           upsertPending({ ...job, state });
-          setStatusNote(waitCopy(job.startedAt, running));
+          setStatusNote(running ? rawNote : waitCopy(job.startedAt, false));
           await new Promise((resolve) => setTimeout(resolve, 2500));
           continue;
         }
@@ -582,7 +584,8 @@ export function Messenger() {
             state: payload.state,
           };
           upsertPending(job);
-          setStatusNote(waitCopy(startedAt, /running/i.test(payload.note || "")));
+          const rawNote = (payload.note || "").trim();
+          setStatusNote(rawNote && !/warming up/i.test(rawNote) ? rawNote : waitCopy(startedAt, false));
           handed = true;
           await followJob(job);
           return;
@@ -789,6 +792,7 @@ export function Messenger() {
           </form>
           {apps ? (
             <div className="popover apps-pop">
+              <button type="button" onClick={() => { setApps(false); router.push("/library"); }}>Library</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("home"); setSettingsOpen(true); }}>Settings</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("vault"); setSettingsOpen(true); }}>Vault</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("audit"); setSettingsOpen(true); }}>Audit</button>
@@ -914,9 +918,9 @@ export function Messenger() {
                     </div>
                   );
                 })}
-                {statusNote ? <p className="working" role="status">{statusNote}</p> : streaming ? <p className="working" role="status">Working…</p> : null}
                 <div ref={endRef} />
               </div>
+              {statusNote ? <p className="working working-bar" role="status">{statusNote}</p> : streaming ? <p className="working working-bar" role="status">Working…</p> : null}
               {reply ? (
                 <p className="replying">
                   {reply}
@@ -995,6 +999,7 @@ export function Messenger() {
 
       {moreOpen && agent ? (
         <div className="sheet" role="dialog" aria-label="Agent menu">
+          <button type="button" onClick={() => { setMoreOpen(false); router.push("/library"); }}>Library</button>
           <button type="button" onClick={() => { setMoreOpen(false); setInfoOpen(true); }}>Agent info</button>
           <button type="button" onClick={() => { setMoreOpen(false); setAgentSettings(true); }}>Settings</button>
           <button type="button" onClick={() => { setMoreOpen(false); setChatSearch((value) => !value); }}>Search in chat</button>

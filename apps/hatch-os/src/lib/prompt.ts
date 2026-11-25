@@ -68,7 +68,8 @@ function sharedContext(input: PromptInput) {
       "Do not invent prices or account numbers. Do not cite internal test labels.",
       "Do not use <think> tags, </think>, /think, or /no_think. Answer with the final reply only.",
       "Prior user and assistant turns in this request are this thread’s memory. Use them for follow-ups (what the user said, what you answered). If they ask what they said or asked, quote the earlier user turn. Do not say they said nothing when history is present. Library passages are sample-firm notes, not a substitute for thread memory.",
-      "Be concise. After the answer, mention the filename(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
+      "Lead with the concrete answer. When email or document content is available, give specifics (current status, latest decision, who is waiting on whom, dates, attachment names, next steps, and genuine open questions). Never ask the user to clarify when relevant information is already in the messages or files you read.",
+      "After the answer, mention the filename(s) or thread subject(s) you used in plain text if any. If the question is only about this conversation, do not cite library files.",
     ],
     corpus: [
       "",
@@ -78,7 +79,7 @@ function sharedContext(input: PromptInput) {
       "Files in the active workspace:",
       input.fileListing || "(none listed)",
       prior ? `\nTool results so far:\n${prior}` : "",
-      input.extra?.length ? `\nRead files:\n${input.extra.join("\n\n")}` : "",
+      input.extra?.length ? `\nFull tool & file contents:\n${input.extra.join("\n\n")}` : "",
     ],
   };
 }
@@ -102,6 +103,7 @@ export function buildAgentMessages(input: PromptInput) {
   const system = [
     ...ctx.firmRules,
     "This is an agent turn. Use tools when you need to search, read, write a draft, or hand off.",
+    "When asked to get up to speed, check status, or summarize a topic: read the FULL bodies of the top relevant email threads (including multiple messages and attachment names) and relevant Drive/library files via email_search / email_read / cloud_files_search / cloud_files_read / search_library / read_file before answering. Never stop at subject lines or ask the user which thread to read when relevant threads are already in your tool output.",
     "If the user asks to draft, write, create, or save a note/file/memo, you MUST call write_draft. Do not leave the note as prose only.",
     input.defaultDepartmentId
       ? `Default write departmentId: ${input.defaultDepartmentId}. Use it for write_draft unless the user names North desk, South desk, or Operations. Enterprise is not a write target.`

@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { OsShell } from "@/components/os/OsShell";
-import type { Department, HatchFile } from "@/lib/types";
+import { IconChevronLeft, IconX } from "@/components/os/Icons";
+import type { HatchFile } from "@/lib/types";
+
+interface LibraryPassage {
+  id: string;
+  title: string;
+  source: string;
+  at: string;
+  text: string;
+}
 
 function roomName(id: string) {
   if (id === "hq-ops") return "Operations";
@@ -15,94 +24,148 @@ function roomName(id: string) {
 }
 
 export function LibraryScreen() {
+  const router = useRouter();
   const [files, setFiles] = useState<HatchFile[]>([]);
-  const [open, setOpen] = useState<{ name: string; text: string } | null>(null);
+  const [passages, setPassages] = useState<LibraryPassage[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState<{ name: string; meta: string; text: string } | null>(null);
 
-  useEffect(() => {
-    void fetch("/api/departments", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data: { departments?: Department[] }) => {
-        const all = (data.departments || []).flatMap((dept) => dept.files || []);
-        setFiles(all);
-      })
-      .catch(() => setFiles([]));
+  const load = useCallback(async (q: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/library?department=enterprise&q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      if (!res.ok) {
+        setFiles([]);
+        setPassages([]);
+        return;
+      }
+      const data = (await res.json()) as { files?: HatchFile[]; passages?: LibraryPassage[] };
+      setFiles(data.files || []);
+      setPassages(data.passages || []);
+    } catch {
+      setFiles([]);
+      setPassages([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const drafts = files.filter((file) => file.origin === "draft");
-  const rooms = new Map<string, HatchFile[]>();
-  for (const file of files) {
-    const list = rooms.get(file.departmentId) || [];
-    list.push(file);
-    rooms.set(file.departmentId, list);
-  }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void load(query);
+    }, query ? 150 : 0);
+    return () => clearTimeout(timer);
+  }, [load, query]);
 
-  async function show(file: HatchFile) {
+  const drafts = files.filter((file) => file.origin === "draft");
+  const roomFiles = files.filter((file) => file.origin !== "draft");
+
+  async function showFile(file: HatchFile) {
     const res = await fetch(`/api/files/${encodeURIComponent(file.id)}`, { cache: "no-store" });
-    const data = (await res.json().catch(() => null)) as { text?: string };
-    setOpen({ name: file.name, text: data?.text || "No extract." });
+    const data = (await res.json().catch(() => null)) as { text?: string } | null;
+    setOpen({
+      name: file.name,
+      meta: `${roomName(file.departmentId)} · ${file.kind}`,
+      text: data?.text || "No extracted text available.",
+    });
   }
 
   return (
-    <OsShell
-      title="Library"
-      lede="Files in the firm’s file room, and drafts the agents have filed after you approved them."
-    >
-      <div className="os-page">
-        <h2>Finished work</h2>
-        {drafts.length ? (
-          <div className="os-list">
-            {drafts.map((file) => (
-              <article key={file.id} className="os-row">
-                <h3>{file.name}</h3>
-                <p>{roomName(file.departmentId)} · draft</p>
-                <div className="os-meta">
-                  <button className="os-btn-ghost" type="button" onClick={() => void show(file)}>
-                    Open
-                  </button>
+    <main className="lib-shell">
+      <header className="lib-head">
+        <button type="button" className="round" aria-label="Back to chat" onClick={() => router.push("/chat")}>
+          <IconChevronLeft />
+        </button>
+        <h1>Library</h1>
+      </header>
+      <div className="lib-search">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search firm files, drafts, and synced docs or mail…"
+          aria-label="Search Library"
+        />
+      </div>
+      {loading && !files.length && !passages.length ? <p className="lib-empty">Loading Library…</p> : null}
+
+      {passages.length ? (
+        <section>
+          <p className="lib-kicker">Synced apps ({passages.length})</p>
+          <div className="lib-card">
+            {passages.map((passage) => (
+              <button
+                key={passage.id}
+                type="button"
+                className="lib-row"
+                onClick={() => setOpen({ name: passage.title, meta: passage.source, text: passage.text })}
+              >
+                <div>
+                  <strong>{passage.title}</strong>
+                  <span>{passage.source}</span>
                 </div>
-              </article>
+                <span>Open</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section>
+        <p className="lib-kicker">Finished work</p>
+        {drafts.length ? (
+          <div className="lib-card">
+            {drafts.map((file) => (
+              <button key={file.id} type="button" className="lib-row" onClick={() => void showFile(file)}>
+                <div>
+                  <strong>{file.name}</strong>
+                  <span>{roomName(file.departmentId)} · draft</span>
+                </div>
+                <span>Open</span>
+              </button>
             ))}
           </div>
         ) : (
-          <p>No finished drafts yet. Approve a memo in chat and it will land here.</p>
+          <p className="lib-empty">{query ? "No matching drafts." : "No finished drafts yet. Approve a memo in chat and it will land here."}</p>
         )}
-        <h2>File room</h2>
-        {[...rooms.entries()].map(([id, list]) => (
-          <section key={id}>
-            <h2>{roomName(id)}</h2>
-            <div className="os-list">
-              {list.map((file) => (
-                <article key={file.id} className="os-row">
-                  <h3>{file.name}</h3>
-                  <p>
-                    {file.kind}
-                    {file.inLibrary ? " · in the library" : ""}
-                    {file.demo ? " · sample" : ""}
-                  </p>
-                  <div className="os-meta">
-                    <button className="os-btn-ghost" type="button" onClick={() => void show(file)}>
-                      Open
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
-        {open ? (
-          <div className="os-dialog" role="presentation" onClick={() => setOpen(null)}>
-            <article role="dialog" aria-label={open.name} onClick={(event) => event.stopPropagation()}>
-              <h2>{open.name}</h2>
-              <div className="os-assistant">
-                <MarkdownPreview text={open.text.slice(0, 4000)} />
-              </div>
-              <button className="os-btn" type="button" onClick={() => setOpen(null)}>
-                Close
+      </section>
+
+      <section>
+        <p className="lib-kicker">File room ({roomFiles.length})</p>
+        {roomFiles.length ? (
+          <div className="lib-card">
+            {roomFiles.map((file) => (
+              <button key={file.id} type="button" className="lib-row" onClick={() => void showFile(file)}>
+                <div>
+                  <strong>{file.name}</strong>
+                  <span>{roomName(file.departmentId)} · {file.kind}{file.inLibrary ? " · in library" : ""}</span>
+                </div>
+                <span>Open</span>
               </button>
-            </article>
+            ))}
           </div>
-        ) : null}
-      </div>
-    </OsShell>
+        ) : (
+          <p className="lib-empty">{query ? "No matching files in the file room." : "No files in the file room yet."}</p>
+        )}
+      </section>
+
+      {open ? (
+        <div className="lib-modal" role="presentation" onClick={() => setOpen(null)}>
+          <article className="lib-modal-card" role="dialog" aria-label={open.name} onClick={(event) => event.stopPropagation()}>
+            <div className="lib-modal-head">
+              <h2>{open.name}</h2>
+              <button type="button" className="round" aria-label="Close" onClick={() => setOpen(null)}>
+                <IconX size={16} />
+              </button>
+            </div>
+            <p className="lib-modal-meta">{open.meta}</p>
+            <div className="bubble">
+              <MarkdownPreview text={open.text.slice(0, 8000)} />
+            </div>
+          </article>
+        </div>
+      ) : null}
+    </main>
   );
 }

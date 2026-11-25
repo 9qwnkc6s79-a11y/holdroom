@@ -16,6 +16,7 @@ import { toolNeedsApproval } from "./action-cards.ts";
 import { executeTool, mentionedReads, parseToolTrailer, stripToolTrailer } from "./tools";
 import type { ApprovalCard, ChatAttachment, ChatMessage, Source, ToolEvent } from "./types";
 import { searchLibraryPassages } from "./library-passages.ts";
+import { getThreadScoped, saveThreadScoped } from "./thread-store.ts";
 import { scrubVaultSecrets } from "./vault.ts";
 
 export function newChatMessage(role: ChatMessage["role"], text: string, extra?: Partial<ChatMessage>): ChatMessage {
@@ -49,6 +50,7 @@ export interface ChatTurnInput {
   approvals?: "wait" | "immediate";
   replyTo?: { text: string };
   testerCode?: string;
+  sampleMode?: boolean;
 }
 
 export interface ChatTurnResult {
@@ -82,7 +84,8 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     throw new Error("Ask a question.");
   }
 
-  const thread = input.threadId ? getThread(input.threadId) : createThread(workspaceId, query.slice(0, 42));
+  const scope = input.testerCode || "staff";
+  const thread = input.threadId ? await getThreadScoped(scope, input.threadId) : createThread(workspaceId, query.slice(0, 42));
   const active = thread || createThread(workspaceId, query.slice(0, 42));
   hooks.onStart?.({ threadId: active.id });
 
@@ -100,7 +103,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     replyTo: input.replyTo,
   });
   const assistantMsg = newChatMessage("assistant", "", { done: false });
-  appendThreadMessages(active.id, [userMsg]);
+  await saveThreadScoped(scope, appendThreadMessages(active.id, [userMsg]));
   const hatchAgent = resolveAgent(input.agentId);
   recordAuditEntry(
     {
@@ -112,7 +115,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
     { actor: input.actor || "signed-in", agentId: hatchAgent.id, kind: "ask" },
   );
 
-  if (demoModeEnabled()) {
+  if (demoModeEnabled() || input.sampleMode) {
     const demoSources = retrieveFirm(query, 4);
     const plan = planDemoReply({ query: modelQuery, agentId: hatchAgent.id, sources: demoSources });
     await streamText(plan.text, hooks.onDelta);
@@ -124,7 +127,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       tools: plan.tools,
       approval: plan.approval,
     };
-    appendThreadMessages(active.id, [demoMessage]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [demoMessage]));
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -144,7 +147,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   if (prepared.hasImage && !prepared.dataUrls.length) {
     const detail = missingImageMessage((input.attachments || []).map((file) => file.name));
     const missed: ChatMessage = { ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults };
-    appendThreadMessages(active.id, [missed]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [missed]));
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -167,7 +170,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   if (input.failFast && (!probe.connected || optimisticTimeout)) {
     const detail = modelOfflineMessage(probe.error);
     const offlineMessage: ChatMessage = { ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults };
-    appendThreadMessages(active.id, [offlineMessage]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [offlineMessage]));
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -185,7 +188,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
   if (!probe.connected && !runpodReady) {
     const help = connectHelp(probe);
     const detail = probe.error ? `${probe.error}\n\n${help}` : help;
-    appendThreadMessages(active.id, [{ ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults }]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [{ ...assistantMsg, text: detail, done: true, sources: [], tools: toolResults }]));
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,
@@ -264,7 +267,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
       tools: toolResults,
       approval: pendingApproval,
     };
-    appendThreadMessages(active.id, [final]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [final]));
     if (prepared.hasImage && prepared.fileIds.length) scheduleImageCaption(prepared.fileIds);
     return {
       threadId: active.id,
@@ -286,7 +289,7 @@ export async function runChatTurn(input: ChatTurnInput, hooks: ChatTurnHooks = {
         ? modelOfflineMessage(msg)
         : `${msg}\n\n${connectHelp(probe)}`;
     const failed: ChatMessage = { ...assistantMsg, text: help, done: true, sources: [], tools: toolResults };
-    appendThreadMessages(active.id, [failed]);
+    await saveThreadScoped(scope, appendThreadMessages(active.id, [failed]));
     return {
       threadId: active.id,
       title: getThread(active.id)?.title,

@@ -114,10 +114,10 @@ export async function imapSearch(account: MailAccount, query: string) {
     const found = await readLines(socket, (line) => /^A3 /i.test(line));
     const ids = (found.match(/\* SEARCH[^\r\n]*/)?.[0] || "").split(/\s+/).filter((part) => /^\d+$/.test(part)).slice(-5);
     if (!ids.length) return "No matching messages in Inbox.";
-    socket.write(`A4 FETCH ${ids.join(",")} (BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])\r\n`);
+    socket.write(`A4 FETCH ${ids.join(",")} (BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)] BODY.PEEK[TEXT]<0.2500>)\r\n`);
     const headers = await readLines(socket, (line) => /^A4 /i.test(line));
     socket.write("A5 LOGOUT\r\n");
-    return headers.replace(/\r/g, "").slice(0, 4000);
+    return headers.replace(/\r/g, "").slice(0, 12000);
   } finally {
     socket.destroy();
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session-auth";
 import {
   CONNECTOR_CATALOG,
   MAIL_PRESETS,
@@ -19,13 +20,11 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function scopeOf(req: Request, body?: { scope?: string }) {
-  return body?.scope || req.headers.get("x-hatch-tester") || "staff";
-}
-
 export async function GET(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const origin = new URL(req.url).origin;
-  const connected = await listConnectors(scopeOf(req));
+  const connected = await listConnectors(auth.session.scope);
   const setup = (["google", "microsoft", "slack", "notion"] as const).map((kind) => ({
     kind,
     configured: oauthConfigured(kind),
@@ -35,9 +34,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as Record<string, string> | null;
   if (!body?.kind) return NextResponse.json({ error: "Choose an app." }, { status: 400 });
-  const scope = scopeOf(req, body);
+  const scope = auth.session.scope;
   try {
     const kind = body.kind as ConnectorKind;
     if (kind === "email") {
@@ -84,18 +85,22 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const url = new URL(req.url);
   const kind = url.searchParams.get("kind") || "";
   if (!kind) return NextResponse.json({ error: "Name the app to disconnect." }, { status: 400 });
-  await disconnectConnector(scopeOf(req), kind);
+  await disconnectConnector(auth.session.scope, kind);
   return NextResponse.json({ ok: true });
 }
 
 export async function PUT(req: Request) {
+  const auth = requireSession(req);
+  if (auth.error) return auth.error;
   const body = (await req.json().catch(() => null)) as { kind?: ConnectorKind; scope?: string } | null;
   if (!body?.kind) return NextResponse.json({ error: "Name the app to test." }, { status: 400 });
   try {
-    const detail = await testConnector(scopeOf(req, body), body.kind);
+    const detail = await testConnector(auth.session.scope, body.kind);
     return NextResponse.json({ ok: true, detail });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Test failed." }, { status: 400 });
