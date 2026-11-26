@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } fr
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { DraftFile, RoutineEdits } from "@/api/types";
 import { ApprovalCard } from "@/components/ApprovalCard";
+import { EmailDraftCard } from "@/components/EmailDraftCard";
 import { Screen, StatusLine, T } from "@/components/chrome";
 import { ChatComposer, type PickedFile } from "@/components/ChatComposer";
 import { IconBack, IconClose, IconDots } from "@/components/icons";
@@ -22,7 +23,7 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ agentId: string; thread?: string; preview?: string; attach?: string; dictate?: string; said?: string }>();
   const agentId = oneParam(params.agentId) || "";
   const threadId = oneParam(params.thread);
-  const { agents, threads, turns, messagesFor, phaseFor, send, decide, prepareAttachment, startThread, archiveThread } = useHatch();
+  const { agents, threads, turns, messagesFor, phaseFor, send, decide, actOnEmailDraft, prepareAttachment, startThread, archiveThread } = useHatch();
   const agent = agents.find((item) => item.id === agentId) || agents[0];
   const messages = messagesFor(agent?.id || agentId, threadId);
   const phase = phaseFor(agent?.id || agentId);
@@ -36,6 +37,10 @@ export default function ChatScreen() {
   const [deciding, setDeciding] = useState(false);
   const [menu, setMenu] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const stickRef = useRef(true);
+  const lastScrollYRef = useRef(0);
+  const programScrollUntilRef = useRef(0);
+  const [showJump, setShowJump] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!threadId) return;
@@ -59,11 +64,28 @@ export default function ChatScreen() {
     [agent?.id, agentId, threads],
   );
   useEffect(() => {
+    stickRef.current = true;
+    setShowJump(false);
     if (messages.length > 0) {
-      const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+      const timer = setTimeout(() => {
+        programScrollUntilRef.current = Date.now() + 160;
+        scrollRef.current?.scrollToEnd({ animated: false });
+      }, 40);
       return () => clearTimeout(timer);
     }
-  }, [messages.length, activity?.text]);
+  }, [agentId, threadId]);
+
+  const lastMessage = messages[messages.length - 1];
+  const contentScrollKey = `${messages.length}:${lastMessage?.id || ""}:${lastMessage?.text?.length || 0}:${lastMessage?.emailDraft?.id || ""}:${lastMessage?.approval?.id || ""}`;
+
+  useEffect(() => {
+    if (!stickRef.current || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      programScrollUntilRef.current = Date.now() + 160;
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [contentScrollKey]);
 
   async function startFresh(id: string) {
     const created = await startThread(id);
@@ -86,6 +108,8 @@ export default function ChatScreen() {
     const attachments = files.filter((file) => !file.reading && !file.error);
     if (files.some((file) => file.reading)) return;
     if (!text.trim() && attachments.length === 0) return;
+    stickRef.current = true;
+    setShowJump(false);
     setDraft("");
     setFiles([]);
     void send({ agentId: agent.id, threadId, text, attachments });
@@ -127,7 +151,33 @@ export default function ChatScreen() {
             <IconDots size={18} color={colors.fg} />
           </PressableScale>
         </View>
-        <ScrollView ref={scrollRef} onContentSizeChange={() => { if (messages.length > 0) scrollRef.current?.scrollToEnd({ animated: false }); }} contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            const dist = contentSize.height - contentOffset.y - layoutMeasurement.height;
+            const prevY = lastScrollYRef.current;
+            lastScrollYRef.current = contentOffset.y;
+            if (Date.now() < programScrollUntilRef.current) return;
+            if (contentOffset.y < prevY - 2) {
+              stickRef.current = false;
+              setShowJump(dist > 56);
+              return;
+            }
+            const nearBottom = dist < 56;
+            stickRef.current = nearBottom;
+            setShowJump(!nearBottom);
+          }}
+          onContentSizeChange={() => {
+            if (stickRef.current && messages.length > 0) {
+              programScrollUntilRef.current = Date.now() + 140;
+              scrollRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
+          contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {messages.length === 0 ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 12 }}>
               <ShapeAvatar name={agent ? agentLabel(agent) : "Hatch"} shape={shapeFor(agentIndex)} size={56} />
@@ -170,12 +220,54 @@ export default function ChatScreen() {
                     onDeny={() => void onDecision(message.id, "cancelled")}
                   />
                 ) : null}
+                {message.emailDraft ? (
+                  <EmailDraftCard
+                    draft={message.emailDraft}
+                    onAction={(action, fields) => {
+                      const owning =
+                        threadId ||
+                        turns[agent?.id || ""]?.threadId ||
+                        threads.find((item) => item.messages.some((m) => m.id === message.id))?.id;
+                      return actOnEmailDraft({
+                        threadId: owning,
+                        messageId: message.id,
+                        action,
+                        to: fields.to,
+                        subject: fields.subject,
+                        body: fields.body,
+                        draft: message.emailDraft,
+                      });
+                    }}
+                  />
+                ) : null}
               </View>
             ))
           )}
           {actionError ? <T style={[type.cardSubcopy, { color: colors.fg }]}>{actionError}</T> : null}
         </ScrollView>
-        {activity ? (
+        {showJump ? (
+          <View style={{ alignItems: "center", paddingBottom: 6 }}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Jump to latest"
+              onPress={() => {
+                stickRef.current = true;
+                setShowJump(false);
+                programScrollUntilRef.current = Date.now() + 160;
+                scrollRef.current?.scrollToEnd({ animated: true });
+              }}
+              style={{
+                backgroundColor: colors.blueButton,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                borderRadius: 999,
+              }}
+            >
+              <T style={[type.metaLabel, { color: colors.white, fontWeight: "600" }]}>Jump to latest ↓</T>
+            </PressableScale>
+          </View>
+        ) : null}
+                {activity ? (
           <View style={{ paddingHorizontal: 18, paddingTop: 6, paddingBottom: 2 }}>
             <StatusLine color={activity.color} text={activity.text} />
           </View>

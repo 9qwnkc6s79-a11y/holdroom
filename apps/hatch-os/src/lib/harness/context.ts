@@ -4,6 +4,16 @@
  * before they reach the model. Everything here is deterministic and offline.
  */
 
+export interface EvidenceMeta {
+  threadRef?: string;
+  gmailThreadId?: string;
+  accountEmail?: string;
+  replyToEmail?: string;
+  subject?: string;
+  inReplyTo?: string;
+  references?: string;
+}
+
 export interface Evidence {
   id: string;
   source: "mail" | "files" | "calendar" | "library" | "memory";
@@ -19,6 +29,12 @@ export interface Evidence {
   score: number;
   /** True when only a title/snippet was seen, not the full body. */
   shallow?: boolean;
+  /** Extra connector metadata (sender email, gmail thread id, Reply-To headers). */
+  meta?: EvidenceMeta;
+  /** Tappable source URL (Gmail thread, Drive file, Calendar event). */
+  url?: string;
+  /** True when relevance gate flagged this item as weak/tangential. */
+  weak?: boolean;
 }
 
 /** Rough tokens for budget math. vLLM tokenizers average 3.5-4 chars/token on English mail. */
@@ -108,10 +124,11 @@ export function budgetEvidence(items: Evidence[], maxChars: number): { text: str
     const left = ranked.length - index;
     const weight = index === 0 ? 0.45 : index < 3 ? 0.3 : 0.2;
     const share = Math.max(minEach, Math.min(remaining - (left - 1) * 200, Math.floor(remaining * weight) + (left === 1 ? remaining : 0)));
-    const head = `[${used.length + 1}] ${labelFor(item.source)}: ${item.title}${item.date ? ` (${item.date})` : ""}${item.shallow ? " — title only, body not read" : ""}`;
+    const head = `[${used.length + 1}] ${labelFor(item.source)}: ${item.title}${item.date ? ` (${item.date})` : ""}${item.url ? ` — citation_url: ${item.url}` : ""}${item.shallow ? " — title only, body not read" : ""}`;
     const bodyRoom = Math.max(120, Math.min(share, remaining) - head.length - 2);
     const latest = item.source === "mail" && !item.shallow ? latestLine(item.text) : "";
-    const body = item.source === "mail" ? `${latest}${compactThread(item.text, bodyRoom - latest.length)}` : clip(item.text, bodyRoom);
+    const fileText = item.source === "files" ? formatCsvForModel(item.text) : item.text;
+    const body = item.source === "mail" ? `${latest}${compactThread(item.text, bodyRoom - latest.length)}` : clip(fileText, bodyRoom);
     const block = `${head}\n${body}`;
     blocks.push(block);
     used.push(item);
@@ -151,4 +168,74 @@ export interface LaneWindow {
 export function evidenceBudgetChars(window: LaneWindow, fixedPromptChars: number): number {
   const tokensLeft = window.contextTokens - window.outputTokens - Math.ceil(fixedPromptChars / 3.6) - 600; // 600 = tool schemas + safety
   return Math.max(2000, Math.floor(tokensLeft * 3.3));
+}
+
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQ = !inQ;
+      }
+    } else if (ch === "," && !inQ) {
+      out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+export function formatCsvForModel(text: string): string {
+  const lines = String(text || "").split(/\r?\n/);
+  if (lines.length < 3) return text;
+  // Find first true CSV header row: no pipes/colons/numeric thousands-commas, short column labels, matching row width below.
+  let headerIdx = -1;
+  let headers: string[] = [];
+  for (let i = 0; i < Math.min(lines.length - 2, 6); i++) {
+    const line = lines[i].trim();
+    if (!line.includes(",") || line.includes("|")) continue;
+    const cells = splitCsvLine(line);
+    const validHeader =
+      cells.length >= 3 &&
+      cells.length <= 14 &&
+      cells.every((c) => c.length > 0 && c.length <= 36 && !c.includes(":")) &&
+      !/\d/.test(cells.slice(1).join("")) &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(cells[0]) &&
+      !cells.some((c) => /^(TRUE|FALSE)$/i.test(c));
+    if (!validHeader) continue;
+    const next1 = splitCsvLine(lines[i + 1].trim());
+    const next2 = splitCsvLine(lines[i + 2].trim());
+    if (next1.length === cells.length && next2.length === cells.length) {
+      headerIdx = i;
+      headers = cells;
+      break;
+    }
+  }
+  if (headerIdx < 0) return text;
+  const out: string[] = lines.slice(0, headerIdx);
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const raw = lines[i].trim();
+    if (!raw) continue;
+    const cells = splitCsvLine(raw);
+    if (cells.length < 2) {
+      out.push(raw);
+      continue;
+    }
+    const rowLabel = cells[0];
+    const pairs = cells.slice(1).map((val, idx) => {
+      const h = headers[idx + 1] || `Col ${idx + 2}`;
+      return val ? `${h}: ${val}` : "";
+    }).filter(Boolean);
+    out.push(rowLabel ? `${rowLabel} — ${pairs.join(", ")}` : pairs.join(", "));
+  }
+  return out.join("\n");
 }

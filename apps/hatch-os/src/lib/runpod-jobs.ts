@@ -61,6 +61,63 @@ export async function submitRunpodChat(endpoint: LlmEndpoint, body: RunpodChatBo
   return json.id;
 }
 
+export interface RunpodHealth {
+  idle: number;
+  initializing: number;
+  ready: number;
+  running: number;
+  throttled: number;
+  unhealthy: number;
+  readyWorkers: number;
+  warm: boolean;
+  inQueue: number;
+}
+
+export async function readRunpodHealth(endpoint: LlmEndpoint): Promise<RunpodHealth | null> {
+  const root = runpodApiRoot(endpoint.rawBase);
+  if (!root || !endpoint.apiKey) return null;
+  try {
+    const res = await fetch(`${root}/health`, {
+      headers: { Authorization: `Bearer ${endpoint.apiKey}` },
+      signal: AbortSignal.timeout(2_500),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json().catch(() => null)) as {
+      jobs?: { inQueue?: number };
+      workers?: {
+        idle?: number;
+        initializing?: number;
+        ready?: number;
+        running?: number;
+        throttled?: number;
+        unhealthy?: number;
+      };
+    } | null;
+    if (!json?.workers) return null;
+    const w = json.workers;
+    const idle = Number(w.idle || 0);
+    const initializing = Number(w.initializing || 0);
+    const ready = Number(w.ready || 0);
+    const running = Number(w.running || 0);
+    const throttled = Number(w.throttled || 0);
+    const unhealthy = Number(w.unhealthy || 0);
+    const readyWorkers = idle + ready + running;
+    return {
+      idle,
+      initializing,
+      ready,
+      running,
+      throttled,
+      unhealthy,
+      readyWorkers,
+      warm: readyWorkers > 0,
+      inQueue: Number(json.jobs?.inQueue || 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface RunpodJobView {
   status: string;
   done: boolean;
