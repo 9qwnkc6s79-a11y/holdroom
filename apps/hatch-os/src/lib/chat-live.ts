@@ -12,7 +12,7 @@ import { chooseChatLane, forStorage, modelTextForTurn, withImageParts, withoutIm
 import { agentLlmConfig, llmConfig, type ChatMessage as LlmMessage, type LlmEndpoint } from "./llm.ts";
 import { buildAgentMessages, buildAskMessages } from "./prompt.ts";
 import { missingImageMessage, prepareTurnImages } from "./vision-turn.ts";
-import { readRunpodJob, runpodEndpointId, submitRunpodChat } from "./runpod-jobs.ts";
+import { readRunpodHealth, readRunpodJob, runpodEndpointId, submitRunpodChat } from "./runpod-jobs.ts";
 import {
   appendThreadMessages,
   createThread,
@@ -46,7 +46,7 @@ export interface LiveTurnState {
   visible: string;
   tools: ToolEvent[];
   sources: Source[];
-  job?: { id: string; endpointId: string; lane: "ask" | "agent" };
+  job?: { id: string; endpointId: string; lane: "ask" | "agent"; submittedAt?: number };
   /** JPEG data URLs for the first model submit. Stripped before the state is returned. */
   pendingImages?: string[];
   imageFileIds?: string[];
@@ -202,10 +202,14 @@ export async function advanceLiveTurn(state: LiveTurnState): Promise<LiveTurnRes
     if (!endpoint) return finishError(state, "That model endpoint is not configured.");
     const job = await readRunpodJob(endpoint, state.job.id);
     if (!job.done && !job.failed) {
-      const note =
-        job.status === "IN_PROGRESS"
-          ? activityNoteForState(state)
-          : "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.";
+      let note = activityNoteForState(state);
+      if (job.status !== "IN_PROGRESS") {
+        const queuedMs = state.job.submittedAt ? Date.now() - state.job.submittedAt : 0;
+        const health = await readRunpodHealth(endpoint);
+        if ((health !== null && health.readyWorkers === 0) || queuedMs >= 20_000) {
+          note = "Warming up the firm model… the first message after a break can take 2–5 minutes.";
+        }
+      }
       return pack({ phase: "wait", state, note, threadId: state.threadId, messageId: state.messageId });
     }
     state.job = undefined;
@@ -272,18 +276,22 @@ async function submit(state: LiveTurnState): Promise<LiveTurnResult> {
   }
   const outbound = withImageParts(state.llmMessages, state.pendingImages || []);
   const seeing = outbound.some((message) => typeof message.content !== "string");
-  const jobId = await submitRunpodChat(endpoint, {
-    model: endpoint.model,
-    messages: outbound,
-    tools: lane === "agent" && !state.forceSynthesize ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
-    temperature: state.temperature,
-    extras: { ...thinkingOffExtras(true), ...(seeing || lane === "agent" ? { max_tokens: 2048 } : {}) },
-  });
-  state.job = { id: jobId, endpointId, lane };
+  const [jobId, health] = await Promise.all([
+    submitRunpodChat(endpoint, {
+      model: endpoint.model,
+      messages: outbound,
+      tools: lane === "agent" && !state.forceSynthesize ? openaiToolSchemas(connectorSchemas(new Set(state.connectorKinds || []))) : undefined,
+      temperature: state.temperature,
+      extras: { ...thinkingOffExtras(true), ...(seeing || lane === "agent" ? { max_tokens: 2048 } : {}) },
+    }),
+    readRunpodHealth(endpoint),
+  ]);
+  state.job = { id: jobId, endpointId, lane, submittedAt: Date.now() };
+  const cold = health !== null && health.readyWorkers === 0;
   return {
     phase: "wait",
     state,
-    note: "Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back.",
+    note: cold ? "Warming up the firm model… the first message after a break can take 2–5 minutes." : activityNoteForState(state),
     threadId: state.threadId,
     messageId: state.messageId,
   };

@@ -122,7 +122,8 @@ async function runArm(arm: Arm, c: EvalCase, live: boolean): Promise<{ text: str
       return liveCall(`${arm}-${LANE}-${c.id}-${n}`, request.lane, request.messages, request.maxTokens, request.nativeTools);
     },
   });
-  return { text: result.text, usedTools: result.state.usedTools, modelCalls: n, activity: result.state.activity.events.map((e) => `${e.status === "failed" ? "✗" : "✓"} ${e.label}`) };
+  const draftText = result.emailDraft ? `To: ${result.emailDraft.to}\nSubject: ${result.emailDraft.subject}\n\n${result.emailDraft.body}` : "";
+  return { text: result.text || draftText, usedTools: result.state.usedTools, modelCalls: n, activity: result.state.activity.events.map((e) => `${e.status === "failed" ? "✗" : "✓"} ${e.label}`) };
 }
 
 async function main() {

@@ -24,10 +24,10 @@ export function scoreCase(c: EvalCase, answer: string, usedTools: boolean): Case
     const miss = c.facts.filter((f) => !hit.includes(f));
     if (miss.length) notes.push(`missing: ${miss.join(", ")}`);
   } else parts.facts = text.trim().length > 0 ? 40 : 0;
-  parts.noClarify = CLARIFY.test(text) ? 0 : 15;
+  parts.noClarify = (!c.expectNotFound && CLARIFY.test(text)) ? 0 : 15;
   if (!parts.noClarify) notes.push("asked the user to clarify");
   const first = text.trim().split("\n")[0] || "";
-  parts.leads = first && !first.trim().endsWith("?") && !PREAMBLE.test(first) ? 10 : 0;
+  parts.leads = first && (c.expectNotFound || !first.trim().endsWith("?")) && !PREAMBLE.test(first) ? 10 : 0;
   if (!parts.leads) notes.push("does not lead with the answer");
   parts.cites = !c.cite?.length || c.cite.some((x) => new RegExp(x, "i").test(text)) ? 10 : 0;
   if (!parts.cites) notes.push("no source named");

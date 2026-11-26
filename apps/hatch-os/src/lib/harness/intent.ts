@@ -48,13 +48,14 @@ const FILLER = [
 
 const STOP = new Set(
   (
-    "a an the and or but for of on in at to from with by about into over is are was were be been being am do does did done " +
+    "a an the and or but for of on in at to from with by about into over is are was were be been being am do does did done have has had " +
     "i me my mine we us our ours you your it its this that these those there here what whats which who whom whose when where why how " +
     "get got give tell show find look see check pull up speed catch latest recent update updates status summary summarize sum brief " +
     "anything something everything all any some info information stuff thing things deal story going on " +
     "email emails mail mails inbox gmail outlook thread threads message messages drive file files doc docs document documents folder " +
-    "calendar meeting meetings event events schedule just really kind sort quick quickly need want know think like can could would should will " +
+    "cal cals gcal ical calendar meeting meetings event events schedule agenda itinerary just really kind sort quick quickly need want know think like can could would should will " +
     "hey hi hello yo ok okay so then also again now today yesterday tomorrow tmrw tmr week month year last next this past new " +
+    "current present existing ongoing active follow following followup up waiting left remaining submit submitted submission submitting register registered decide decided decision according " +
     "send sent sending say said saying draft reply respond write wrote tell told ask asked w re regarding wrt " +
     "pdf docx xlsx csv news approving approve approved fixed done ready due back hear heard ever missed happen happened happening going where wheres whos when whens much many still yet"
   ).split(/\s+/),
@@ -95,11 +96,12 @@ export function analyzeIntent(
     };
   }
 
+  const driveCalendar = /\b(?:social|content|editorial|marketing|posting|campaign|promo|holiday)(?:\s+media)?\s+calendar\b/.test(lower);
   let kind: IntentKind = "chat";
   if (/\b(up to speed|catch me up|status|where (are|do) we|where.*stand|what'?s? (going on|happening|the latest|new)|latest on|update on|any (news|word|update)|recap|summar|brief me|rundown|lowdown|progress)\b/.test(lower)) kind = "status_brief";
   else if (/\b(draft|write|reply|respond|follow up|followup|send)\b.{0,40}\b(email|reply|response|note|him|her|them|back)\b/.test(lower) || /^(reply|respond)\b/.test(lower)) kind = "draft_reply";
-  else if (/\b(calendar|schedule|meeting|meetings|appointment|free|busy|available|availability|when am i|whats on|what's on)\b/.test(lower)) kind = "schedule";
-  else if (/\b(find|where is|wheres|look up|lookup|pull up|did .{1,30} (send|say|reply|email)|what did|who (sent|said|is)|do (i|we) have|search|dig up|locate|the (pdf|doc|contract|quote|invoice|email|file))\b/.test(lower)) kind = "find";
+  else if (!driveCalendar && /\b(cal|calendar|schedule|meeting|meetings|appointment|free|busy|available|availability|when am i|whats on|what's on)\b/.test(lower)) kind = "schedule";
+  else if (driveCalendar || /\b(find|where is|wheres|look up|lookup|pull up|did .{1,30} (send|say|reply|email)|what did|who (sent|said|is)|do (i|we) have|search|dig up|locate|the (pdf|doc|contract|quote|invoice|email|file))\b/.test(lower)) kind = "find";
 
   const entities = matchEntities(raw, opts.memory);
 
@@ -107,12 +109,14 @@ export function analyzeIntent(
   for (const re of FILLER) stripped = stripped.replace(re, " ");
   let tokens = stripped.split(/\s+/).filter((t) => t && !STOP.has(t) && t.length > 1 && !/^\d{1,2}$/.test(t));
 
-  // Follow-up: "what about the permit?" leans on the previous user turn's topic.
+  // Follow-up: "what about the permit?" or "who is waiting on who with the sign again?" leans on the previous turn.
   let followUp = false;
   let newTerms: string[] = [];
   const prevUser = [...(opts.history || [])].reverse().find((turn) => turn.role === "user");
-  const pronounish = /\b(it|that|this|them|those|the same|what about|how about|and the|also)\b/.test(lower);
-  if (prevUser && pronounish && tokens.length <= 2 && kind !== "schedule") {
+  const pronounish = /\b(it|that|this|them|those|the same|what about|how about|and the|also|again|still|waiting on|who'?s waiting|who is waiting|the (?:sign|quote|thread|email|mail|message|file|doc|project|permit|proposal|estimate|draft|one))\b/.test(lower);
+  const prevEntities = prevUser ? matchEntities(prevUser.text, opts.memory) : [];
+  const introducesNewEntity = entities.some((e) => !prevEntities.some((pe) => pe.name === e.name));
+  if (prevUser && pronounish && !introducesNewEntity && tokens.length <= 3 && kind !== "schedule") {
     const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected });
     if (prev.needsTools) {
       followUp = true;
@@ -123,11 +127,29 @@ export function analyzeIntent(
     }
   }
 
-  // Default to looking things up. Only clearly general/creative asks stay plain chat.
-  const general = /\b(haiku|poem|limerick|joke|song|story|riddle|translate|definition|define|synonym|explain (how|what|why)|what is an? |who was|capital of)\b|\d+(\.\d+)?\s*%\s*of\s*\d|^[\d\s+\-*\/x%().,=?]+$|\b(hi|hello|hey|thanks|thank you)\W*$/i.test(raw);
+  // Default to looking things up for work asks; keep math, creative, and casual banter/general asks as plain chat.
+  const mathExpr = /^(?:what(?:'s| is)\s+)?-?\d+(?:\.\d+)?(?:\s*(?:plus|minus|times|multiplied by|divided by|over|\+|-|\*|x|\/)\s*-?\d+(?:\.\d+)?)+\s*\??$/i.test(raw);
+  const mentionsSource = /\b(email|emails|mail|inbox|gmail|outlook|drive|onedrive|doc|docs|file|files|pdf|spreadsheet|sheet|calendar|cal|meeting)\b/.test(lower);
+  const ownershipSignal = /\b(my|our|we|us|firm|company|boundaries|little elm|prosper|celina|frisco|grand prairie|mcdermott|tapmango|tacos y rocky|onyx|cintas|twc|1120|hatch os)\b/.test(lower);
+  const generalAdvice = /\b(rule of thumb|best practice|general rule|typically|in general|how do i make|how to make)\b/.test(lower) && !ownershipSignal && !mentionsSource && entities.length === 0;
+  const workSignal =
+    !generalAdvice &&
+    (entities.length > 0 ||
+      mentionsSource ||
+      /\b(my|our|we|us|firm|company|store|shop|cafe|coffee|client|vendor|quote|proposal|estimate|invoice|bill|contract|lease|permit|sign|signage|project|job|site|plan|plans|deadline|due|submit|submission|standard|standards|schedule|meeting|call|calendar|patio|heater|heaters|espresso machine|roast|barista|payroll|tax|insurance|account)\b/.test(lower));
+  const casualGreeting = /^(?:hey|hi|hello|yo|sup|thanks|thank you|thx|ok|okay|cool|nice|great|awesome|sounds good|got it|good morning|good afternoon|good evening|how are you|whats up|what's up)[!.,?\s]*$/i.test(lower);
+  const casualQuestion =
+    !workSignal &&
+    (/^(?:lol|haha|lmao|lmfao|wtf|bruh|bro|wait|yo)\b/i.test(lower) ||
+      /^(?:what(?:'s| is)(?: a| an| the)?|who(?:'s| is)|why(?: is| are)?|how(?: does| do| to)?)\b/.test(lower));
+  const general =
+    mathExpr ||
+    generalAdvice ||
+    casualGreeting ||
+    casualQuestion ||
+    /\b(haiku|poem|limerick|joke|song|story|riddle|translate|definition|define|synonym|explain (how|what|why)|what is an? |who was|capital of)\b|\d+(\.\d+)?\s*%\s*of\s*\d|^[\d\s+\-*\/x%().,=?]+$|\b(hi|hello|hey|thanks|thank you)\W*$/i.test(raw);
   if (kind === "chat" && !general && tokens.length && (hasMail || hasFiles)) kind = "find";
-  const mentionsSource = /\b(email|emails|mail|inbox|gmail|outlook|drive|onedrive|doc|docs|file|files|pdf|spreadsheet|sheet|calendar|meeting)\b/.test(lower);
-  if (kind === "chat" && (entities.length || mentionsSource) && tokens.length) kind = entities.some((e) => e.kind === "project") ? "status_brief" : "find";
+  if (kind === "chat" && !mathExpr && (entities.length || mentionsSource) && tokens.length) kind = entities.some((e) => e.kind === "project") ? "status_brief" : "find";
 
   // Canonical spelling: a typo that fuzzy-matched firm memory searches with the real words.
   for (const entity of entities) {
@@ -202,27 +224,28 @@ export function analyzeIntent(
   else if (/\b(this month|last month|past month)\b/.test(lower)) timeFilter = "newer_than:32d";
 
   let sources: SourceKind[] = [];
-  const wantsFiles = /\b(drive|onedrive|doc|docs|document|file|files|pdf|spreadsheet|sheet|deck|contract|drawing|drawings|rendering|proof|plans)\b/.test(lower);
+  const wantsFiles = driveCalendar || /\b(drive|onedrive|doc|docs|document|file|files|pdf|spreadsheet|sheet|deck|contract|drawing|drawings|rendering|proof|plans)\b/.test(lower);
   const wantsMail = /\b(email|emails|mail|inbox|gmail|outlook|said|say|sent|send|reply|replied|wrote|heard)\b/.test(lower);
   if (kind === "status_brief") sources = ["mail", "files", "library"];
   else if (kind === "find") sources = wantsFiles && !wantsMail ? ["files", "library", "mail"] : ["mail", "files", "library"];
   else if (kind === "draft_reply") sources = ["mail", "library"];
   else if (kind === "schedule") sources = ["calendar", ...(entities.some((e) => e.kind === "person") ? (["mail"] as SourceKind[]) : [])];
-  if (kind === "status_brief" && /\b(meeting|call|walkthrough|install|deadline|due)\b/.test(lower)) sources.push("calendar");
+  const ambiguousOrTimed = /\b(meeting|call|walkthrough|install|deadline|due|submit|submission)\b/.test(lower) || (!entities.length && terms.length <= 2);
+  if ((kind === "status_brief" || kind === "find") && ambiguousOrTimed && !sources.includes("calendar")) sources.push("calendar");
   sources = sources.filter((s) => (s === "mail" ? hasMail : s === "files" ? hasFiles : s === "calendar" ? hasCalendar : true));
 
   const needsTools = kind !== "chat" && (sources.length > 0 || kind === "draft_reply");
 
   const answerShape =
     kind === "status_brief"
-      ? "A status briefing: one-line bottom line first (where it stands), then short sections: Latest, Who is waiting on whom, Key dates and numbers, Open questions, Next steps (with owner). Cite thread subjects or file names inline."
+      ? "A status briefing: one-line 'Bottom line:' first (where it stands), then short bullets or sections ONLY for items with real facts (e.g. Latest, Who is waiting on whom, Key dates & numbers, Next steps). Omit empty sections. Cite sources with clickable markdown links [Title](url) using exact URLs from the evidence."
       : kind === "find"
-        ? "Lead with the direct answer (the thing found, who/when). Then 1-3 supporting specifics and where it came from."
+        ? "Answer directly and concisely in 1-3 short sentences or bullets. Do NOT use a 'Bottom line:' header or status-briefing template. Cite the source with a clickable markdown link [Title](url) when a URL is in the evidence."
         : kind === "draft_reply"
-          ? "A ready-to-send draft (subject + body) in the user's voice, grounded in the thread. One line before it saying what it answers. Do not send it."
+          ? "Call email_draft with to, subject, body, and thread_ref grounded in the thread. Output no commentary before or after."
           : kind === "schedule"
-            ? "Lead with the answer (times, conflicts). List events as time - title - who. Flag conflicts."
-            : "Answer directly and concisely. No preamble.";
+            ? "Lead directly with the events as a clean list (time - title - who) and note any conflicts. Do NOT use a status-briefing template. Include clickable markdown links [Title](url) when provided."
+            : "Reply naturally in 1-3 short sentences (or just the direct answer for math/thanks). No preamble, no briefing template, no bullet list unless needed.";
 
   let dateRange: Intent["dateRange"];
   if (opts.todayIso && /^\d{4}-\d{2}-\d{2}$/.test(opts.todayIso)) {

@@ -8,8 +8,8 @@ import { BlobAvatar, InitialAvatar } from "@/components/os/Avatar";
 import { IconPicker } from "@/components/os/IconPicker";
 import { IconArrowUp, IconCamera, IconChevronDown, IconChevronLeft, IconDots, IconFile, IconFlag, IconGrid, IconImage, IconPlus, IconScan, IconSettings, IconX } from "@/components/os/Icons";
 import { ModelEthics } from "@/components/os/ModelEthics";
+import { EmailDraftCard } from "@/components/os/EmailDraftCard";
 import { SettingsScreen } from "@/components/os/SettingsScreen";
-import { actionTitle } from "@/lib/action-cards";
 import { AGENT_COLORS, FIRM_MODEL, type HatchAgent } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { ACCEPT_ATTR, kindFromFilename } from "@/lib/files";
@@ -17,7 +17,7 @@ import { browserImageDataUrl } from "@/lib/image-client";
 import { forStorage, isRasterImage } from "@/lib/images";
 import { dropPending, readPending, upsertPending, waitCopy, type PendingJob } from "@/lib/pending";
 import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
-import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
+import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, EmailDraftCard as EmailDraftCardType, Routine, Source, ToolEvent } from "@/lib/types";
 
 interface LivePayload {
   phase?: "wait" | "done";
@@ -25,7 +25,10 @@ interface LivePayload {
   note?: string;
   text?: string;
   tools?: ToolEvent[];
+  sources?: Source[];
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCardType;
+  threadId?: string;
   messageId?: string;
   modelOffline?: boolean;
 }
@@ -162,6 +165,9 @@ export function Messenger() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
+  const programScrollUntilRef = useRef(0);
+  const lastScrollTopRef = useRef(0);
+  const [showJump, setShowJump] = useState(false);
   const heldRef = useRef(false);
   const shownAgent = useRef<string | null>(null);
   const busyRef = useRef(false);
@@ -297,20 +303,40 @@ export function Messenger() {
     const switched = shownAgent.current !== agent.id;
     shownAgent.current = agent.id;
     setActiveThread(chosen?.id || null);
+    if (switched) {
+      stickRef.current = true;
+      setShowJump(false);
+    }
     setMessages((prev) => {
       const next = chosen?.messages || [];
       if (!switched && next.length < prev.length) return prev;
       return next;
     });
+    if (switched) {
+      window.requestAnimationFrame(() => {
+        const el = streamRef.current;
+        if (!el) return;
+        programScrollUntilRef.current = Date.now() + 140;
+        el.scrollTop = el.scrollHeight;
+        lastScrollTopRef.current = el.scrollTop;
+      });
+    }
     const next = { ...seenMap(), [agent.id]: new Date().toISOString() };
     localStorage.setItem("hatch-seen", JSON.stringify(next));
     setSeen(next);
   }, [agent, latest, streaming]);
 
+  const lastMessage = messages[messages.length - 1];
+  const contentScrollKey = `${messages.length}:${lastMessage?.id || ""}:${lastMessage?.text?.length || 0}:${lastMessage?.emailDraft?.id || ""}:${lastMessage?.approval?.id || ""}`;
+
   useEffect(() => {
     if (!stickRef.current) return;
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, streaming, statusNote]);
+    const el = streamRef.current;
+    if (!el) return;
+    programScrollUntilRef.current = Date.now() + 140;
+    el.scrollTop = el.scrollHeight;
+    lastScrollTopRef.current = el.scrollTop;
+  }, [contentScrollKey]);
 
   const actor = session ? `${session.role} · ${session.deviceName}` : "signed-in";
   const accessible = session?.enterprise
@@ -409,15 +435,20 @@ export function Messenger() {
     setStreaming(true);
     let state = job.state;
     let delay = 2000;
-    let running = false;
+    let activeNote = "Thinking…";
+    let warming = false;
     const paint = (patch: Partial<ChatMessage>) => {
       mapMessages(job.agentId, job.departmentId as ChatThread["departmentId"], (current) =>
         current.map((item) => (item.id === job.assistantId ? { ...item, ...patch } : item)),
       );
     };
-    setStatusNote(waitCopy(job.startedAt, running));
+    setStatusNote(activeNote);
     const timer = window.setInterval(() => {
-      setStatusNote(waitCopy(job.startedAt, running));
+      if (warming) {
+        setStatusNote(waitCopy(job.startedAt, false, true));
+      } else if (activeNote && activeNote !== "Thinking…") {
+        setStatusNote(activeNote);
+      }
     }, 1000);
     try {
       while (true) {
@@ -445,28 +476,41 @@ export function Messenger() {
         }
         delay = 2000;
         const payload = (await next.json()) as LivePayload;
+        if (payload.threadId) {
+          rememberConversation(
+            job.agentId,
+            payload.threadId,
+            job.departmentId as ChatThread["departmentId"],
+            readTranscripts().find((item) => item.agentId === job.agentId)?.messages || [],
+          );
+          if (agent?.id === job.agentId) setActiveThread(payload.threadId);
+        }
         if (payload.phase === "wait" && payload.state) {
           state = payload.state;
           const rawNote = (payload.note || "").trim();
-          const warming = /warming up/i.test(rawNote);
-          running = !warming && Boolean(rawNote);
+          warming = /warming up/i.test(rawNote);
+          activeNote = rawNote || "Thinking…";
           upsertPending({ ...job, state });
-          setStatusNote(running ? rawNote : waitCopy(job.startedAt, false));
+          setStatusNote(warming ? waitCopy(job.startedAt, false, true) : activeNote);
           await new Promise((resolve) => setTimeout(resolve, 2500));
           continue;
         }
         dropPending(job.assistantId);
-        const textOut = payload.text || (payload.modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply.");
-        const failed = !payload.text || Boolean(payload.modelOffline);
+        const hasDraft = Boolean(payload.emailDraft);
+        const textOut = hasDraft ? (payload.text || "") : (payload.text || (payload.modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply."));
+        const failed = (!payload.text && !hasDraft) || Boolean(payload.modelOffline);
         paint({
           id: payload.messageId || job.assistantId,
           text: textOut,
           done: true,
           failed,
           retryQuery: failed ? job.query : undefined,
-          tools: payload.tools || [],
+          tools: [],
+          sources: payload.sources || [],
           approval: payload.approval,
+          emailDraft: payload.emailDraft,
         });
+        setStatusNote("");
         window.dispatchEvent(new Event("hatch-refresh"));
         break;
       }
@@ -493,10 +537,11 @@ export function Messenger() {
     busyRef.current = true;
     setStreaming(true);
     const startedAt = Date.now();
-    setStatusNote(waitCopy(startedAt, false));
+    setStatusNote("Thinking…");
     const quote = reply;
     setReply(null);
-    const thread = threadIdFor(target.id);
+    const rawThreadId = threadIdFor(target.id);
+    const thread = rawThreadId.startsWith("local-") ? undefined : rawThreadId;
     const assistant: ChatMessage = {
       id: `local-a-${Date.now()}`,
       role: "assistant",
@@ -568,11 +613,18 @@ export function Messenger() {
       const contentType = res.headers.get("content-type") || "";
       let finalText = "";
       let tools: ToolEvent[] = [];
+      let sources: Source[] = [];
       let approval: ApprovalCard | undefined;
+      let emailDraft: EmailDraftCardType | undefined;
       let messageId = assistant.id;
       let modelOffline = false;
       if (!contentType.includes("text/event-stream")) {
         const payload = JSON.parse(await res.text()) as LivePayload;
+        if (payload.threadId) {
+          const curMsgs = readTranscripts().find((item) => item.agentId === target.id)?.messages || [];
+          rememberConversation(target.id, payload.threadId, target.departmentId, curMsgs);
+          if (agent?.id === target.id) setActiveThread(payload.threadId);
+        }
         if (payload.phase === "wait" && payload.state) {
           const job: PendingJob = {
             assistantId: assistant.id,
@@ -585,14 +637,16 @@ export function Messenger() {
           };
           upsertPending(job);
           const rawNote = (payload.note || "").trim();
-          setStatusNote(rawNote && !/warming up/i.test(rawNote) ? rawNote : waitCopy(startedAt, false));
+          setStatusNote(rawNote || "Thinking…");
           handed = true;
           await followJob(job);
           return;
         }
         finalText = payload.text || "";
         tools = payload.tools || [];
+        sources = payload.sources || [];
         approval = payload.approval;
+        emailDraft = payload.emailDraft;
         messageId = payload.messageId || assistant.id;
         modelOffline = Boolean(payload.modelOffline);
       } else {
@@ -626,10 +680,12 @@ export function Messenger() {
         }
         finalText = finalText || streamed;
       }
-      const shown = finalText || (modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply.");
-      const failed = !finalText || modelOffline;
-      paint({ id: messageId, text: shown, done: true, tools, approval, failed, retryQuery: failed ? q : undefined });
-      if (!failed) setStatusNote("");
+      const hasDraft = Boolean(emailDraft);
+      const shown = hasDraft ? finalText : (finalText || (modelOffline ? explainFailure(new Error("offline")) : "The model returned an empty reply."));
+      const failed = (!finalText && !hasDraft) || modelOffline;
+      paint({ id: messageId, text: shown, done: true, tools: [], sources, approval, emailDraft, failed, retryQuery: failed ? q : undefined });
+      setStatusNote("");
+      void tools;
       window.dispatchEvent(new Event("hatch-refresh"));
     } catch (err) {
       fail(err, failureStatus(err));
@@ -828,7 +884,18 @@ export function Messenger() {
                 ref={streamRef}
                 onScroll={(event) => {
                   const el = event.currentTarget;
-                  stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+                  const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+                  const prevTop = lastScrollTopRef.current;
+                  lastScrollTopRef.current = el.scrollTop;
+                  if (Date.now() < programScrollUntilRef.current) return;
+                  if (el.scrollTop < prevTop - 2) {
+                    stickRef.current = false;
+                    setShowJump(dist > 48);
+                    return;
+                  }
+                  const nearBottom = dist < 48;
+                  stickRef.current = nearBottom;
+                  setShowJump(!nearBottom);
                 }}
               >
                 {!visibleMessages.length && !find ? (
@@ -860,13 +927,42 @@ export function Messenger() {
                       {!mine ? <BlobAvatar color={agent.color} icon={agent.icon} size={22} label={agent.name} /> : null}
                       <div>
                         {message.replyTo ? <span className="quote">{message.replyTo.text}</span> : null}
-                        <div className={mine ? "bubble user" : "bubble agent"}>
-                          {mine ? parsed.body : parsed.body ? <MarkdownPreview text={parsed.body} /> : null}
-                          {(message.attachments || []).map((file) => (
-                            <span key={`${message.id}-${file.name}`} className="file-chip">{file.name}</span>
-                          ))}
-                          {!message.done && !parsed.body ? <span className="os-caret" /> : null}
-                        </div>
+                        {parsed.body || (message.attachments && message.attachments.length) || (!message.done && !message.emailDraft) ? (
+                          <div className={mine ? "bubble user" : "bubble agent"}>
+                            {mine ? parsed.body : parsed.body ? <MarkdownPreview text={parsed.body} /> : null}
+                            {(message.attachments || []).map((file) => (
+                              <span key={`${message.id}-${file.name}`} className="file-chip">{file.name}</span>
+                            ))}
+                            {!message.done && !parsed.body ? <span className="os-caret" /> : null}
+                          </div>
+                        ) : null}
+                        {!mine && message.sources?.some((src) => Boolean(src.url)) ? (
+                          <div className="source-pills" aria-label="Sources">
+                            {message.sources
+                              .filter((src): src is Source & { url: string } => Boolean(src.url && /^https?:\/\//i.test(src.url)))
+                              .filter((src, idx, arr) => arr.findIndex((x) => x.url === src.url) === idx)
+                              .slice(0, 4)
+                              .map((src, idx) => (
+                                <a key={`${message.id}-src-${idx}`} href={src.url} target="_blank" rel="noreferrer" className="source-pill">
+                                  <span>{src.room}</span>
+                                  <strong>{src.file || 'Source'}</strong>
+                                </a>
+                              ))}
+                          </div>
+                        ) : null}
+                        {message.emailDraft ? (
+                          <EmailDraftCard
+                            draft={message.emailDraft}
+                            threadId={activeThread}
+                            messageId={message.id}
+                            onUpdated={(nextDraft) => {
+                              if (!agent) return;
+                              mapMessages(agent.id, agent.departmentId, (current) =>
+                                current.map((item) => (item.id === message.id ? { ...item, emailDraft: nextDraft } : item)),
+                              );
+                            }}
+                          />
+                        ) : null}
                         {message.failed ? (
                           <div className="retry">
                             {/sign-in expired/i.test(message.text) ? (
@@ -876,13 +972,6 @@ export function Messenger() {
                             )}
                           </div>
                         ) : null}
-                        {(message.tools || []).map((tool, index) => (
-                          <details key={`${message.id}-t-${index}`} className="tool-row">
-                            <summary>{actionTitle(tool.name)}</summary>
-                            <p>{tool.input || "—"}</p>
-                            <p>{tool.detail}</p>
-                          </details>
-                        ))}
                         {message.approval ? (
                           <div className="approve">
                             <strong>{message.approval.title}</strong>
@@ -920,14 +1009,33 @@ export function Messenger() {
                 })}
                 <div ref={endRef} />
               </div>
-              {statusNote ? <p className="working working-bar" role="status">{statusNote}</p> : streaming ? <p className="working working-bar" role="status">Working…</p> : null}
-              {reply ? (
-                <p className="replying">
-                  {reply}
-                  <button type="button" className="icon" onClick={() => setReply(null)} aria-label="Clear reply"><IconX size={14} /></button>
-                </p>
-              ) : null}
-              <form className="composer" onSubmit={onSubmit}>
+              <div className="chat-dock">
+                {showJump ? (
+                  <button
+                    type="button"
+                    className="chat-jump"
+                    onClick={() => {
+                      stickRef.current = true;
+                      setShowJump(false);
+                      const el = streamRef.current;
+                      if (!el) return;
+                      programScrollUntilRef.current = Date.now() + 140;
+                      el.scrollTop = el.scrollHeight;
+                      lastScrollTopRef.current = el.scrollTop;
+                    }}
+                  >
+                    Jump to latest
+                    <IconChevronDown size={14} />
+                  </button>
+                ) : null}
+                {statusNote ? <p className="working working-bar" role="status">{statusNote}</p> : streaming ? <p className="working working-bar" role="status">Working…</p> : null}
+                {reply ? (
+                  <p className="replying">
+                    {reply}
+                    <button type="button" className="icon" onClick={() => setReply(null)} aria-label="Clear reply"><IconX size={14} /></button>
+                  </p>
+                ) : null}
+                <form className="composer" onSubmit={onSubmit}>
                 {chips.length ? (
                   <div className="file-chips">
                     {chips.map((chip) => (
@@ -967,6 +1075,7 @@ export function Messenger() {
                   </button>
                 </div>
               </form>
+              </div>
               {attachOpen ? (
                 <div className="popover attach" role="menu">
                   <button type="button" onClick={() => photoRef.current?.click()}><span>Photo or Video</span><IconImage /></button>

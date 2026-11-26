@@ -157,6 +157,30 @@ export const THREADS: FixtureThread[] = [
     ],
   },
   {
+    id: "t-highpoint",
+    subject: "Boundaries Coffee Signage – Highpoint intro [FIXTURE]",
+    messages: [
+      {
+        from: "Brent Henley <brent@highpointsigns.test>",
+        to: "daniel@hatch-fixture.test",
+        date: "2026-11-16T11:00:00-06:00",
+        body: "Hi Daniel, following up on Boundaries Little Elm signage options if you still need another bid.",
+      },
+    ],
+  },
+  {
+    id: "t-coffee-office",
+    subject: "Coffee for the office [FIXTURE]",
+    messages: [
+      {
+        from: "Roastery Ops <roastery@hatch-fixture.test>",
+        to: "daniel@hatch-fixture.test",
+        date: "2026-11-18T09:00:00-06:00",
+        body: "Across the nation our new seasonal roast is getting great reviews. Let's keep two bags at the office.",
+      },
+    ],
+  },
+  {
     id: "t-pies",
     subject: "Thanksgiving pie catering order [FIXTURE]",
     messages: [
@@ -189,6 +213,18 @@ export const FILES: FixtureFile[] = [
     modified: "2026-11-01",
     text: "Thanksgiving Day: closed. Black Friday: 7am-2pm. Christmas Eve: 6am-noon.",
   },
+  {
+    id: "f-social",
+    name: "Social calendar Aug 27 2026–Feb 15 2027 [FIXTURE]",
+    modified: "2026-11-24",
+    text: "2026-11-13,Friday,Reel,Winter Board Launch,Launch reel for Winter Board menu (Nov 13).\n2026-11-27,Friday,Static,Black Friday Promo,Do NOT run a discount on Black Friday — CTA is download the app for double points on your next visit.",
+  },
+  {
+    id: "f-fitness",
+    name: "DA Fitness Standards [FIXTURE]",
+    modified: "2026-11-25",
+    text: "2026 Fitness Standards. All members must register scores before Thanksgiving. Keene: Tier 3 Minimum FALSE — remaining items: 200m swim, 40 push-ups.",
+  },
 ];
 
 export const EVENTS: FixtureEvent[] = [
@@ -200,6 +236,12 @@ export const EVENTS: FixtureEvent[] = [
 export const LIBRARY: { title: string; source: string; text: string }[] = [
   { title: "Brand guide – colors [FIXTURE]", source: "Library", text: "Primary brand colors: deep green #1F4D3A and cream #F3EDE2. Signage uses the stacked logo." },
   { title: "Vendor list [FIXTURE]", source: "Library", text: "Signage: Lone Star Sign Co (Rick Delgado). Patio: PatioPro (Dana Ortiz). Insurance: Northstar (Jordan Lee)." },
+  {
+    title: "The Keenes: A Family History from Plymouth to Texas [FIXTURE]",
+    source: "Library",
+    text: ("Early generations of the Keene family migrated from Plymouth to Texas across several decades of frontier life. ".repeat(14)) +
+      "They held themselves to high standards of community and family stewardship.",
+  },
 ];
 
 export const FIXTURE_MEMORY = {
