@@ -7,7 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/lib/harness/*.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts src/lib/harness/*.test.ts src/lib/routines/*.test.ts",
     "eval:agent": "node --experimental-strip-types eval/agent/run.ts",
     "test:e2e": "playwright test",
     "telegram": "tsx scripts/telegram-bridge.ts",

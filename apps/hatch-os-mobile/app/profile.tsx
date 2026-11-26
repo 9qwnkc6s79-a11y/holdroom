@@ -127,6 +127,7 @@ export default function ProfileScreen() {
         <Card>
           <Row title="Connect apps" subtitle="Gmail, Drive, Slack, Notion, and more" onPress={() => router.push("/plugins")} trailing={<IconChevron size={16} color={colors.dim} />} />
           <Row title="Library" subtitle="Search firm files, drafts, and synced items" onPress={() => router.push("/library")} trailing={<IconChevron size={16} color={colors.dim} />} />
+          <Row title="Routines" subtitle="Scheduled briefs, reminders, and email alerts" onPress={() => router.push("/routines")} trailing={<IconChevron size={16} color={colors.dim} />} />
           <Row title="Model & Ethics" subtitle="Charter, tone, and firm model" last onPress={() => router.push("/ethics")} trailing={<IconChevron size={16} color={colors.dim} />} />
         </Card>
         <T style={[type.metaLabel, { color: colors.dim, marginBottom: 8, marginLeft: 4 }]}>Bot</T>

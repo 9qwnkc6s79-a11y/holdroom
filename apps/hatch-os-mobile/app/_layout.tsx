@@ -83,6 +83,7 @@ export default function RootLayout() {
                         <Stack.Screen name="chat/[agentId]" />
                         <Stack.Screen name="profile" options={{ animation: "slide_from_bottom" }} />
                         <Stack.Screen name="library" options={{ animation: "slide_from_bottom" }} />
+                        <Stack.Screen name="routines" options={{ animation: "slide_from_bottom" }} />
                         <Stack.Screen name="ethics" />
                         <Stack.Screen name="plugins/index" options={{ animation: "slide_from_bottom" }} />
                         <Stack.Screen name="plugins/[id]" />

@@ -1,0 +1,70 @@
+/* Routines screen + routine proposal card. Uses the shared tokens from os.css. */
+.rt-shell { max-width: 780px; margin: 0 auto; padding: 18px 20px 80px; }
+.rt-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.rt-head h1 { margin: 0; font-size: 20px; flex: 1; letter-spacing: -0.02em; }
+.rt-lede { color: var(--secondary); font-size: 14px; margin: 0 4px 14px; line-height: 1.45; }
+.rt-kicker { display: flex; align-items: center; justify-content: space-between; margin: 20px 4px 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.rt-kicker button { font-size: 12px; text-transform: none; letter-spacing: 0; background: none; border: 0; color: var(--secondary); cursor: pointer; padding: 0; }
+.rt-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.rt-row { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.rt-row:last-child { border-bottom: 0; }
+.rt-row-top { display: flex; align-items: flex-start; gap: 10px; }
+.rt-row-main { flex: 1; min-width: 0; }
+.rt-row-main strong { display: block; font-size: 15px; font-weight: 600; color: var(--title); letter-spacing: -0.01em; }
+.rt-sub { display: block; font-size: 13px; color: var(--secondary); margin-top: 3px; }
+.rt-prompt { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rt-chip { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--secondary); background: var(--elev); }
+.rt-chip.is-model { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+.rt-chip.is-off { color: var(--muted); }
+.rt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.rt-btn { border: 1px solid var(--line-strong); background: var(--card); color: var(--title); border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.rt-btn:hover { background: var(--hover-bg); }
+.rt-btn:disabled { opacity: 0.55; cursor: default; }
+.rt-btn.is-primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.rt-btn.is-primary:hover { background: var(--primary-hover); }
+.rt-btn.is-danger { color: var(--bad); }
+.rt-toggle { position: relative; width: 42px; height: 24px; flex: none; border-radius: 999px; border: 0; background: var(--track); cursor: pointer; transition: background 0.15s; }
+.rt-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: transform 0.15s; }
+.rt-toggle[aria-checked="true"] { background: var(--accent); }
+.rt-toggle[aria-checked="true"]::after { transform: translateX(18px); }
+.rt-empty { color: var(--muted); font-size: 14px; margin: 8px 4px 16px; line-height: 1.5; }
+.rt-result { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.rt-result:last-child { border-bottom: 0; }
+.rt-result-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.rt-result-head strong { color: var(--title); font-size: 14px; font-weight: 600; }
+.rt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.rt-dot.is-read { background: transparent; }
+.rt-result-body { margin-top: 6px; font-size: 14px; color: var(--title); line-height: 1.5; }
+.rt-result-body .bubble { background: transparent; border: 0; padding: 0; }
+.rt-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary); }
+.rt-status.is-wait::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: rt-pulse 1.2s ease-in-out infinite; }
+@keyframes rt-pulse { 50% { opacity: 0.3; } }
+.rt-approval { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid #d97706; border-radius: 10px; background: var(--elev); font-size: 13px; }
+.rt-modal { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; padding: 16px; }
+@media (min-width: 640px) { .rt-modal { align-items: center; } }
+.rt-sheet { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+.rt-sheet h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: -0.02em; }
+.rt-field { display: block; margin-bottom: 14px; font-size: 13px; color: var(--secondary); font-weight: 500; }
+.rt-field input, .rt-field textarea, .rt-field select { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; border: 1px solid var(--line-strong); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 15px; color: var(--title); background: var(--bg); }
+.rt-field textarea { min-height: 84px; resize: vertical; }
+.rt-hint { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); font-weight: 400; }
+.rt-seg { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.rt-seg button { flex: 1; min-width: 120px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--title); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.rt-seg button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.rt-seg small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.rt-error { color: var(--bad); font-size: 13px; margin: 0 0 12px; }
+.rt-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+/* Proposal card in chat */
+.rt-proposal { margin-top: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 12px 14px; max-width: 520px; }
+.rt-proposal-kicker { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); }
+.rt-proposal h4 { margin: 6px 0 8px; font-size: 15px; letter-spacing: -0.01em; color: var(--title); }
+.rt-proposal dl { display: grid; grid-template-columns: 64px 1fr; gap: 5px 10px; margin: 0; font-size: 13px; }
+.rt-proposal dt { color: var(--muted); }
+.rt-proposal dd { margin: 0; color: var(--title); }
+.rt-proposal .rt-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.rt-proposal .rt-actions { margin-top: 12px; }
+.rt-proposal .rt-field { margin-bottom: 10px; }
+.rt-proposal .rt-field input, .rt-proposal .rt-field textarea { font-size: 14px; padding: 8px 10px; }
+.rt-proposal-done { font-size: 13px; color: var(--secondary); margin-top: 8px; }

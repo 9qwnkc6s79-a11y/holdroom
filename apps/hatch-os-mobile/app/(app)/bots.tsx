@@ -179,6 +179,10 @@ export default function BotsScreen() {
               <T style={[type.rowTitle, { color: colors.fg }]}>Library</T>
               <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Firm files, approved drafts, and synced apps</T>
             </PressableScale>
+            <PressableScale accessibilityRole="button" accessibilityLabel="Routines" onPress={() => { setAppsOpen(false); router.push("/routines"); }} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+              <T style={[type.rowTitle, { color: colors.fg }]}>Routines</T>
+              <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Scheduled briefs, reminders, and email alerts</T>
+            </PressableScale>
             <PressableScale accessibilityRole="button" accessibilityLabel="Connect apps" onPress={() => { setAppsOpen(false); router.push("/plugins"); }} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
               <T style={[type.rowTitle, { color: colors.fg }]}>Connect apps</T>
               <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>Gmail, Drive, Slack, Notion, and more</T>
