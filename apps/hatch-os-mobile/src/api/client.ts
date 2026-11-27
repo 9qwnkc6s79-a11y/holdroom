@@ -308,6 +308,8 @@ export function runRoutine(id: string): Promise<RoutinesPayload> {
 
 export function advanceRoutines(): Promise<RoutinesPayload> {
   return apiJson("/api/routines/advance", { method: "POST" });
+}
+
 export function postEmailDraft(body: {
   threadId?: string;
   messageId: string;
