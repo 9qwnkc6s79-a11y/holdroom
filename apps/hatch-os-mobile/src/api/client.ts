@@ -4,6 +4,7 @@ import type {
   Agent,
   ChatAttachment,
   ChatThread,
+  EmailDraftCard,
   HatchFile,
   HostStatus,
   LivePayload,
@@ -307,6 +308,18 @@ export function runRoutine(id: string): Promise<RoutinesPayload> {
 
 export function advanceRoutines(): Promise<RoutinesPayload> {
   return apiJson("/api/routines/advance", { method: "POST" });
+}
+
+export function postEmailDraft(body: {
+  threadId?: string;
+  messageId: string;
+  action: "send" | "save_draft" | "discard";
+  to: string;
+  subject: string;
+  body: string;
+  draft?: Partial<EmailDraftCard>;
+}): Promise<{ ok?: boolean; emailDraft?: EmailDraftCard; error?: string; needsReconnect?: boolean }> {
+  return apiJson("/api/email-draft", { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function transcribeClip(file: LocalUpload): Promise<{ text: string; stub: boolean; note: string }> {

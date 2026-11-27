@@ -45,8 +45,9 @@ export function waitClock(startedAt: number) {
   return `${minutes}:${seconds}`;
 }
 
-export function waitCopy(startedAt: number, running: boolean) {
+export function waitCopy(startedAt: number, running: boolean, warming = false) {
   const clock = waitClock(startedAt);
-  if (running) return `The firm model is running. ${clock}`;
-  return `Warming up test server… First message after a break can take 2–5 minutes. You can switch apps and come back. ${clock}`;
+  if (warming) return `Warming up the firm model… the first message after a break can take 2–5 minutes. ${clock}`;
+  if (running) return `Working… ${clock}`;
+  return "Thinking…";
 }

@@ -12,10 +12,11 @@ import {
   pollTurn,
   postApproval,
   postChat,
+  postEmailDraft,
   type ChatRequest,
   type LocalUpload,
 } from "@/api/client";
-import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, HatchFile, HostStatus, RoutineEdits } from "@/api/types";
+import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, EmailDraftCard as EmailDraftCardType, HatchFile, HostStatus, RoutineEdits } from "@/api/types";
 import { DEMO_AGENTS, demoThreads } from "@/demo/seed";
 import { demoMode } from "@/demo/mode";
 import { accessibleDepartments, acceptedFilename, activityLine, explainFailure, isWaitStatus, kindFromFilename, presenceState } from "@/lib/derive";
@@ -56,6 +57,7 @@ interface HatchValue {
   refresh: () => Promise<void>;
   send: (input: SendInput) => Promise<{ text: string; failed: boolean }>;
   decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled"; edits?: RoutineEdits }) => Promise<string | null>;
+  actOnEmailDraft: (input: { threadId?: string; messageId: string; action: "send" | "save_draft" | "discard"; to: string; subject: string; body: string; draft?: Partial<EmailDraftCardType> }) => Promise<string | null>;
   prepareAttachment: (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => Promise<DraftFile>;
   startThread: (agentId: string) => Promise<string | null>;
   archiveThread: (threadId: string) => Promise<void>;
@@ -331,8 +333,9 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         }
         const text = payload.text || "";
         const waiting = isWaitStatus(text);
-        const failed = (!text && !waiting) || Boolean(payload.error) || Boolean(payload.modelOffline);
-        const shown = waiting ? "" : text || (payload.modelOffline ? explainFailure("offline") : "The model returned an empty reply.");
+        const hasDraft = Boolean(payload.emailDraft);
+        const failed = (!text && !waiting && !hasDraft) || Boolean(payload.error) || Boolean(payload.modelOffline);
+        const shown = waiting ? "" : hasDraft ? text : text || (payload.modelOffline ? explainFailure("offline") : "The model returned an empty reply.");
         const approval = payload.approval;
         patchAssistant(
           {
@@ -341,8 +344,10 @@ export function HatchProvider({ children }: { children: ReactNode }) {
             done: true,
             failed,
             retryQuery: failed ? display : undefined,
-            tools: payload.tools || [],
+            tools: [],
+            sources: payload.sources || [],
             approval,
+            emailDraft: payload.emailDraft,
           },
           approval?.status === "pending" ? "needsApproval" : "idle",
           approval?.status === "pending" ? "Needs your approval" : "",
@@ -462,6 +467,55 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const actOnEmailDraft = useCallback(
+    async (input: {
+      threadId?: string;
+      messageId: string;
+      action: "send" | "save_draft" | "discard";
+      to: string;
+      subject: string;
+      body: string;
+      draft?: Partial<EmailDraftCardType>;
+    }) => {
+      try {
+        const res = await postEmailDraft(input);
+        if (!res.ok || !res.emailDraft) return res.error || "Could not complete that action.";
+        const nextDraft = res.emailDraft;
+        setThreads((prev) =>
+          prev.map((thread) =>
+            input.threadId && thread.id !== input.threadId
+              ? thread
+              : {
+                  ...thread,
+                  messages: thread.messages.map((message) =>
+                    message.id === input.messageId ? { ...message, emailDraft: nextDraft } : message,
+                  ),
+                },
+          ),
+        );
+        for (const [aid, turn] of Object.entries(turnsRef.current)) {
+          if (turn.messages.some((m) => m.id === input.messageId)) {
+            writeTurn(aid, (current) =>
+              current
+                ? {
+                    ...current,
+                    messages: current.messages.map((m) =>
+                      m.id === input.messageId ? { ...m, emailDraft: nextDraft } : m,
+                    ),
+                  }
+                : current,
+            );
+          }
+        }
+        await refresh();
+        return null;
+      } catch (error) {
+        return messageOf(error);
+      }
+    },
+    [refresh, writeTurn],
+  );
+
   const startThread = useCallback(async (agentId: string) => {
     const agent = agentsRef.current.find((entry) => entry.id === agentId);
     if (!agent) return null;
@@ -527,13 +581,14 @@ export function HatchProvider({ children }: { children: ReactNode }) {
       refresh,
       send,
       decide,
+      actOnEmailDraft,
       prepareAttachment,
       startThread,
       archiveThread,
       messagesFor,
       phaseFor,
     }),
-    [agents, decide, files, hostError, messagesFor, phaseFor, prepareAttachment, refresh, refreshing, send, sphere, archiveThread, startThread, status, threads, turns],
+    [actOnEmailDraft, agents, decide, files, hostError, messagesFor, phaseFor, prepareAttachment, refresh, refreshing, send, sphere, archiveThread, startThread, status, threads, turns],
   );
 
   return <HatchContext.Provider value={value}>{children}</HatchContext.Provider>;

@@ -58,11 +58,11 @@ export const deepTools: HarnessTools = {
       const hits: Hit[] = THREADS.filter((t) => gmailMatch(t, query))
         .sort((a, b) => b.messages[b.messages.length - 1].date.localeCompare(a.messages[a.messages.length - 1].date))
         .slice(0, 5)
-        .map((t) => ({ title: t.subject, ref: t.id, date: t.messages[t.messages.length - 1].date.slice(0, 10), snippet: t.messages[t.messages.length - 1].body.slice(0, 140), from: t.messages[t.messages.length - 1].from }));
+        .map((t) => ({ title: t.subject, ref: t.id, date: t.messages[t.messages.length - 1].date.slice(0, 10), url: `https://mail.google.com/mail/u/0/#all/${t.id}`, snippet: t.messages[t.messages.length - 1].body.slice(0, 140), from: t.messages[t.messages.length - 1].from }));
       return { ok: true, hits };
     }
     if (source === "files") {
-      const hits = FILES.filter((f) => fileMatch(`${f.name} ${f.text}`, query)).slice(0, 5).map((f) => ({ title: f.name, ref: f.id, date: f.modified, snippet: f.text.slice(0, 120) }));
+      const hits = FILES.filter((f) => fileMatch(`${f.name} ${f.text}`, query)).slice(0, 5).map((f) => ({ title: f.name, ref: f.id, date: f.modified, url: `https://drive.google.com/file/d/${f.id}/view`, snippet: f.text.slice(0, 120) }));
       return { ok: true, hits };
     }
     if (source === "calendar") {
@@ -75,10 +75,10 @@ export const deepTools: HarnessTools = {
     calls.push(`read:${source}:${ref}`);
     if (source === "mail") {
       const t = THREADS.find((x) => x.id === ref);
-      return t ? { ok: true, title: t.subject, text: formatThread(t), date: t.messages[t.messages.length - 1].date.slice(0, 10) } : { ok: false, text: "" };
+      return t ? { ok: true, title: t.subject, text: formatThread(t), date: t.messages[t.messages.length - 1].date.slice(0, 10), url: `https://mail.google.com/mail/u/0/#all/${t.id}` } : { ok: false, text: "" };
     }
     const f = FILES.find((x) => x.id === ref);
-    return f ? { ok: true, title: f.name, text: f.text, date: f.modified } : { ok: false, text: "" };
+    return f ? { ok: true, title: f.name, text: f.text, date: f.modified, url: `https://drive.google.com/file/d/${f.id}/view` } : { ok: false, text: "" };
   },
 };
 

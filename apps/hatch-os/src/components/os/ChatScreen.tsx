@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useHatch } from "@/components/AppProvider";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { IconArrowUp, IconPaperclip } from "@/components/os/Icons";
+import { EmailDraftCard } from "@/components/os/EmailDraftCard";
 import { OsShell } from "@/components/os/OsShell";
-import { actionTitle } from "@/lib/action-cards";
 import { agentById } from "@/lib/agents";
 import { FINANCE, HQ_OPS, LEGAL, NORTH_DESK, SOUTH_DESK } from "@/lib/departments";
 import { ACCEPT_ATTR } from "@/lib/files";
-import type { ApprovalCard, ChatMessage, ChatThread, ToolEvent } from "@/lib/types";
+import type { ApprovalCard, ChatMessage, ChatThread, EmailDraftCard as EmailDraftCardType, Source, ToolEvent } from "@/lib/types";
 
 interface StatusShape {
   demoMode?: boolean;
@@ -23,7 +23,9 @@ interface LivePayload {
   note?: string;
   text?: string;
   tools?: ToolEvent[];
+  sources?: Source[];
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCardType;
   messageId?: string;
   modelOffline?: boolean;
 }
@@ -170,7 +172,7 @@ export function ChatScreen() {
       if (contentType.includes("application/json")) {
         let payload = (await res.json()) as LivePayload;
         while (payload.phase === "wait") {
-          const note = payload.note || "The firm model is waking up.";
+          const note = payload.note || "Working…";
           setMessages((prev) => prev.map((item) => (item.id === assistant.id ? { ...item, text: note } : item)));
           await new Promise((resolve) => setTimeout(resolve, 4000));
           const next = await fetch("/api/chat/step", {
@@ -188,8 +190,10 @@ export function ChatScreen() {
                   id: payload.messageId || assistant.id,
                   text: payload.text || "",
                   done: true,
-                  tools: payload.tools,
+                  tools: [],
+                  sources: payload.sources || [],
                   approval: payload.approval,
+                  emailDraft: payload.emailDraft,
                 }
               : item,
           ),
@@ -359,17 +363,30 @@ export function ChatScreen() {
                     {message.text ? <MarkdownPreview text={message.text} /> : null}
                     {!message.done ? <span className="os-caret" aria-hidden="true" /> : null}
                   </div>
-                  {(message.tools || []).map((tool, index) => (
-                    <details key={`${message.id}-${tool.name}-${index}`} className="os-action" open>
-                      <summary>{actionTitle(tool.name)}</summary>
-                      <div className="os-card-body">
-                        <p className="os-card-label">Input</p>
-                        <p>{tool.input || "—"}</p>
-                        <p className="os-card-label">Output</p>
-                        <p>{tool.detail}</p>
-                      </div>
-                    </details>
-                  ))}
+                  {message.sources?.some((src) => Boolean(src.url)) ? (
+                    <div className="source-pills" aria-label="Sources">
+                      {message.sources
+                        .filter((src): src is Source & { url: string } => Boolean(src.url && /^https?:\/\//i.test(src.url)))
+                        .filter((src, idx, arr) => arr.findIndex((x) => x.url === src.url) === idx)
+                        .slice(0, 4)
+                        .map((src, idx) => (
+                          <a key={`${message.id}-src-${idx}`} href={src.url} target="_blank" rel="noreferrer" className="source-pill">
+                            <span>{src.room}</span>
+                            <strong>{src.file || 'Source'}</strong>
+                          </a>
+                        ))}
+                    </div>
+                  ) : null}
+                  {message.emailDraft ? (
+                    <EmailDraftCard
+                      draft={message.emailDraft}
+                      threadId={activeThread}
+                      messageId={message.id}
+                      onUpdated={(nextDraft) =>
+                        setMessages((prev) => prev.map((item) => (item.id === message.id ? { ...item, emailDraft: nextDraft } : item)))
+                      }
+                    />
+                  ) : null}
                   {message.approval ? (
                     <details className="os-approval" open={message.approval.status === "pending"}>
                       <summary>{message.approval.title}</summary>

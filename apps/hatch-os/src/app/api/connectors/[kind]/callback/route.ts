@@ -68,6 +68,7 @@ async function exchange(kind: string, code: string, redirect: string) {
         refreshToken: token.refresh_token,
         expiresAt: Date.now() + Number(token.expires_in || 3600) * 1000,
         email,
+        scope: token.scope || "",
       },
     };
   }
@@ -122,5 +123,5 @@ async function postForm(url: string, body: URLSearchParams) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok || !json) throw new Error("The provider rejected the code exchange.");
-  return json as { access_token?: string; refresh_token?: string; expires_in?: number; team?: { name?: string } };
+  return json as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; team?: { name?: string } };
 }

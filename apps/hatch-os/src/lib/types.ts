@@ -57,6 +57,7 @@ export interface Source {
   room: string;
   page?: string;
   snippet: string;
+  url?: string;
   departmentId?: DepartmentId;
 }
 
@@ -85,6 +86,31 @@ export interface ApprovalCard {
   call: { name: string; arguments: Record<string, string> };
   status: "pending" | "approved" | "cancelled";
   agentId?: string;
+}
+
+export interface EmailDraftCard {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  threadRef?: string;
+  gmailThreadId?: string;
+  accountEmail?: string;
+  inReplyTo?: string;
+  references?: string;
+  status: "draft" | "saved" | "sent" | "discarded";
+  gmailDraftId?: string;
+  sentMessageId?: string;
+  statusNote?: string;
+}
+
+export interface TurnAnchor {
+  topic?: string;
+  people: string[];
+  emails: string[];
+  subjects: string[];
+  refs: string[];
+  fileRefs: string[];
 }
 
 export interface Routine {
@@ -135,6 +161,8 @@ export interface ChatMessage {
   /** The user text to send again when Retry is tapped. */
   retryQuery?: string;
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCard;
+  anchor?: TurnAnchor;
   reactions?: string[];
   replyTo?: { text: string };
 }

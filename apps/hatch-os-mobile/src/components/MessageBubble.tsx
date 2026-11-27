@@ -1,41 +1,11 @@
 import { useEffect, useState } from "react";
-import { Image, Modal, Pressable, View } from "react-native";
+import { Image, Linking, Modal, Pressable, View } from "react-native";
 import { getAuthToken } from "@/api/client";
-import type { ChatAttachment, ChatMessage, ToolEvent } from "@/api/types";
+import type { ChatAttachment, ChatMessage, Source } from "@/api/types";
 import { T } from "@/components/chrome";
 import { isWaitStatus } from "@/lib/derive";
 import { remoteImageUrl, savedImageUri } from "@/lib/photos";
 import { colors, type } from "@/theme/presenceTokens";
-
-function toolTitle(tool: ToolEvent): string {
-  const name = tool.name.replace(/_/g, " ");
-  if (/email|mail/.test(tool.name)) return `Mail · ${tool.detail || name}`;
-  if (/calendar/.test(tool.name)) return `Calendar · ${tool.detail || name}`;
-  if (/file|drive|read/.test(tool.name)) return `Files · ${tool.detail || name}`;
-  return tool.detail || name;
-}
-
-function ToolCard({ tool }: { tool: ToolEvent }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={toolTitle(tool)}
-      onPress={() => setOpen((value) => !value)}
-      style={{ alignSelf: "stretch", backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, paddingHorizontal: 12 }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.avatarBg, alignItems: "center", justifyContent: "center" }}>
-          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tool.ok ? colors.blueSky : colors.amber }} />
-        </View>
-        <T style={[type.metaLabel, { color: colors.fg, flex: 1 }]} numberOfLines={open ? 4 : 1}>
-          {toolTitle(tool)}
-        </T>
-      </View>
-      {open && tool.detail ? <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 8 }]}>{tool.detail}</T> : null}
-    </Pressable>
-  );
-}
 
 function usePicture(file: ChatAttachment): string {
   const remote = file.fileId && !file.fileId.startsWith("pending") && !file.fileId.startsWith("file-") && !file.fileId.startsWith("local") ? remoteImageUrl(file.fileId) : "";
@@ -68,14 +38,54 @@ function Picture({ file }: { file: ChatAttachment }) {
   );
 }
 
+function LinkedText({ text, color }: { text: string; color: string }) {
+  const parts: { label: string; url?: string }[] = [];
+  const re = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parts.push({ label: text.slice(last, m.index) });
+    parts.push({ label: m[1], url: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ label: text.slice(last) });
+  if (parts.length <= 1 && !parts[0]?.url) {
+    return <T style={[type.body, { color }]}>{text}</T>;
+  }
+  return (
+    <T style={[type.body, { color }]}>
+      {parts.map((part, idx) =>
+        part.url ? (
+          <T
+            key={idx}
+            onPress={() => void Linking.openURL(part.url!)}
+            accessibilityRole="link"
+            style={{ textDecorationLine: "underline" }}
+          >
+            {part.label}
+          </T>
+        ) : (
+          part.label
+        ),
+      )}
+    </T>
+  );
+}
+
 export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
   const user = message.role === "user";
   const text = isWaitStatus(message.text) ? "" : message.text;
   const images = (message.attachments || []).filter((file) => file.kind === "Image");
   const others = (message.attachments || []).filter((file) => file.kind !== "Image");
+  const linkedSources = !user
+    ? (message.sources || [])
+        .filter((src): src is Source & { url: string } => Boolean(src.url && /^https?:\/\//i.test(src.url)))
+        .filter((src, idx, arr) => arr.findIndex((x) => x.url === src.url) === idx)
+        .slice(0, 4)
+    : [];
+  if (!text && !images.length && !others.length && !message.failed) return null;
   return (
     <View style={{ gap: 8, alignItems: user ? "flex-end" : "flex-start" }}>
-      {message.tools?.map((tool, index) => (tool.detail ? <ToolCard key={`${tool.name}-${index}`} tool={tool} /> : null))}
       {images.map((file) => (
         <Picture key={file.fileId || file.name} file={file} />
       ))}
@@ -92,13 +102,38 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
             paddingHorizontal: 14,
           }}
         >
-          <T style={[type.body, { color: user ? colors.white : colors.fg }]}>{text}</T>
+          {user ? <T style={[type.body, { color: colors.white }]}>{text}</T> : <LinkedText text={text} color={colors.fg} />}
           {others.length ? (
             <T style={[type.metaLabel, { color: user ? colors.blueCore : colors.muted, marginTop: 6 }]}>{others.map((file) => file.name).join(", ")}</T>
           ) : null}
         </View>
       ) : others.length ? (
         <T style={[type.metaLabel, { color: colors.muted }]}>{others.map((file) => file.name).join(", ")}</T>
+      ) : null}
+      {linkedSources.length ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, maxWidth: "85%" }}>
+          {linkedSources.map((src, idx) => (
+            <Pressable
+              key={`${message.id}-src-${idx}`}
+              accessibilityRole="link"
+              accessibilityLabel={`${src.room}: ${src.file}`}
+              onPress={() => void Linking.openURL(src.url)}
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.line,
+                backgroundColor: colors.surface,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                maxWidth: 260,
+              }}
+            >
+              <T numberOfLines={1} style={[type.metaLabel, { color: colors.fgSecondary }]}>
+                {src.room} · {src.file}
+              </T>
+            </Pressable>
+          ))}
+        </View>
       ) : null}
       {message.failed && onRetry ? (
         <T onPress={onRetry} accessibilityRole="button" style={[type.metaLabel, { color: colors.fgSecondary, paddingHorizontal: 4 }]}>

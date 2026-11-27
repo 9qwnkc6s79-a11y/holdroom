@@ -16,11 +16,12 @@ import { NORTH_DESK, migrateWorkspaceId } from "../departments.ts";
 import { compileEthics, loadEthics } from "../ethics.ts";
 import { forStorage } from "../images.ts";
 import { agentLlmConfig, llmConfig, type LlmEndpoint } from "../llm.ts";
-import { readRunpodJob, runpodEndpointId, submitRunpodChat } from "../runpod-jobs.ts";
+import { readRunpodHealth, readRunpodJob, runpodEndpointId, submitRunpodChat } from "../runpod-jobs.ts";
 import { appendThreadMessages, createThread, getThread, recordAuditEntry, resolveAgent } from "../store.ts";
-import { inspectThreadHistory } from "../thread-history.ts";
+import { buildLongThreadContext } from "../thread-history.ts";
+import { ensureThreadScoped, saveThreadScoped } from "../thread-store.ts";
 import { thinkingOffExtras } from "../think.ts";
-import type { ApprovalCard, ChatAttachment, Source, ToolEvent } from "../types.ts";
+import type { ApprovalCard, ChatAttachment, EmailDraftCard, Source, ToolEvent, TurnAnchor } from "../types.ts";
 import { scrubVaultSecrets } from "../vault.ts";
 import { vaultKey } from "../vault-crypto.ts";
 import type { Evidence } from "./context.ts";
@@ -40,7 +41,7 @@ export interface HarnessLiveState {
   startedAt: number;
   temperature?: number;
   harness: HarnessState;
-  job?: { id: string; endpointId: string; lane: Lane; purpose: ModelRequest["purpose"] };
+  job?: { id: string; endpointId: string; lane: Lane; purpose: ModelRequest["purpose"]; submittedAt?: number };
   sig?: string;
 }
 
@@ -56,6 +57,7 @@ export interface HarnessTurnResult {
   tools?: ToolEvent[];
   sources?: Source[];
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCard;
   title?: string;
   error?: boolean;
   modelOffline?: boolean;
@@ -108,7 +110,10 @@ function todayIsoCentral(now = new Date()): string {
 }
 
 function todayHuman(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: process.env.HATCH_TIME_ZONE || "America/Chicago", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(now);
+  const tz = process.env.HATCH_TIME_ZONE || "America/Chicago";
+  const datePart = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(now);
+  const timePart = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(now);
+  return `${datePart}, ${timePart} CT`;
 }
 
 function sign(state: HarnessLiveState): string {
@@ -149,7 +154,45 @@ function sourcesOf(evidence: Evidence[]): Source[] {
       file: item.title,
       room: item.source === "mail" ? "Email" : item.source === "files" ? "Files" : item.source === "calendar" ? "Calendar" : "Library",
       snippet: item.text.replace(/\s+/g, " ").slice(0, 240),
+      ...(item.url ? { url: item.url } : {}),
     }));
+}
+
+function extractTurnAnchor(state: HarnessState): TurnAnchor | undefined {
+  const used = state.evidence
+    .filter((e) => !e.shallow && e.source !== "memory")
+    .sort((a, b) => {
+      if (Math.abs(b.score - a.score) > 0.08) return b.score - a.score;
+      return (b.date || "").localeCompare(a.date || "");
+    })
+    .slice(0, 4);
+  if (!used.length) return undefined;
+  const people: string[] = [];
+  const emails: string[] = [];
+  const subjects: string[] = [];
+  const refs: string[] = [];
+  const fileRefs: string[] = [];
+  for (const item of used) {
+    if (item.source === "mail" && item.ref) refs.push(item.ref);
+    if (item.source === "files" && item.ref) fileRefs.push(item.ref);
+    if (item.title) subjects.push(item.title);
+    if (item.meta?.replyToEmail) emails.push(item.meta.replyToEmail.toLowerCase());
+    const fromMatches = item.text.matchAll(/^From:\s*([^\n<]+)?(?:<([^>\n]+)>)?/gim);
+    for (const m of fromMatches) {
+      const name = (m[1] || "").replace(/["']/g, "").trim();
+      const addr = (m[2] || "").trim().toLowerCase();
+      if (addr && (!item.meta?.accountEmail || addr !== item.meta.accountEmail.toLowerCase())) emails.push(addr);
+      if (name && !/daniel keene/i.test(name)) people.push(name);
+    }
+  }
+  return {
+    topic: state.intent.phrases[0] || state.intent.terms.slice(0, 3).join(" "),
+    people: [...new Set(people)].slice(0, 4),
+    emails: [...new Set(emails)].slice(0, 4),
+    subjects: [...new Set(subjects)].slice(0, 4),
+    refs: [...new Set(refs)].slice(0, 4),
+    fileRefs: [...new Set(fileRefs)].slice(0, 4),
+  };
 }
 
 function pack(state: HarnessLiveState, result: Omit<HarnessTurnResult, "threadId" | "messageId" | "activity" | "status" | "harness">): HarnessTurnResult {
@@ -160,14 +203,21 @@ function pack(state: HarnessLiveState, result: Omit<HarnessTurnResult, "threadId
     threadId: state.threadId,
     messageId: state.messageId,
     activity: state.harness.activity.events,
-    status,
+    status: result.phase === "done" ? "" : status,
     note: result.phase === "wait" ? result.note || status : undefined,
   };
   if (out.state) out.state.sig = sign(out.state);
   return out;
 }
 
-function finish(state: HarnessLiveState, text: string, approval?: ApprovalCard, error = false): HarnessTurnResult {
+async function finish(
+  state: HarnessLiveState,
+  text: string,
+  approval?: ApprovalCard,
+  error = false,
+  emailDraft?: EmailDraftCard,
+): Promise<HarnessTurnResult> {
+  const anchor = !error ? extractTurnAnchor(state.harness) : undefined;
   const message = {
     ...newChatMessage("assistant", text),
     id: state.messageId,
@@ -175,18 +225,38 @@ function finish(state: HarnessLiveState, text: string, approval?: ApprovalCard, 
     sources: sourcesOf(state.harness.evidence),
     tools: toolEvents(state.harness),
     approval,
+    emailDraft,
+    anchor,
   };
+  await ensureThreadScoped(state.testerCode, state.threadId);
   appendThreadMessages(state.threadId, [message]);
+  await saveThreadScoped(state.testerCode, getThread(state.threadId));
   return pack(state, {
     phase: "done",
     text,
     tools: message.tools,
     sources: message.sources,
     approval,
+    emailDraft,
     title: getThread(state.threadId)?.title,
     error: error || undefined,
     modelOffline: error || undefined,
   });
+}
+
+async function waitNoteForJob(
+  endpoint: LlmEndpoint,
+  jobStatus: string,
+  submittedAt: number | undefined,
+  fallbackStatus: string,
+): Promise<string> {
+  if (jobStatus === "IN_PROGRESS") return fallbackStatus;
+  const queuedMs = submittedAt ? Date.now() - submittedAt : 0;
+  const health = await readRunpodHealth(endpoint);
+  const cold = (health !== null && health.readyWorkers === 0) || queuedMs >= 20_000;
+  return cold
+    ? "Warming up the firm model… the first message after a break can take 2–5 minutes."
+    : fallbackStatus;
 }
 
 async function submit(state: HarnessLiveState, request: ModelRequest): Promise<HarnessTurnResult> {
@@ -198,7 +268,9 @@ async function submit(state: HarnessLiveState, request: ModelRequest): Promise<H
     endpoint = endpointFor("ask");
   }
   const endpointId = runpodEndpointId(endpoint.rawBase);
-  if (!endpointId || !endpoint.apiKey) return finish(state, "The firm model is offline. The RunPod key is not set on this system. Nothing was sent to an outside AI lab.", undefined, true);
+  if (!endpointId || !endpoint.apiKey) {
+    return await finish(state, "The firm model is offline. The RunPod key is not set on this system. Nothing was sent to an outside AI lab.", undefined, true);
+  }
   const tools = request.nativeTools?.map((tool) => ({
     type: "function" as const,
     function: {
@@ -207,15 +279,23 @@ async function submit(state: HarnessLiveState, request: ModelRequest): Promise<H
       parameters: { type: "object" as const, properties: Object.fromEntries(tool.parameters.map((p) => [p, { type: "string" }])), required: tool.parameters },
     },
   }));
-  const jobId = await submitRunpodChat(endpoint, {
-    model: endpoint.model,
-    messages: request.messages,
-    tools,
-    temperature: typeof state.temperature === "number" ? Math.min(state.temperature, 0.5) : 0.3,
-    extras: { ...thinkingOffExtras(true), max_tokens: request.maxTokens },
+  const [jobId, health] = await Promise.all([
+    submitRunpodChat(endpoint, {
+      model: endpoint.model,
+      messages: request.messages,
+      tools,
+      temperature: typeof state.temperature === "number" ? Math.min(state.temperature, 0.5) : 0.3,
+      extras: { ...thinkingOffExtras(true), max_tokens: request.maxTokens },
+    }),
+    readRunpodHealth(endpoint),
+  ]);
+  state.job = { id: jobId, endpointId, lane, purpose: request.purpose, submittedAt: Date.now() };
+  const cold = health !== null && health.readyWorkers === 0;
+  return pack(state, {
+    phase: "wait",
+    state,
+    note: cold ? "Warming up the firm model… the first message after a break can take 2–5 minutes." : currentStatus(state.harness),
   });
-  state.job = { id: jobId, endpointId, lane, purpose: request.purpose };
-  return pack(state, { phase: "wait", state });
 }
 
 async function drive(state: HarnessLiveState, startedAt: number): Promise<HarnessTurnResult> {
@@ -227,14 +307,16 @@ async function drive(state: HarnessLiveState, startedAt: number): Promise<Harnes
       finishRemember(state.harness, next.fact);
       continue;
     }
-    if (next.kind === "done") return finish(state, next.text || "I could not write an answer this time.");
+    if (next.kind === "done") {
+      return await finish(state, next.emailDraft ? next.text || "" : next.text || "I could not write an answer this time.", undefined, false, next.emailDraft);
+    }
     if (next.kind === "approval") {
       const card = approvalCardForCall({ name: next.call.name, arguments: next.call.arguments }, { agentId: state.agentId });
-      return finish(state, next.text || card.summary, card);
+      return await finish(state, next.text || card.summary, card);
     }
     return submit(state, next.request);
   }
-  return finish(state, state.harness.answer || "I could not finish that. Try asking again.");
+  return await finish(state, state.harness.answer || "I could not finish that. Try asking again.");
 }
 
 export async function startHarnessTurn(input: HarnessTurnInput): Promise<HarnessTurnResult> {
@@ -243,16 +325,18 @@ export async function startHarnessTurn(input: HarnessTurnInput): Promise<Harness
   const workspaceId = migrateWorkspaceId(input.departmentId || input.roomId || NORTH_DESK);
   const query = input.query.trim();
   const agent = resolveAgent(input.agentId);
+  if (input.threadId) await ensureThreadScoped(scope, input.threadId);
   const existing = input.threadId ? getThread(input.threadId) : null;
   const thread = existing || createThread(workspaceId, query.slice(0, 42), agent.id);
   const priorMessages = thread.messages || [];
-  const history = inspectThreadHistory(priorMessages, { maxMessages: 8, maxChars: 6000 }).turns;
+  const longCtx = buildLongThreadContext(priorMessages, { maxMessages: 8, maxChars: 6000 });
   appendThreadMessages(thread.id, [
     newChatMessage("user", query, {
       attachments: Array.isArray(input.attachments) ? input.attachments.map(forStorage) : undefined,
       replyTo: input.replyTo,
     }),
   ]);
+  await saveThreadScoped(scope, getThread(thread.id));
   recordAuditEntry(
     { name: "ask", ok: true, detail: scrubVaultSecrets(`${agent.name}: ${query}`).slice(0, 400), departmentId: workspaceId },
     { actor: input.actor || "signed-in", agentId: agent.id, kind: "ask" },
@@ -264,7 +348,10 @@ export async function startHarnessTurn(input: HarnessTurnInput): Promise<Harness
     .join("\n\n");
   const harness = initHarness({
     query: attachedText ? `${query}\n\n${attachedText}` : query,
-    history,
+    history: longCtx.turns,
+    earlierSummary: longCtx.earlierSummary,
+    anchor: longCtx.anchor,
+    priorAnchors: longCtx.priorAnchors,
     connected: kinds,
     memory,
     ethics: compileEthics(ethics, { toolTurn: true }),
@@ -297,19 +384,15 @@ export async function advanceHarnessTurn(state: HarnessLiveState): Promise<Harne
   }
   if (state.job) {
     const endpoint = endpointFor(state.job.lane);
-    if (runpodEndpointId(endpoint.rawBase) !== state.job.endpointId) return finish(state, "That model endpoint is not configured.", undefined, true);
+    if (runpodEndpointId(endpoint.rawBase) !== state.job.endpointId) return await finish(state, "That model endpoint is not configured.", undefined, true);
     const job = await readRunpodJob(endpoint, state.job.id);
     if (!job.done && !job.failed) {
-      const waking = job.status !== "IN_PROGRESS";
-      return pack(state, {
-        phase: "wait",
-        state,
-        note: waking ? "Warming up the firm model… the first message after a break can take 2–5 minutes." : currentStatus(state.harness),
-      });
+      const note = await waitNoteForJob(endpoint, job.status, state.job.submittedAt, currentStatus(state.harness));
+      return pack(state, { phase: "wait", state, note });
     }
     const purpose = state.job.purpose;
     state.job = undefined;
-    if (job.failed) return finish(state, `The model is offline. ${job.error || "The firm model failed."} Nothing was sent to an outside AI lab.`, undefined, true);
+    if (job.failed) return await finish(state, `The model is offline. ${job.error || "The firm model failed."} Nothing was sent to an outside AI lab.`, undefined, true);
     applyModelOutput(state.harness, { text: job.text, toolCalls: job.toolCalls }, purpose);
   }
   return drive(state, startedAt);

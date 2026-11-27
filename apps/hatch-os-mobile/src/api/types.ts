@@ -39,6 +39,30 @@ export interface ApprovalCard {
   call?: { name: string; arguments: Record<string, string> };
 }
 
+export interface EmailDraftCard {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  threadRef?: string;
+  gmailThreadId?: string;
+  accountEmail?: string;
+  inReplyTo?: string;
+  references?: string;
+  status: "draft" | "saved" | "sent" | "discarded";
+  gmailDraftId?: string;
+  sentMessageId?: string;
+  statusNote?: string;
+}
+
+export interface Source {
+  file: string;
+  room: string;
+  page?: string;
+  snippet: string;
+  url?: string;
+}
+
 export interface ToolEvent {
   name: string;
   ok: boolean;
@@ -60,11 +84,13 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   done: boolean;
+  sources?: Source[];
   tools?: ToolEvent[];
   attachments?: ChatAttachment[];
   failed?: boolean;
   retryQuery?: string;
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCard;
 }
 
 export interface ChatThread {
@@ -107,8 +133,10 @@ export interface LivePayload {
   threadId?: string;
   messageId?: string;
   text?: string;
+  sources?: Source[];
   tools?: ToolEvent[];
   approval?: ApprovalCard;
+  emailDraft?: EmailDraftCard;
   title?: string;
   error?: boolean | string;
   modelOffline?: boolean;

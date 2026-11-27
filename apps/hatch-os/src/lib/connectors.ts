@@ -38,9 +38,9 @@ export interface ConnectorCatalogItem {
   auth: string;
 }
 
-/** Read-only Google scopes, plus openid and email so the account can be labeled. */
+/** Google scopes for Gmail read/draft/send, Drive read, Calendar read, and openid/email labeling. */
 export const GOOGLE_OAUTH_SCOPE =
-  "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly";
+  "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly";
 
 /** Read-only Microsoft scopes. User.Read labels the account. Tenant is `common` (no tenant env var). */
 export const MICROSOFT_OAUTH_SCOPE = "offline_access User.Read Mail.Read Files.Read.All Calendars.Read";
@@ -245,27 +245,71 @@ export async function saveOAuthAccount(scope: string, kind: ConnectorKind, label
 
 type GoogleSecret = { accessToken: string; refreshToken?: string; expiresAt?: number; email?: string };
 
-export async function refreshAccess(scope: string, kind: "google" | "microsoft"): Promise<{ id: string; accessToken: string; email?: string }[]> {
-  const rows = await readRecords<StoredConnector>(folder(scope));
-  const matches = rows.filter((row) => row.kind === kind);
-  const ready: { id: string; accessToken: string; email?: string }[] = [];
-  for (const row of matches) {
-    let secret: GoogleSecret;
-    try {
-      secret = decryptJson<GoogleSecret>(row.secret);
-    } catch {
-      continue;
-    }
-    if (!secret.accessToken) continue;
-    const fresh = await refreshOAuth(scope, row, secret, kind);
-    if (fresh.accessToken) ready.push({ id: row.id, accessToken: fresh.accessToken, email: fresh.email || row.label });
-  }
-  return ready;
+export interface AccessAccount {
+  id: string;
+  accessToken: string;
+  email?: string;
 }
 
-async function refreshOAuth(scope: string, row: StoredConnector, secret: GoogleSecret, kind: "google" | "microsoft"): Promise<GoogleSecret> {
-  if (secret.expiresAt && secret.expiresAt > Date.now() + 60_000) return secret;
-  if (!secret.refreshToken) return secret;
+export interface AccessError {
+  label: string;
+  reason: "decrypt" | "expired" | "timeout" | "http";
+  needsReconnect?: boolean;
+  message: string;
+}
+
+export async function refreshAccessStatus(
+  scope: string,
+  kind: "google" | "microsoft",
+): Promise<{ accounts: AccessAccount[]; errors: AccessError[] }> {
+  const rows = await readRecords<StoredConnector>(folder(scope));
+  const matches = rows.filter((row) => row.kind === kind);
+  const ready: AccessAccount[] = [];
+  const errors: AccessError[] = [];
+  const results = await Promise.all(
+    matches.map(async (row) => {
+      let secret: GoogleSecret;
+      try {
+        secret = decryptJson<GoogleSecret>(row.secret);
+      } catch {
+        return { error: { label: row.label, reason: "decrypt" as const, needsReconnect: true, message: `${row.label} credentials could not be read` } };
+      }
+      if (!secret.accessToken) {
+        return { error: { label: row.label, reason: "expired" as const, needsReconnect: true, message: `${row.label} needs to be reconnected` } };
+      }
+      const refreshed = await refreshOAuthWithStatus(scope, row, secret, kind);
+      if (refreshed.error) return { error: refreshed.error };
+      if (refreshed.secret.accessToken) {
+        return { account: { id: row.id, accessToken: refreshed.secret.accessToken, email: refreshed.secret.email || row.label } };
+      }
+      return {};
+    }),
+  );
+  for (const item of results) {
+    if (item.account) ready.push(item.account);
+    if (item.error) errors.push(item.error);
+  }
+  return { accounts: ready, errors };
+}
+
+export async function refreshAccess(scope: string, kind: "google" | "microsoft"): Promise<AccessAccount[]> {
+  const { accounts } = await refreshAccessStatus(scope, kind);
+  return accounts;
+}
+
+async function refreshOAuthWithStatus(
+  scope: string,
+  row: StoredConnector,
+  secret: GoogleSecret,
+  kind: "google" | "microsoft",
+): Promise<{ secret: GoogleSecret; error?: AccessError }> {
+  if (secret.expiresAt && secret.expiresAt > Date.now() + 60_000) return { secret };
+  if (!secret.refreshToken) {
+    if (secret.expiresAt && secret.expiresAt <= Date.now()) {
+      return { secret, error: { label: row.label, reason: "expired", needsReconnect: true, message: `${row.label} session expired` } };
+    }
+    return { secret };
+  }
   const google = kind === "google";
   const body = new URLSearchParams({
     client_id: process.env[google ? "HATCH_GOOGLE_CLIENT_ID" : "HATCH_MICROSOFT_CLIENT_ID"] || "",
@@ -277,9 +321,30 @@ async function refreshOAuth(scope: string, row: StoredConnector, secret: GoogleS
   const tokenUrl = google
     ? "https://oauth2.googleapis.com/token"
     : "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-  const res = await fetch(tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-  const token = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string; expires_in?: number } | null;
-  if (!res.ok || !token?.access_token) return secret;
+  let res: Response;
+  try {
+    res = await fetch(tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(8_000) });
+  } catch (err) {
+    const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + " " + err.message);
+    return { secret, error: { label: row.label, reason: timedOut ? "timeout" : "http", message: `${row.label} token refresh ${timedOut ? "timed out" : "failed"}` } };
+  }
+  const token = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string; expires_in?: number; error?: string } | null;
+  if (!res.ok || !token?.access_token) {
+    const expired = secret.expiresAt ? secret.expiresAt <= Date.now() : true;
+    const revoked = token?.error === "invalid_grant" || res.status === 400 || res.status === 401;
+    if (expired || revoked) {
+      return {
+        secret,
+        error: {
+          label: row.label,
+          reason: revoked ? "expired" : "http",
+          needsReconnect: revoked,
+          message: revoked ? `${row.label} needs to be reconnected in Settings` : `${row.label} auth returned HTTP ${res.status}`,
+        },
+      };
+    }
+    return { secret };
+  }
   const next: GoogleSecret = {
     ...secret,
     accessToken: token.access_token,
@@ -287,7 +352,7 @@ async function refreshOAuth(scope: string, row: StoredConnector, secret: GoogleS
     expiresAt: Date.now() + Number(token.expires_in || 3600) * 1000,
   };
   await saveConnector(scope, kind, row.label, row.detail, next, row.id);
-  return next;
+  return { secret: next };
 }
 type SlackSecret = { token: string };
 type NotionSecret = { token: string };
@@ -765,6 +830,182 @@ export async function testConnector(scope: string, kind: ConnectorKind) {
   const saved = await readSecret<GoogleSecret>(scope, kind);
   if (!saved) throw new Error("That app is not connected.");
   return `${kind} token is stored.`;
+}
+
+
+function cleanHeader(value: string) {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+function encodeRfc2822(opts: {
+  to: string;
+  subject: string;
+  body: string;
+  inReplyTo?: string;
+  references?: string;
+}) {
+  const headers = [
+    `To: ${cleanHeader(opts.to)}`,
+    `Subject: ${cleanHeader(opts.subject || "(no subject)")}`,
+    ...(opts.inReplyTo ? [`In-Reply-To: ${cleanHeader(opts.inReplyTo)}`] : []),
+    ...(opts.references ? [`References: ${cleanHeader(opts.references)}`] : []),
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+  ];
+  const rawMessage = `${headers.join("\r\n")}\r\n\r\n${opts.body.replace(/\r?\n/g, "\r\n")}`;
+  return Buffer.from(rawMessage, "utf8").toString("base64url");
+}
+
+function pickGoogleAccount<T extends { email?: string }>(
+  accounts: T[],
+  accountEmail?: string,
+  threadRef?: string,
+): T | undefined {
+  if (!accounts.length) return undefined;
+  if (accountEmail) {
+    const match = accounts.find((a) => a.email && a.email.toLowerCase() === accountEmail.toLowerCase());
+    if (match) return match;
+  }
+  const refMatch = threadRef ? /^g(\d+):/.exec(threadRef) : null;
+  if (refMatch) {
+    const idx = Number(refMatch[1]);
+    if (accounts[idx]) return accounts[idx];
+  }
+  return accounts[0];
+}
+
+function parseGmailThreadId(gmailThreadId?: string, threadRef?: string) {
+  if (gmailThreadId) return gmailThreadId.trim();
+  const m = threadRef ? /^g\d+:([^\s]+)/.exec(threadRef) : null;
+  return m ? m[1] : undefined;
+}
+
+export async function sendGmailMessage(
+  scope: string,
+  opts: {
+    to: string;
+    subject: string;
+    body: string;
+    accountEmail?: string;
+    threadRef?: string;
+    gmailThreadId?: string;
+    inReplyTo?: string;
+    references?: string;
+  },
+): Promise<{ ok: boolean; id?: string; threadId?: string; accountEmail?: string; error?: string; needsReconnect?: boolean }> {
+  const to = cleanHeader(opts.to || "");
+  if (!to) return { ok: false, error: "Add a recipient before sending." };
+  if (!opts.body?.trim()) return { ok: false, error: "Write a message body before sending." };
+  const accounts = await refreshAccess(scope, "google");
+  const account = pickGoogleAccount(accounts, opts.accountEmail, opts.threadRef);
+  if (!account) {
+    const mail = await readSecret<MailAccount>(scope, "email");
+    if (mail) {
+      const sent = await smtpSend(mail.secret, { to, subject: opts.subject || "(no subject)", body: opts.body });
+      return { ok: true, accountEmail: mail.secret.email || mail.row.label, id: sent };
+    }
+    return { ok: false, error: "Connect Google or Email in Settings before sending." };
+  }
+  const raw = encodeRfc2822({
+    to,
+    subject: opts.subject || "(no subject)",
+    body: opts.body,
+    inReplyTo: opts.inReplyTo,
+    references: opts.references,
+  });
+  const threadId = parseGmailThreadId(opts.gmailThreadId, opts.threadRef);
+  const payload: Record<string, string> = { raw };
+  if (threadId) payload.threadId = threadId;
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${account.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json().catch(() => null)) as {
+    id?: string;
+    threadId?: string;
+    error?: { code?: number; message?: string; status?: string; details?: { reason?: string }[] };
+  } | null;
+  if (!res.ok) {
+    const msg = data?.error?.message || "";
+    const insufficient =
+      res.status === 403 ||
+      /insufficient|permission|scope/i.test(msg) ||
+      Boolean(data?.error?.details?.some((d) => d.reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT"));
+    if (insufficient) {
+      return {
+        ok: false,
+        needsReconnect: true,
+        error: "Gmail send permission isn't granted on this token yet. Reconnect Google once in Settings → Connect apps, then click Send again.",
+      };
+    }
+    return { ok: false, error: msg || `Gmail rejected the send (${res.status}).` };
+  }
+  return { ok: true, id: data?.id, threadId: data?.threadId || threadId, accountEmail: account.email };
+}
+
+export async function saveGmailDraft(
+  scope: string,
+  opts: {
+    to: string;
+    subject: string;
+    body: string;
+    accountEmail?: string;
+    threadRef?: string;
+    gmailThreadId?: string;
+    inReplyTo?: string;
+    references?: string;
+  },
+): Promise<{ ok: boolean; draftId?: string; accountEmail?: string; error?: string; needsReconnect?: boolean }> {
+  const accounts = await refreshAccess(scope, "google");
+  const account = pickGoogleAccount(accounts, opts.accountEmail, opts.threadRef);
+  if (!account) {
+    return { ok: false, error: "Connect Google in Settings before saving a Gmail draft." };
+  }
+  const raw = encodeRfc2822({
+    to: opts.to || "",
+    subject: opts.subject || "(no subject)",
+    body: opts.body || "",
+    inReplyTo: opts.inReplyTo,
+    references: opts.references,
+  });
+  const threadId = parseGmailThreadId(opts.gmailThreadId, opts.threadRef);
+  const message: Record<string, string> = { raw };
+  if (threadId) message.threadId = threadId;
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/drafts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${account.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ message }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json().catch(() => null)) as {
+    id?: string;
+    error?: { code?: number; message?: string; details?: { reason?: string }[] };
+  } | null;
+  if (!res.ok) {
+    const msg = data?.error?.message || "";
+    const insufficient =
+      res.status === 403 ||
+      /insufficient|permission|scope/i.test(msg) ||
+      Boolean(data?.error?.details?.some((d) => d.reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT"));
+    if (insufficient) {
+      return {
+        ok: false,
+        needsReconnect: true,
+        error: "Gmail draft permission isn't granted on this token yet. Reconnect Google once in Settings → Connect apps, then try again.",
+      };
+    }
+    return { ok: false, error: msg || `Gmail rejected saving the draft (${res.status}).` };
+  }
+  return { ok: true, draftId: data?.id, accountEmail: account.email };
 }
 
 export function connectedKinds(rows: ConnectorPublic[]) {
