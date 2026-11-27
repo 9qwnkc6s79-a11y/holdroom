@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { RoutinesScreen } from "@/components/os/RoutinesScreen";
 
 export default function RoutinesPage() {
-  redirect("/chat");
+  return <RoutinesScreen />;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { DraftFile } from "@/api/types";
+import type { DraftFile, RoutineEdits } from "@/api/types";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { Screen, StatusLine, T } from "@/components/chrome";
 import { ChatComposer, type PickedFile } from "@/components/ChatComposer";
@@ -91,7 +91,7 @@ export default function ChatScreen() {
     void send({ agentId: agent.id, threadId, text, attachments });
   }
 
-  async function onDecision(messageId: string, decision: "approved" | "cancelled") {
+  async function onDecision(messageId: string, decision: "approved" | "cancelled", edits?: RoutineEdits) {
     const owning =
       threadId ||
       turns[agent?.id || ""]?.threadId ||
@@ -100,7 +100,7 @@ export default function ChatScreen() {
     if (decision === "approved") void hapticSuccess();
     else void hapticRigid();
     setDeciding(true);
-    const error = await decide({ threadId: owning, messageId, decision });
+    const error = await decide({ threadId: owning, messageId, decision, edits });
     setDeciding(false);
     setActionError(error || "");
   }
@@ -166,7 +166,7 @@ export default function ChatScreen() {
                   <ApprovalCard
                     approval={message.approval}
                     busy={deciding}
-                    onApprove={() => void onDecision(message.id, "approved")}
+                    onApprove={(edits) => void onDecision(message.id, "approved", edits)}
                     onDeny={() => void onDecision(message.id, "cancelled")}
                   />
                 ) : null}

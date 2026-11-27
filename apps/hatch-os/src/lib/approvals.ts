@@ -7,6 +7,7 @@ import { connectorToolNeedsApproval, runConnectorTool } from "./connectors.ts";
 import { executeTool, type ToolCall, type ToolContext } from "./tools.ts";
 import type { ApprovalCard, ChatMessage, ToolEvent } from "./types.ts";
 import { findVaultByName, scrubVaultSecrets, secretStrings } from "./vault.ts";
+import { ROUTINE_TOOL, mergeEdits, saveProposal, savedDetail, savedInputs, type ProposalEdits } from "./routines/proposal.ts";
 
 const SECRET_KEY = /pass(word)?|secret|token|cvv|cvc|pan|card|credential|api[_-]?key/i;
 
@@ -45,6 +46,8 @@ function approvalCopy(name: string): { title: string; summary: string } {
       return { title: "Create a Notion page", summary: "This creates a page. Nothing is created until you approve." };
     case "github_create_issue":
       return { title: "Create a GitHub issue", summary: "This opens an issue. Nothing is created until you approve." };
+    case "routine_create":
+      return { title: "Save this routine?", summary: "Nothing is saved until you confirm." };
     case "linear_create_issue":
       return { title: "Create a Linear issue", summary: "This opens an issue. Nothing is created until you approve." };
     default:
@@ -181,6 +184,8 @@ export async function applyApprovalDecision(input: {
   accessibleDepartments?: string[];
   enterprise?: boolean;
   testerCode?: string;
+  /** Only for routine proposals: the user's edits from the card. */
+  edits?: ProposalEdits | null;
 }): Promise<{ ok: true; message: ChatMessage; event?: ToolEvent } | { ok: false; error: string }> {
   const thread = getThread(input.threadId);
   if (!thread) return { ok: false, error: "Unknown thread." };
@@ -195,7 +200,7 @@ export async function applyApprovalDecision(input: {
     const next: ChatMessage = {
       ...message,
       approval: { ...message.approval, status: "cancelled" },
-      text: `${message.text}\n\nCancelled. Nothing was sent, changed, or deleted.`.trim(),
+      text: `${message.text}\n\n${message.approval.tool === ROUTINE_TOOL ? "Cancelled. No routine was saved." : "Cancelled. Nothing was sent, changed, or deleted."}`.trim(),
       done: true,
     };
     replaceThreadMessage(thread.id, next);
@@ -212,6 +217,26 @@ export async function applyApprovalDecision(input: {
   }
 
   const call = message.approval.call;
+  if (call.name === ROUTINE_TOOL) {
+    const merged = mergeEdits(call.arguments, input.edits);
+    if (!merged.ok) return { ok: false, error: merged.error };
+    const saved = await saveProposal(input.testerCode || "staff", merged.args);
+    if (!saved.ok) return { ok: false, error: saved.error };
+    const detail = savedDetail(saved.routine);
+    const event: ToolEvent = { name: ROUTINE_TOOL, ok: true, detail };
+    const next: ChatMessage = {
+      ...message,
+      approval: { ...message.approval, status: "approved", inputs: savedInputs(saved.routine), call: { name: ROUTINE_TOOL, arguments: { ...merged.args, routineId: saved.routine.id } } },
+      text: `${message.text}\n\n${detail}`.trim(),
+      done: true,
+    };
+    replaceThreadMessage(thread.id, next);
+    recordAuditEntry(
+      { name: ROUTINE_TOOL, ok: true, detail: scrubVaultSecrets(`Saved routine “${saved.routine.name}” (${saved.routine.schedule}).`), departmentId: agent.writeDepartmentId },
+      { actor, agentId: agent.id, kind: "approval" },
+    );
+    return { ok: true, message: next, event };
+  }
   const connector = /^(email_|calendar_|cloud_files_|slack_|notion_|github_|linear_|mcp_)/.test(call.name);
   const event = connector
     ? (await runConnectorTool(

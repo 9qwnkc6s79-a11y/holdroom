@@ -17,6 +17,7 @@ import { browserImageDataUrl } from "@/lib/image-client";
 import { forStorage, isRasterImage } from "@/lib/images";
 import { dropPending, readPending, upsertPending, waitCopy, type PendingJob } from "@/lib/pending";
 import { mergeThreads, readTranscripts, richerThread, writeTranscripts } from "@/lib/transcripts";
+import { RoutineProposalCard, type RoutineEdits } from "@/components/os/RoutineProposalCard";
 import type { ApprovalCard, ChatAttachment, ChatMessage, ChatThread, Routine, ToolEvent } from "@/lib/types";
 
 interface LivePayload {
@@ -793,6 +794,7 @@ export function Messenger() {
           {apps ? (
             <div className="popover apps-pop">
               <button type="button" onClick={() => { setApps(false); router.push("/library"); }}>Library</button>
+              <button type="button" onClick={() => { setApps(false); router.push("/routines"); }}>Routines</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("home"); setSettingsOpen(true); }}>Settings</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("vault"); setSettingsOpen(true); }}>Vault</button>
               <button type="button" onClick={() => { setApps(false); setSettingsPage("audit"); setSettingsOpen(true); }}>Audit</button>
@@ -883,7 +885,9 @@ export function Messenger() {
                             <p>{tool.detail}</p>
                           </details>
                         ))}
-                        {message.approval ? (
+                        {message.approval?.tool === "routine_create" ? (
+                          <RoutineProposalCard approval={message.approval} onDecide={(decision, edits) => decide(message, decision, edits)} />
+                        ) : message.approval ? (
                           <div className="approve">
                             <strong>{message.approval.title}</strong>
                             <p>{message.approval.summary}</p>
@@ -1000,6 +1004,7 @@ export function Messenger() {
       {moreOpen && agent ? (
         <div className="sheet" role="dialog" aria-label="Agent menu">
           <button type="button" onClick={() => { setMoreOpen(false); router.push("/library"); }}>Library</button>
+          <button type="button" onClick={() => { setMoreOpen(false); router.push("/routines"); }}>Routines</button>
           <button type="button" onClick={() => { setMoreOpen(false); setInfoOpen(true); }}>Agent info</button>
           <button type="button" onClick={() => { setMoreOpen(false); setAgentSettings(true); }}>Settings</button>
           <button type="button" onClick={() => { setMoreOpen(false); setChatSearch((value) => !value); }}>Search in chat</button>
@@ -1075,8 +1080,8 @@ export function Messenger() {
     </div>
   );
 
-  async function decide(message: ChatMessage, decision: "approved" | "cancelled") {
-    if (!activeThread || !message.approval) return;
+  async function decide(message: ChatMessage, decision: "approved" | "cancelled", edits?: RoutineEdits): Promise<string | null> {
+    if (!activeThread || !message.approval) return null;
     const res = await fetch("/api/approvals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1088,15 +1093,18 @@ export function Messenger() {
         accessibleDepartments: accessible.filter(Boolean),
         enterprise: session?.enterprise,
         testerCode: session?.inviteCode || "staff",
+        edits,
       }),
     });
-    const data = (await res.json().catch(() => null)) as { message?: ChatMessage };
+    const data = (await res.json().catch(() => null)) as { message?: ChatMessage; error?: string };
+    if (!res.ok) return data?.error || "Could not save that.";
     if (data?.message && agent) {
       const next = (readTranscripts().find((item) => item.agentId === agent.id)?.messages || messages).map((item) =>
         item.id === message.id ? data.message! : item,
       );
       rememberConversation(agent.id, activeThread, agent.departmentId, next);
     }
+    return null;
   }
 
   async function react(message: ChatMessage, emoji: string) {

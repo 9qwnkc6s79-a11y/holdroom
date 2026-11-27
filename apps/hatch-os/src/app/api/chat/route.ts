@@ -4,6 +4,7 @@ import { liveRunpodReady, startLiveTurn } from "@/lib/chat-live";
 import { demoModeEnabled } from "@/lib/demo";
 import { loadEthics } from "@/lib/ethics";
 import { harnessHandles, startHarnessTurn } from "@/lib/harness/live";
+import { maybeProposeRoutine } from "@/lib/routines/chat-turn";
 import { requireSession } from "@/lib/session-auth";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,19 @@ export async function POST(req: Request) {
     code: testerCode,
     at: new Date().toISOString(),
   }).catch(() => undefined);
+
+  // "every weekday 7am brief me…", "remind me…", "tell me when Robert replies":
+  // answer with a routine card (Save / Edit / Cancel). Rule-based, no model call.
+  const routine = await maybeProposeRoutine({
+    scope: testerCode,
+    query,
+    threadId: body?.threadId,
+    agentId: body?.agentId,
+    departmentId: body?.departmentId || body?.roomId,
+    replyTo: body?.replyTo,
+    hasAttachments: Boolean(body?.attachments?.length),
+  }).catch(() => null);
+  if (routine) return Response.json(routine, { headers: ethicsHeaders });
 
   if (!demoModeEnabled() && !auth.session.appReview && liveRunpodReady()) {
     try {

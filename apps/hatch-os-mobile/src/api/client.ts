@@ -11,6 +11,9 @@ import type {
   EthicsProfile,
   LibraryPassage,
   PairResponse,
+  Routine,
+  RoutineEdits,
+  RoutinesPayload,
   TokenBalanceView,
   ToolEvent,
 } from "./types";
@@ -265,8 +268,45 @@ export function postApproval(body: {
   accessibleDepartments: string[];
   enterprise: boolean;
   testerCode: string;
+  edits?: RoutineEdits;
 }): Promise<{ ok?: boolean; error?: string }> {
   return apiJson("/api/approvals", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function listRoutines(): Promise<RoutinesPayload> {
+  return apiJson<RoutinesPayload>("/api/routines");
+}
+
+export function saveRoutine(body: {
+  id?: string;
+  name?: string;
+  prompt?: string;
+  mode?: Routine["mode"];
+  when?: string;
+  triggerQuery?: string;
+  cron?: string;
+}): Promise<{ routine: Routine }> {
+  return apiJson("/api/routines", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function setRoutineEnabled(id: string, enabled: boolean): Promise<{ routine: Routine }> {
+  return apiJson("/api/routines", { method: "PATCH", body: JSON.stringify({ id, enabled }) });
+}
+
+export function markRoutinesRead(input: { id?: string; runId?: string } = {}): Promise<RoutinesPayload> {
+  return apiJson("/api/routines", { method: "PATCH", body: JSON.stringify({ action: "read", ...input }) });
+}
+
+export function deleteRoutine(id: string): Promise<{ ok: boolean }> {
+  return apiJson(`/api/routines?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function runRoutine(id: string): Promise<RoutinesPayload> {
+  return apiJson("/api/routines/run", { method: "POST", body: JSON.stringify({ id }) });
+}
+
+export function advanceRoutines(): Promise<RoutinesPayload> {
+  return apiJson("/api/routines/advance", { method: "POST" });
 }
 
 export async function transcribeClip(file: LocalUpload): Promise<{ text: string; stub: boolean; note: string }> {

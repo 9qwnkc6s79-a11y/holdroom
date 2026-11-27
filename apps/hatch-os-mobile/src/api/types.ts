@@ -36,6 +36,7 @@ export interface ApprovalCard {
   summary: string;
   inputs: ApprovalInput[];
   status: "pending" | "approved" | "cancelled";
+  call?: { name: string; arguments: Record<string, string> };
 }
 
 export interface ToolEvent {
@@ -177,4 +178,54 @@ export interface TokenBalanceView {
   lifetimeGrantedCents: number;
   checkoutReady: boolean;
   message: string;
+}
+
+export interface RoutineRun {
+  id: string;
+  routineId: string;
+  reason: "schedule" | "email" | "manual";
+  status: "running" | "done" | "failed" | "skipped" | "needs_approval";
+  startedAt: string;
+  finishedAt?: string;
+  text?: string;
+  error?: string;
+  read: boolean;
+  threadId?: string;
+  messageId?: string;
+  approval?: { title: string; status: "pending" | "approved" | "cancelled" };
+}
+
+export interface Routine {
+  id: string;
+  agentId: string;
+  name: string;
+  prompt: string;
+  mode: "agent" | "reminder" | "notify";
+  schedule: string;
+  cron?: string;
+  runAt?: string;
+  timezone: string;
+  trigger?: { type: "email"; query: string; lastCheckedAt?: string };
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  threadId?: string;
+  runs: RoutineRun[];
+  unread: number;
+  usesModel: boolean;
+}
+
+export interface RoutinesPayload {
+  routines: Routine[];
+  unread: number;
+  running: number;
+  limits?: { minIntervalMinutes: number; dailyModelRuns: number; maxRoutines: number };
+  timezone?: string;
+}
+
+/** Edits from a routine proposal card. `when` is plain language. */
+export interface RoutineEdits {
+  name?: string;
+  prompt?: string;
+  when?: string;
 }

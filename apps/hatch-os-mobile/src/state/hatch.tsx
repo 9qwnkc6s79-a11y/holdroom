@@ -15,7 +15,7 @@ import {
   type ChatRequest,
   type LocalUpload,
 } from "@/api/client";
-import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, HatchFile, HostStatus } from "@/api/types";
+import type { Agent, ChatAttachment, ChatMessage, ChatThread, DraftFile, HatchFile, HostStatus, RoutineEdits } from "@/api/types";
 import { DEMO_AGENTS, demoThreads } from "@/demo/seed";
 import { demoMode } from "@/demo/mode";
 import { accessibleDepartments, acceptedFilename, activityLine, explainFailure, isWaitStatus, kindFromFilename, presenceState } from "@/lib/derive";
@@ -55,7 +55,7 @@ interface HatchValue {
   sphere: SphereState;
   refresh: () => Promise<void>;
   send: (input: SendInput) => Promise<{ text: string; failed: boolean }>;
-  decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled" }) => Promise<string | null>;
+  decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled"; edits?: RoutineEdits }) => Promise<string | null>;
   prepareAttachment: (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => Promise<DraftFile>;
   startThread: (agentId: string) => Promise<string | null>;
   archiveThread: (threadId: string) => Promise<void>;
@@ -426,7 +426,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   );
 
   const decide = useCallback(
-    async (input: { threadId: string; messageId: string; decision: "approved" | "cancelled" }) => {
+    async (input: { threadId: string; messageId: string; decision: "approved" | "cancelled"; edits?: RoutineEdits }) => {
       const current = sessionRef.current;
       if (!current) return "Sign in again to keep chatting.";
       const apply = (status: "pending" | "approved" | "cancelled") => {
