@@ -71,6 +71,9 @@ const SYNONYMS: Record<string, string[]> = {
   quote: ["estimate", "bid", "proposal"],
   estimate: ["quote", "bid"],
   invoice: ["bill", "payment"],
+  pay: ["payment", "paid", "deposit"],
+  paid: ["payment", "deposit"],
+  payout: ["payment", "deposit"],
   contract: ["agreement"],
   lease: ["rent"],
   install: ["installation"],
@@ -79,7 +82,7 @@ const SYNONYMS: Record<string, string[]> = {
 
 export function analyzeIntent(
   query: string,
-  opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string } = {},
+  opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string; depth?: number } = {},
 ): Intent {
   const raw = String(query || "").trim();
   // Phone-typing shorthand the user will never search for literally.
@@ -129,8 +132,12 @@ export function analyzeIntent(
     !/^(?:lol|haha|lmao|lmfao)\b/.test(lower) &&
     !/\d+(?:\.\d+)?\s*(?:plus|minus|times|divided|\+|\*|\/|%)\s*\d/.test(lower);
   if (prevUser && (pronounish || shortFollow) && !introducesNewEntity && tokens.length <= (pronounish ? 3 : 5) && kind !== "schedule") {
-    const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected });
-    if (prev.needsTools) {
+    // Resolve the previous ask with its own history so chained follow-ups keep the topic
+    // ("latest on the sign" -> "who is waiting on who again?" -> "and how much w tax").
+    const hist = opts.history || [];
+    const prevIdx = hist.lastIndexOf(prevUser);
+    const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected, todayIso: opts.todayIso, history: (opts.depth || 0) < 3 ? hist.slice(Math.max(0, prevIdx - 6), prevIdx) : [], depth: (opts.depth || 0) + 1 });
+    if (prev.needsTools || prev.kind === "schedule") {
       followUp = true;
       newTerms = [...tokens];
       tokens = [...new Set([...prev.terms, ...tokens])];
@@ -207,6 +214,8 @@ export function analyzeIntent(
     queries.push([...uniqPhrases.slice(0, 3).map(quote), ...terms.filter((t) => !covered.has(t)).slice(0, 3)].join(" "));
   }
   if (terms.length) queries.push(terms.slice(0, 6).join(" "));
+  // Gmail matches whole words, so "pay" misses "Payment": add one query with synonym groups.
+  if (terms.slice(0, 6).some((t) => SYNONYMS[t])) queries.push(terms.slice(0, 6).map((t) => (SYNONYMS[t] ? `(${[t, ...SYNONYMS[t]].join(" OR ")})` : t)).join(" "));
   // Topic only, without the place/person words: "monument sign".
   if (topic.length && topic.length < terms.length) queries.push(topic.slice(0, 4).join(" "));
   const broad = [...new Set([...strong.slice(0, 3), ...strong.flatMap((t) => SYNONYMS[t] || []).slice(0, 2), ...extras.slice(0, 2), ...topic.filter((t) => WEAK.has(t)).flatMap((t) => SYNONYMS[t] || []).slice(0, 1)])];
@@ -267,6 +276,13 @@ export function analyzeIntent(
     if (/\b(tmrw|tmr|tomorrow)\b/.test(lower)) dateRange = { from: day(1), to: day(1) };
     else if (/\btoday\b/.test(lower)) dateRange = { from: day(0), to: day(0) };
     else if (/\bnext week\b/.test(lower)) dateRange = { from: day(7 - base.getUTCDay() + 1), to: day(7 - base.getUTCDay() + 7) };
+    else if (/\b(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(?:day|nesday|rsday|urday)?\b/.test(lower) && (kind === "schedule" || followUp)) {
+      const m = lower.match(/\b(sun|mon|tue|wed|thu|fri|sat)/)!;
+      const target = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(m[1]);
+      const ahead = (target - base.getUTCDay() + 7) % 7;
+      const offset = /\b(last|past)\b/.test(lower) ? ahead - 7 : /\bnext\b/.test(lower) && ahead < 7 ? ahead + (ahead === 0 ? 7 : 0) : ahead;
+      dateRange = { from: day(offset), to: day(offset) };
+    }
     else if (/\bthis week\b/.test(lower) && kind === "schedule") dateRange = { from: day(0), to: day(6 - base.getUTCDay() + 1) };
   }
 

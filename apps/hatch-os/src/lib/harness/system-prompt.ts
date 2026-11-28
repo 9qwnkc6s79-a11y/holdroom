@@ -99,6 +99,16 @@ export function toolProtocolBlock(tools: HarnessToolSpec[], protocol: SystemProm
   ].join("\n");
 }
 
+/** "Coming days: Sat Nov 28, Sun Nov 29, Mon Nov 30, …" so the model never computes a weekday's date. */
+export function comingDays(today: string, days = 8): string {
+  const base = new Date(String(today).split(/,\s*\d{1,2}:\d{2}/)[0]);
+  if (Number.isNaN(base.getTime())) return "";
+  const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const start = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate());
+  const list = Array.from({ length: days }, (_, i) => fmt.format(new Date(start + (i + 1) * 86400e3)).replace(",", ""));
+  return ` Coming days: ${list.join("; ")}.`;
+}
+
 export function buildSystemPrompt(input: SystemPromptInput): string {
   const intent = input.intent;
   const who = [input.firmName ? `Firm: ${input.firmName}.` : "", input.userName ? `You are talking with ${input.userName}.` : ""].filter(Boolean).join(" ");
@@ -114,7 +124,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
   const sections: string[] = [
     CORE_RULES.join("\n"),
-    `Today is ${input.today}.${who ? ` ${who}` : ""}`,
+    `Today is ${input.today}.${comingDays(input.today)}${who ? ` ${who}` : ""}`,
     input.connected.length ? `Connected sources: ${input.connected.join(", ")}.` : "No email/Drive/calendar is connected yet. If the answer needs them, say which one to connect in Settings > Connect apps.",
     input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
     input.memoryBlock ? `Firm memory (facts the firm has taught Hatch):\n${input.memoryBlock}` : "",

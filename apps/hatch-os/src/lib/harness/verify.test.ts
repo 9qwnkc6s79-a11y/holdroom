@@ -1,3 +1,4 @@
+import { analyzeIntent } from "./intent.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildCorpus, extractClaims, verifyAnswer } from "./verify.ts";
@@ -82,4 +83,29 @@ test("typo'd source quotes, phone numbers, totals and weekday dates are not fals
   const bad = verifyAnswer('Robert quoted "$1,200 before tax" and will call Tuesday, Nov 30.', c);
   assert.ok(bad.unsupported.some((x) => x.kind === "quote"));
   assert.ok(bad.unsupported.some((x) => x.kind === "date"));
+});
+
+test("drops an unmatched trailing sentence instead of flagging it, and reads ISO calendar times", () => {
+  const corpus = buildCorpus({ evidence: ["Invoice #1922 $753.75. Invoice #1923 $514.20. Event start 2026-11-25T10:30:00-06:00"], query: "do i owe tacos", todayIso: "2026-11-27" });
+  const out = verifyAnswer("Yes, two invoices: $753.75 and $514.20. You paid $2,971.50 on Nov 24.", corpus);
+  assert.equal(out.flagged, 0);
+  assert.equal(out.stripped, 1);
+  assert.ok(!out.text.includes("2,971.50"));
+  assert.ok(out.text.includes("$753.75"));
+  const time = verifyAnswer("You met on Nov 25 at 10:30 AM.", corpus);
+  assert.equal(time.unsupported.filter((c) => c.kind === "time").length, 0);
+});
+
+test("chained follow-ups keep the topic and weekday asks get a date range", () => {
+  const h = [
+    { role: "user", text: "whats the latest on the monument sign for little elm" },
+    { role: "assistant", text: "x" },
+    { role: "user", text: "who is waiting on who with the sign again?" },
+    { role: "assistant", text: "y" },
+  ];
+  const tax = analyzeIntent("and how much w tax", { history: h, todayIso: "2026-11-27" });
+  assert.ok(tax.followUp && tax.terms.includes("sign"));
+  const mon = analyzeIntent("and monday?", { history: [{ role: "user", text: "whats on my calendar tmrw" }, { role: "assistant", text: "n" }], todayIso: "2026-11-27" });
+  assert.equal(mon.kind, "schedule");
+  assert.deepEqual(mon.dateRange, { from: "2026-11-30", to: "2026-11-30" });
 });

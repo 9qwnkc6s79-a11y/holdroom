@@ -83,6 +83,8 @@ function timeKeys(text: string): Set<string> {
     out.add(`${h % 12}:${m[2]}`);
   }
   for (const m of t.matchAll(/\b(\d{1,2})\s*([ap])\.?m\.?\b/g)) out.add(`${Number(m[1]) % 12}:00`);
+  // ISO / calendar stamps: 2026-11-25T10:30:00-06:00 or 20261125T103000.
+  for (const m of t.matchAll(/\d[-\d]*t(\d{2}):?(\d{2})/g)) out.add(`${Number(m[1]) % 12}:${m[2]}`);
   return out;
 }
 
@@ -311,6 +313,16 @@ export function verifyAnswer(answer: string, corpus: Corpus, opts: { draft?: boo
     }
     if (BULLET.test(line) && nonEmpty > 2) {
       stripped += 1;
+      return;
+    }
+    // Prose: drop the sentence carrying the unmatched detail when the answer still stands without it
+    // (any line after the lead, or a lead line with other sentences). Flag only what we cannot drop.
+    const firstLine = lines.findIndex((l) => l.trim()) === i;
+    const sentences = line.split(/(?<=[.!?])\s+/);
+    const keep = sentences.filter((s) => !extractClaims(s, opts).some((c) => !claimSupported(c, corpus)));
+    if (keep.length < sentences.length && (keep.length > 0 || (!firstLine && nonEmpty > 1))) {
+      stripped += sentences.length - keep.length;
+      if (keep.join(" ").trim()) out.push(keep.join(" "));
       return;
     }
     let repaired = line;
