@@ -9,7 +9,7 @@
  * eval / persona QA graders.
  */
 
-export type ClaimKind = "phone" | "quote" | "money" | "percent" | "date" | "time" | "id" | "number" | "attachment" | "relative_time";
+export type ClaimKind = "phone" | "quote" | "money" | "percent" | "date" | "time" | "id" | "number" | "attachment" | "relative_time" | "status";
 
 export interface Claim {
   kind: ClaimKind;
@@ -169,6 +169,9 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
       if ((v >= 1990 && v <= 2100 && Number.isInteger(v)) || (v < 100 && !/\./.test(m[0]))) continue;
       claims.push({ kind: "number", raw: m[0], key: String(v), line });
     }
+    // Asserted end states ("the order is complete") must be stated by a source, not inferred.
+    // Skip quoted spans — those are already checked as quotes.
+    for (const m of rest.matchAll(STATUS_RE)) claims.push({ kind: "status", raw: m[0], key: m[2].toLowerCase(), line });
     if (opts.draft) {
       if (/\b(attached|attaching|enclosed|i'?ve attached|see attached|attachment)\b/i.test(l)) claims.push({ kind: "attachment", raw: "attachment", key: "attach", line });
       const rel = l.match(/\b(tomorrow|tonight|this (?:morning|afternoon|evening|week)|later today)\b/i);
@@ -177,6 +180,13 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
   });
   return claims;
 }
+
+const STATUS_RE = /\b(is|are|was|were|has been|have been|now|fully|already)\s+(complete|completed|done|finished|submitted|approved|paid|resolved|closed)\b/gi;
+const STATUS_STEMS: Record<string, RegExp> = {
+  complete: /\bcomplet/, completed: /\bcomplet/, done: /\b(done|complet|finish)/, finished: /\b(finish|complet)/,
+  submitted: /\bsubmit/, approved: /\bapprov/, paid: /\b(paid|payment (received|processed|complete|sent)|deposit)/,
+  resolved: /\b(resolv|fixed)/, closed: /\bclos/,
+};
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -293,6 +303,8 @@ export function claimSupported(c: Claim, corpus: Corpus): boolean {
       return /\battach|enclos|send (it|the|over)\b/i.test(corpus.query);
     case "relative_time":
       return corpus.query.includes(c.key.split(" ").pop() || c.key);
+    case "status":
+      return (STATUS_STEMS[c.key] || new RegExp(`\\b${c.key}`)).test(corpus.norm);
   }
 }
 

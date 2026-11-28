@@ -262,9 +262,9 @@ export function analyzeIntent(
     const covered = new Set(uniqPhrases.flatMap((p) => p.split(" ")));
     queries.push([...uniqPhrases.slice(0, 3).map(quote), ...terms.filter((t) => !covered.has(t)).slice(0, 3)].join(" "));
   }
+  // Gmail matches whole words, so "pay" misses "Payment": search the synonym groups up front.
+  if (terms.slice(0, 6).some((t) => SYNONYMS[t] && !WEAK.has(t))) queries.unshift(terms.slice(0, 6).map((t) => (SYNONYMS[t] ? `(${[t, ...SYNONYMS[t]].join(" OR ")})` : t)).join(" "));
   if (terms.length) queries.push(terms.slice(0, 6).join(" "));
-  // Gmail matches whole words, so "pay" misses "Payment": add one query with synonym groups.
-  if (terms.slice(0, 6).some((t) => SYNONYMS[t])) queries.push(terms.slice(0, 6).map((t) => (SYNONYMS[t] ? `(${[t, ...SYNONYMS[t]].join(" OR ")})` : t)).join(" "));
   // Topic only, without the place/person words: "monument sign".
   if (topic.length && topic.length < terms.length) queries.push(topic.slice(0, 4).join(" "));
   const broad = [...new Set([...strong.slice(0, 3), ...strong.flatMap((t) => SYNONYMS[t] || []).slice(0, 2), ...extras.slice(0, 2), ...topic.filter((t) => WEAK.has(t)).flatMap((t) => SYNONYMS[t] || []).slice(0, 1)])];
