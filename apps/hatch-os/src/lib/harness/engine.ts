@@ -16,6 +16,7 @@ import { newActivityLog, pushActivity, settleActivity, statusLine, SOURCE_LABEL,
 import { analyzeIntent, type Intent, type SourceKind } from "./intent.ts";
 import { matchEntities, renderMemory, type FirmMemory } from "./memory.ts";
 import { buildSystemPrompt, type HarnessToolSpec } from "./system-prompt.ts";
+import { buildCorpus, verifyAnswer } from "./verify.ts";
 
 export type Lane = "ask" | "agent";
 
@@ -31,6 +32,10 @@ export interface HarnessConfig {
   maxSearchTries: number;
   /** Let plain-chat turns call tools if the model decides it needs them. */
   chatTools: boolean;
+  /** Check every quoted phrase / date / amount / ID in the answer against what was read; strip or flag the rest. */
+  verifyClaims: boolean;
+  /** Let the model reason (Qwen thinking) on tool-choice turns. Final answers never think. */
+  thinkOnTools: boolean;
 }
 
 export const DEFAULT_CONFIG: HarnessConfig = {
@@ -43,6 +48,8 @@ export const DEFAULT_CONFIG: HarnessConfig = {
   maxReadsPerSource: 4,
   maxSearchTries: 4,
   chatTools: false,
+  verifyClaims: true,
+  thinkOnTools: false,
 };
 
 export interface Hit {
@@ -95,9 +102,19 @@ export interface ToolCallLike {
   arguments: Record<string, unknown>;
 }
 
+export interface NativeToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
 export interface ChatTurn {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  /** Native protocol: the assistant's structured calls, replayed on the next turn. */
+  tool_calls?: NativeToolCall[];
+  /** Native protocol: which call a tool message answers. */
+  tool_call_id?: string;
 }
 
 export interface ModelRequest {
@@ -107,6 +124,10 @@ export interface ModelRequest {
   nativeTools?: HarnessToolSpec[];
   maxTokens: number;
   purpose: "answer" | "tools" | "synthesis";
+  /** "native" when tools ride in the OpenAI tools field (structured calls). */
+  protocol?: "text" | "native" | "none";
+  /** Ask the model to reason first (tool turns only, when configured). */
+  think?: boolean;
 }
 
 type PlanStep =
@@ -143,6 +164,15 @@ export interface HarnessState {
   sourceErrors?: SourceError[];
   usedTools: boolean;
   config: HarnessConfig;
+  todayIso?: string;
+  /** Native protocol: structured calls the model made and what they returned, in order. */
+  toolTurns?: { calls: NativeToolCall[]; results: string[] }[];
+  /** Claim check on the final answer (counts only, no text). */
+  verification?: { checked: number; unsupported: number; stripped: number; flagged: number; kinds: string[] };
+  /** Set when the endpoint refused native tools and the harness fell back to the text protocol. */
+  nativeFallback?: boolean;
+  /** Times the window was shrunk after a context-length error. */
+  contextRetries?: number;
 }
 
 export interface InitInput {
@@ -164,18 +194,30 @@ export interface InitInput {
 export function modelToolSpecs(connected: Set<string>): HarnessToolSpec[] {
   const mail = ["email", "google", "microsoft"].some((k) => connected.has(k));
   const cloud = ["google", "microsoft"].some((k) => connected.has(k));
+  const q = (description: string) => ({ query: { type: "string" as const, description } });
   const specs: HarnessToolSpec[] = [
-    { name: "search_library", description: "Search the firm library (synced notes, uploaded files).", parameters: ["query"] },
+    { name: "search_library", description: "Search the firm library (synced notes, uploaded files).", parameters: ["query"], params: q("Keywords, e.g. 'monument sign permit'.") },
   ];
   if (mail) {
-    specs.push({ name: "email_search", description: "Search email. Gmail syntax works: quotes, OR, from:, newer_than:30d.", parameters: ["query"] });
-    specs.push({ name: "email_read", description: "Open the full email thread by its ref from the evidence list.", parameters: ["ref"] });
-    specs.push({ name: "email_draft", description: "Prepare an editable email draft card for the user to send, save, or discard. Does not send.", parameters: ["to", "subject", "body", "thread_ref"] });
+    specs.push({ name: "email_search", description: "Search email. Gmail syntax works: quotes, OR, from:, newer_than:30d.", parameters: ["query"], params: q("Gmail query, e.g. 'from:robert newer_than:30d sign'.") });
+    specs.push({ name: "email_read", description: "Open the full email thread by its ref from the evidence list.", parameters: ["ref"], params: { ref: { type: "string", description: "The ref shown next to the thread in the evidence list." } } });
+    specs.push({
+      name: "email_draft",
+      description: "Prepare an editable email draft card for the user to send, save, or discard. Does not send. Only state facts from the thread; never claim an attachment or a meeting that is not in it.",
+      parameters: ["to", "subject", "body", "thread_ref"],
+      required: ["to", "subject", "body"],
+      params: {
+        to: { type: "string", description: "Recipient email address (from the thread)." },
+        subject: { type: "string", description: "Subject line. Use 'Re: <original subject>' for replies." },
+        body: { type: "string", description: "Plain-text body, signed with the user's first name." },
+        thread_ref: { type: "string", description: "Ref of the thread being replied to, if any." },
+      },
+    });
   }
   if (cloud) {
-    specs.push({ name: "cloud_files_search", description: "Search Drive/OneDrive by name and content.", parameters: ["query"] });
-    specs.push({ name: "cloud_files_read", description: "Open a file's text by its ref from the evidence list.", parameters: ["ref"] });
-    specs.push({ name: "calendar_list", description: "List upcoming calendar events, optionally matching a query.", parameters: ["query"] });
+    specs.push({ name: "cloud_files_search", description: "Search Drive/OneDrive by name and content.", parameters: ["query"], params: q("File name or content keywords.") });
+    specs.push({ name: "cloud_files_read", description: "Open a file's text by its ref from the evidence list.", parameters: ["ref"], params: { ref: { type: "string", description: "The ref shown next to the file in the evidence list." } } });
+    specs.push({ name: "calendar_list", description: "List upcoming calendar events, optionally matching a query.", parameters: ["query"], required: [], params: q("Optional words to match in event titles; empty for everything.") });
   }
   return specs;
 }
@@ -258,6 +300,7 @@ export function initHarness(input: InitInput): HarnessState {
     sourceErrors: [],
     usedTools: false,
     config,
+    todayIso: input.todayIso,
   };
 }
 
@@ -578,7 +621,7 @@ export async function advance(state: HarnessState, deps: AdvanceDeps): Promise<A
       const sig = `${call.name}:${JSON.stringify(call.arguments)}`;
       if (state.searched.includes(sig)) {
         settleActivity(state.activity, "done");
-        state.scratch.push(`${call.name}(${argText(call)}) → already done; use the evidence above.`);
+        noteToolResult(state, call, `${call.name}(${argText(call)}) → already done; use the evidence above.`);
         continue;
       }
       state.searched.push(sig);
@@ -596,14 +639,14 @@ export async function advance(state: HarnessState, deps: AdvanceDeps): Promise<A
     );
     for (const outcome of outcomes) {
       if (!outcome.ok) {
-        state.scratch.push(`${outcome.call.name} → failed`);
+        noteToolResult(state, outcome.call, `${outcome.call.name} → failed`);
         settleActivity(state.activity, "failed");
         continue;
       }
       const { call, result } = outcome;
       state.usedTools = true;
       for (const item of result.evidence || []) addEvidence(state, item);
-      state.scratch.push(`${call.name}(${argText(call)}) → ${result.ok ? (result.evidence?.length ? `${result.evidence.length} result(s), added to the evidence above` : result.text.slice(0, 300) || "nothing found") : `failed: ${result.text.slice(0, 160)}`}`);
+      noteToolResult(state, call, `${call.name}(${argText(call)}) → ${result.ok ? (result.evidence?.length ? `${result.evidence.length} result(s), added to the evidence above` : result.text.slice(0, 300) || "nothing found") : `failed: ${result.text.slice(0, 160)}`}`);
       settleActivity(state.activity, result.ok && (result.evidence?.length || result.text) ? "done" : "failed", result.evidence?.length);
     }
     if (state.pendingCalls.length) return advance(state, deps);
@@ -616,6 +659,15 @@ export async function advance(state: HarnessState, deps: AdvanceDeps): Promise<A
 
   const lastTurn = state.modelTurns >= state.config.maxModelTurns - 1;
   return { kind: "model", request: buildRequest(state, laneFor(state), lastTurn) };
+}
+
+/** Log a tool result for the next prompt (text protocol) and pair it with its structured call (native protocol). */
+function noteToolResult(state: HarnessState, call: ToolCallLike, line: string) {
+  state.scratch.push(line);
+  const turn = state.toolTurns?.[state.toolTurns.length - 1];
+  if (!turn) return;
+  const idx = turn.calls.findIndex((c, i) => turn.results[i] === "" && c.function.name === call.name);
+  if (idx >= 0) turn.results[idx] = line;
 }
 
 export function laneFor(state: HarnessState): Lane {
@@ -755,7 +807,16 @@ export function buildRequest(state: HarnessState, lane: Lane, finalPass: boolean
   const messages: ChatTurn[] = [{ role: "system", content: system }];
   for (const turn of state.history) messages.push({ role: turn.role, content: turn.text.slice(0, 3000) });
   messages.push({ role: "user", content: state.query });
-  if (state.scratch.length) {
+  const nativeTurns = protocol === "native" ? (state.toolTurns || []).filter((t) => t.calls.length) : [];
+  if (nativeTurns.length) {
+    // Structured replay: the model sees its own calls and each result as a tool message.
+    for (const turn of nativeTurns) {
+      messages.push({ role: "assistant", content: "", tool_calls: turn.calls });
+      turn.calls.forEach((call, i) => messages.push({ role: "tool", tool_call_id: call.id, content: turn.results[i] || "(no result)" }));
+    }
+    const extra = state.scratch.filter((line) => !nativeTurns.some((t) => t.results.includes(line)));
+    messages.push({ role: "user", content: `${extra.length ? `Also: ${extra.join("\n")}\n\n` : ""}Answer my original message now if you have enough. Otherwise call one more tool.` });
+  } else if (state.scratch.length) {
     messages.push({ role: "assistant", content: "(looking things up)" });
     messages.push({
       role: "user",
@@ -771,8 +832,10 @@ export function buildRequest(state: HarnessState, lane: Lane, finalPass: boolean
     lane,
     messages,
     nativeTools: protocol === "native" ? tools : undefined,
-    maxTokens: finalPass ? state.config.windows[lane].outputTokens : Math.min(1200, state.config.windows[lane].outputTokens),
+    maxTokens: finalPass ? state.config.windows[lane].outputTokens : Math.min(state.config.thinkOnTools && protocol !== "none" ? 3000 : 1200, state.config.windows[lane].outputTokens),
     purpose: finalPass ? (state.phase === "synth" ? "synthesis" : "answer") : "tools",
+    protocol,
+    think: Boolean(state.config.thinkOnTools && !finalPass && protocol !== "none"),
   };
 }
 
@@ -797,7 +860,7 @@ function buildEmailDraftCard(state: HarnessState, args: Record<string, unknown>)
     id: `draft-${Date.now().toString(36)}`,
     to: resolvedTo,
     subject: resolvedSubject,
-    body: rawBody,
+    body: rawBody ? verifyFinal(state, rawBody, true) : rawBody,
     threadRef: matched?.meta?.threadRef || matched?.ref || (rawRef || undefined),
     gmailThreadId: matched?.meta?.gmailThreadId,
     accountEmail: matched?.meta?.accountEmail,
@@ -848,6 +911,10 @@ export function applyModelOutput(state: HarnessState, output: { text: string; to
   }
   if (safe.length && purpose !== "synthesis" && state.modelTurns < state.config.maxModelTurns) {
     state.pendingCalls = safe.slice(0, 3);
+    state.toolTurns = [...(state.toolTurns || []), {
+      calls: state.pendingCalls.map((call, i) => ({ id: `call_${state.modelTurns}_${i}`, type: "function" as const, function: { name: call.name, arguments: JSON.stringify(call.arguments || {}) } })),
+      results: state.pendingCalls.map(() => ""),
+    }];
     state.phase = "tools";
     return;
   }
@@ -869,9 +936,40 @@ export function applyModelOutput(state: HarnessState, output: { text: string; to
     state.phase = "synth";
     return;
   }
-  state.answer = text || "I could not write an answer this time. Try asking again.";
+  state.answer = text ? verifyFinal(state, text) : "I could not write an answer this time. Try asking again.";
   state.phase = "done";
   pushActivity(state.activity, { kind: "done", label: "Done", status: "done" });
+}
+
+/** Corpus = everything Hatch actually read for this turn plus the user's own words. */
+export function claimCorpus(state: HarnessState) {
+  const { kept } = assessEvidence(state);
+  const items = kept.length ? kept : state.evidence;
+  const { text } = budgetEvidence(items, 2_000_000);
+  return buildCorpus({
+    evidence: [text, ...items.map((e) => `${e.title}\n${e.date || ""}\n${e.text}`)],
+    query: state.query,
+    // Earlier assistant turns were verified when they were written, so restating them is fine.
+    extra: [...state.history.map((t) => t.text), state.memoryBlock || "", state.earlierSummary || "", ...state.searched, ...state.intent.queries],
+    today: state.today,
+    todayIso: state.todayIso,
+  });
+}
+
+function verifyFinal(state: HarnessState, text: string, draft = false): string {
+  if (!state.config.verifyClaims) return text;
+  // Plain chat (haiku, math, thanks) has nothing to ground against.
+  if (!draft && !state.intent.needsTools && !state.usedTools && !state.evidence.length) return text;
+  const result = verifyAnswer(text, claimCorpus(state), { draft });
+  const prev = state.verification;
+  state.verification = {
+    checked: (prev?.checked || 0) + result.checked,
+    unsupported: (prev?.unsupported || 0) + result.unsupported.length,
+    stripped: (prev?.stripped || 0) + result.stripped,
+    flagged: (prev?.flagged || 0) + result.flagged,
+    kinds: [...new Set([...(prev?.kinds || []), ...result.unsupported.map((c) => c.kind)])],
+  };
+  return result.text;
 }
 
 export function finishRemember(state: HarnessState, fact: string) {

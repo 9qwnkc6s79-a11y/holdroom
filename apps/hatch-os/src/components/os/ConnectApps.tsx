@@ -14,6 +14,8 @@ interface Connected {
   kind: string;
   label: string;
   detail: string;
+  status?: "ok" | "missing_scope" | "expired" | "unreadable";
+  missing?: string[];
 }
 
 interface Setup {
@@ -23,6 +25,13 @@ interface Setup {
 }
 
 const OAUTH = new Set(["google", "microsoft", "slack", "notion"]);
+
+function reconnectReason(row: Connected): string {
+  if (row.status === "missing_scope") return `Reconnect to let Hatch ${(row.missing || ["finish setup"]).join(" and ")}. Tap Reconnect and allow every permission Google asks for.`;
+  if (row.status === "expired") return "This connection expired. Tap Reconnect to sign in again.";
+  if (row.status === "unreadable") return "Hatch can't read this connection anymore. Disconnect and connect again.";
+  return "";
+}
 
 export function ConnectApps({ scope }: { scope: string }) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -140,6 +149,9 @@ export function ConnectApps({ scope }: { scope: string }) {
           <div className="set-row is-static">
             <span className="set-main"><strong>{active.name}</strong><span>{live ? live.detail : active.blurb}</span></span>
           </div>
+          {live && live.status && live.status !== "ok" ? (
+            <p className="os-error set-card-alert" role="alert">{reconnectReason(live)}</p>
+          ) : null}
           {live ? (
             <div className="row-actions">
               <button type="button" className="os-btn" onClick={() => void test(active.kind)}>Test</button>
@@ -148,7 +160,7 @@ export function ConnectApps({ scope }: { scope: string }) {
           ) : null}
           {OAUTH.has(active.kind) ? (
             <div className="set-field">
-              <button type="button" className="os-btn" onClick={() => void beginOAuth(active.kind)}>Connect {active.name}</button>
+              <button type="button" className="os-btn" onClick={() => void beginOAuth(active.kind)}>{live ? "Reconnect" : "Connect"} {active.name}</button>
               {active.kind === "slack" || active.kind === "notion" ? <p className="fine">Or paste a token below. OAuth is used when its credentials are set.</p> : null}
               {!setup.find((item) => item.kind === active.kind)?.configured ? (
                 <p className="fine">{active.name} OAuth credentials are not configured on this server yet.</p>
@@ -198,6 +210,7 @@ export function ConnectApps({ scope }: { scope: string }) {
               <span className="set-main">
                 <strong>{item.name}</strong>
                 <span>{on ? on.label : item.blurb}</span>
+                {on?.status && on.status !== "ok" ? <span className="set-badge is-warn">Reconnect</span> : null}
               </span>
               {on ? <span className="status-live">Connected</span> : <span className="set-value">{item.auth}</span>}
             </button>

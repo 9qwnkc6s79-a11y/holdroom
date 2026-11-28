@@ -71,18 +71,76 @@ const SYNONYMS: Record<string, string[]> = {
   quote: ["estimate", "bid", "proposal"],
   estimate: ["quote", "bid"],
   invoice: ["bill", "payment"],
+  pay: ["payment", "paid", "deposit"],
+  paid: ["payment", "deposit"],
+  payout: ["payment", "deposit"],
   contract: ["agreement"],
   lease: ["rent"],
   install: ["installation"],
   drawings: ["plans", "renderings"],
 };
 
+// Work words people fat-finger on a phone. A typo'd search term matches nothing in Gmail, so the
+// ask silently falls back to older, looser hits ("monumnet sign" found last month's vendor).
+const VOCAB = (
+  "monument signage permit permitting invoice invoices estimate proposal contract agreement schedule calendar meeting " +
+  "payment payments deposit insurance drawings renderings standards submission deadline overdue reminder statement " +
+  "utility utilities landlord property lease contractor inspection installation install quote quotes budget vendor " +
+  "doordash ubereats grubhub payroll receipt receipts refund delivery catering espresso equipment maintenance repair " +
+  "license renewal electric plumbing construction architect engineer approval approved signed signature attachment " +
+  "celina prosper little frisco mcdermott tapmango"
+).split(" ");
+const VOCAB_SET = new Set(VOCAB);
+const TYPO_KEEP = new Set(["proper", "properly", "permits", "invoiced", "scheduled", "meetings", "deposits", "receipt", "approve", "signer", "signee", "statements"]);
+
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  let prev2: number[] = [];
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      // Adjacent swap ("monumnet").
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+      best = Math.min(best, cur[j]);
+    }
+    if (best > max) return max + 1;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Snap a misspelled work word to the vocabulary (same first letter, edit distance 1, or 2 for long words). */
+export function fixTypo(word: string): string {
+  if (VOCAB_SET.has(word) || word.length < 6 || TYPO_KEEP.has(word)) return word;
+  const max = word.length >= 8 ? 2 : 1;
+  let best = word;
+  let bestD = max + 1;
+  for (const v of VOCAB) {
+    if (v[0] !== word[0]) continue;
+    const d = editDistance(word, v, max);
+    if (d < bestD) { best = v; bestD = d; }
+  }
+  return bestD <= max ? best : word;
+}
+
 export function analyzeIntent(
   query: string,
-  opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string } = {},
+  opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string; depth?: number } = {},
 ): Intent {
   const raw = String(query || "").trim();
-  const lower = normalize(raw);
+  // Phone-typing shorthand the user will never search for literally.
+  const lower = normalize(raw)
+    .replace(/\b(?:wat|wut|wht|waht|whta)\b/g, "what")
+    .replace(/\b(?:abt|bout)\b/g, "about")
+    .replace(/\b(?:pls|plz)\b/g, "please")
+    .replace(/\b(?:tmrw|tmr|tomm?or?ow)\b/g, "tomorrow")
+    .replace(/\bw\/(?=\s)/g, "with")
+    .replace(/\b[a-z]{6,}\b/g, fixTypo);
   const connected = opts.connected || new Set<string>();
   const hasMail = ["email", "google", "microsoft"].some((k) => connected.has(k));
   const hasFiles = ["google", "microsoft"].some((k) => connected.has(k));
@@ -116,19 +174,30 @@ export function analyzeIntent(
   const pronounish = /\b(it|that|this|them|those|the same|what about|how about|and the|also|again|still|waiting on|who'?s waiting|who is waiting|the (?:sign|quote|thread|email|mail|message|file|doc|project|permit|proposal|estimate|draft|one))\b/.test(lower);
   const prevEntities = prevUser ? matchEntities(prevUser.text, opts.memory) : [];
   const introducesNewEntity = entities.some((e) => !prevEntities.some((pe) => pe.name === e.name));
-  if (prevUser && pronounish && !introducesNewEntity && tokens.length <= 3 && kind !== "schedule") {
-    const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected });
-    if (prev.needsTools) {
+  // Short sloppy follow-ups with no pronoun: "why only a 2 for fun", "and how much w tax", "phone #?".
+  const shortFollow =
+    /^(?:and|so|ok|okay|but|why|how come|how much|how many|how tall|how long|when|where|which|who|whose|did|does|do|is|are|was|were|can|could|same|what about|what kind|what type|whats the|what's the|what is the|phone|email|address|price|cost)\b/.test(lower) &&
+    raw.trim().split(/\s+/).length <= 8 &&
+    !/^(?:lol|haha|lmao|lmfao)\b/.test(lower) &&
+    !/\d+(?:\.\d+)?\s*(?:plus|minus|times|divided|\+|\*|\/|%)\s*\d/.test(lower);
+  if (prevUser && (pronounish || shortFollow) && !introducesNewEntity && tokens.length <= (pronounish ? 3 : 5) && kind !== "schedule") {
+    // Resolve the previous ask with its own history so chained follow-ups keep the topic
+    // ("latest on the sign" -> "who is waiting on who again?" -> "and how much w tax").
+    const hist = opts.history || [];
+    const prevIdx = hist.lastIndexOf(prevUser);
+    const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected, todayIso: opts.todayIso, history: (opts.depth || 0) < 3 ? hist.slice(Math.max(0, prevIdx - 6), prevIdx) : [], depth: (opts.depth || 0) + 1 });
+    if (prev.needsTools || prev.kind === "schedule") {
       followUp = true;
       newTerms = [...tokens];
       tokens = [...new Set([...prev.terms, ...tokens])];
       entities.push(...prev.entities.filter((e) => !entities.some((x) => x.name === e.name)));
-      if (kind === "chat") kind = prev.kind === "remember" ? "find" : prev.kind;
+      // A short follow-up wants a direct answer, not another full briefing.
+      if (kind === "chat" || (kind === "status_brief" && shortFollow)) kind = prev.kind === "remember" || prev.kind === "status_brief" ? "find" : prev.kind;
     }
   }
 
   // Default to looking things up for work asks; keep math, creative, and casual banter/general asks as plain chat.
-  const mathExpr = /^(?:what(?:'s| is)\s+)?-?\d+(?:\.\d+)?(?:\s*(?:plus|minus|times|multiplied by|divided by|over|\+|-|\*|x|\/)\s*-?\d+(?:\.\d+)?)+\s*\??$/i.test(raw);
+  const mathExpr = /^(?:what(?:'?s| is)\s+)?-?\d+(?:\.\d+)?(?:\s*(?:plus|minus|times|multiplied by|divided by|over|\+|-|\*|x|\/)\s*-?\d+(?:\.\d+)?)+\s*\??$/i.test(raw);
   const mentionsSource = /\b(email|emails|mail|inbox|gmail|outlook|drive|onedrive|doc|docs|file|files|pdf|spreadsheet|sheet|calendar|cal|meeting)\b/.test(lower);
   const ownershipSignal = /\b(my|our|we|us|firm|company|boundaries|little elm|prosper|celina|frisco|grand prairie|mcdermott|tapmango|tacos y rocky|onyx|cintas|twc|1120|hatch os)\b/.test(lower);
   const generalAdvice = /\b(rule of thumb|best practice|general rule|typically|in general|how do i make|how to make)\b/.test(lower) && !ownershipSignal && !mentionsSource && entities.length === 0;
@@ -193,6 +262,8 @@ export function analyzeIntent(
     const covered = new Set(uniqPhrases.flatMap((p) => p.split(" ")));
     queries.push([...uniqPhrases.slice(0, 3).map(quote), ...terms.filter((t) => !covered.has(t)).slice(0, 3)].join(" "));
   }
+  // Gmail matches whole words, so "pay" misses "Payment": search the synonym groups up front.
+  if (terms.slice(0, 6).some((t) => SYNONYMS[t] && !WEAK.has(t))) queries.unshift(terms.slice(0, 6).map((t) => (SYNONYMS[t] ? `(${[t, ...SYNONYMS[t]].join(" OR ")})` : t)).join(" "));
   if (terms.length) queries.push(terms.slice(0, 6).join(" "));
   // Topic only, without the place/person words: "monument sign".
   if (topic.length && topic.length < terms.length) queries.push(topic.slice(0, 4).join(" "));
@@ -254,6 +325,13 @@ export function analyzeIntent(
     if (/\b(tmrw|tmr|tomorrow)\b/.test(lower)) dateRange = { from: day(1), to: day(1) };
     else if (/\btoday\b/.test(lower)) dateRange = { from: day(0), to: day(0) };
     else if (/\bnext week\b/.test(lower)) dateRange = { from: day(7 - base.getUTCDay() + 1), to: day(7 - base.getUTCDay() + 7) };
+    else if (/\b(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(?:day|nesday|rsday|urday)?\b/.test(lower) && (kind === "schedule" || followUp)) {
+      const m = lower.match(/\b(sun|mon|tue|wed|thu|fri|sat)/)!;
+      const target = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(m[1]);
+      const ahead = (target - base.getUTCDay() + 7) % 7;
+      const offset = /\b(last|past)\b/.test(lower) ? ahead - 7 : /\bnext\b/.test(lower) && ahead < 7 ? ahead + (ahead === 0 ? 7 : 0) : ahead;
+      dateRange = { from: day(offset), to: day(offset) };
+    }
     else if (/\bthis week\b/.test(lower) && kind === "schedule") dateRange = { from: day(0), to: day(6 - base.getUTCDay() + 1) };
   }
 

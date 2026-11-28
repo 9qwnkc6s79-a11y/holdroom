@@ -1,0 +1,16 @@
+{
+  "persona": "Sample persona (fictional). Point QA_CASES at your private file of real asks; keep it out of git.",
+  "scenarios": [
+    { "id": "sample-sign", "turns": [
+      { "ask": "whats the deal w the monumnet sign", "kind": "lookup", "facts": ["sign"] },
+      { "ask": "who's waiting on who again", "kind": "lookup", "anchor": "sign" }
+    ]},
+    { "id": "sample-chat", "turns": [
+      { "ask": "lol whats 18% of 19250", "kind": "chat", "facts": ["3,?465"] },
+      { "ask": "thx", "kind": "chat" }
+    ]},
+    { "id": "sample-notfound", "turns": [
+      { "ask": "did anyone email about the zeppelin rental", "kind": "notfound", "forbid": ["\\$\\d"] }
+    ]}
+  ]
+}

@@ -12,6 +12,7 @@
  * pay for each request once.
  *
  * Options: --live  --lane ask|agent  --cases id1,id2  --arms a,b  --exchange <dir>  --json <file>
+ *          --protocol text|native  --think (reason on tool turns)  --no-verify (skip the claim check)
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -23,6 +24,7 @@ import { runMainPipeline, type ModelFn } from "./baseline-main.ts";
 import { scoreCase, type CaseScore } from "./score.ts";
 import { initHarness, runToCompletion, type ModelRequest, type Lane, type HarnessConfig } from "../../src/lib/harness/engine.ts";
 import { parseRunpodChatOutput } from "../../src/lib/runpod-jobs.ts";
+import { openAiTool, type HarnessToolSpec } from "../../src/lib/harness/system-prompt.ts";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -47,9 +49,9 @@ function laneEndpoint(lane: Lane) {
 export const ENDPOINT_IDS: Record<Lane, string> = { ask: "diqb3ykkxo0i16", agent: "gy5a9f9lpjz2y7" };
 
 /** The RunPod worker input for one model request. Same shape submitRunpodChat uses. */
-export function runpodInput(lane: Lane, messages: { role: string; content: string }[], opts: { maxTokens: number; tools?: { name: string; description: string; parameters: string[] }[] }) {
+export function runpodInput(lane: Lane, messages: unknown[], opts: { maxTokens: number; tools?: HarnessToolSpec[]; think?: boolean }) {
   const ep = laneEndpoint(lane);
-  const tools = opts.tools?.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: { type: "object", properties: Object.fromEntries(t.parameters.map((p) => [p, { type: "string" }])), required: t.parameters } } }));
+  const tools = opts.tools?.map(openAiTool);
   return {
     openai_route: "/v1/chat/completions",
     openai_input: {
@@ -58,14 +60,14 @@ export function runpodInput(lane: Lane, messages: { role: string; content: strin
       temperature: 0.3,
       stream: false,
       max_tokens: opts.maxTokens,
-      chat_template_kwargs: { enable_thinking: false },
+      chat_template_kwargs: { enable_thinking: Boolean(opts.think) },
       ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
     },
   };
 }
 
-async function liveCall(id: string, lane: Lane, messages: { role: string; content: string }[], maxTokens: number, tools?: { name: string; description: string; parameters: string[] }[]) {
-  const input = runpodInput(lane, messages, { maxTokens, tools });
+async function liveCall(id: string, lane: Lane, messages: unknown[], maxTokens: number, tools?: HarnessToolSpec[], think?: boolean) {
+  const input = runpodInput(lane, messages, { maxTokens, tools, think });
   if (EXCHANGE) {
     mkdirSync(EXCHANGE, { recursive: true });
     const req = path.join(EXCHANGE, `${id}.req.json`);
@@ -90,7 +92,7 @@ function mockFor(request: { messages: { role: string; content: string }[]; nativ
 
 type Arm = "main-shallow" | "main-deep" | "harness-shallow" | "harness-deep";
 
-async function runArm(arm: Arm, c: EvalCase, live: boolean): Promise<{ text: string; usedTools: boolean; modelCalls: number; activity?: string[] }> {
+async function runArm(arm: Arm, c: EvalCase, live: boolean): Promise<{ text: string; usedTools: boolean; modelCalls: number; activity?: string[]; unsupported?: number }> {
   if (arm.startsWith("main")) {
     let n = 0;
     const model: ModelFn = async (input) => {
@@ -108,7 +110,12 @@ async function runArm(arm: Arm, c: EvalCase, live: boolean): Promise<{ text: str
     return { text: r.text, usedTools: r.usedTools, modelCalls: n };
   }
   const deep = arm === "harness-deep";
-  const config: Partial<HarnessConfig> = { toolLane: LANE };
+  const config: Partial<HarnessConfig> = {
+    toolLane: LANE,
+    ...(opt("protocol") ? { toolProtocol: { ask: opt("protocol") as "text" | "native", agent: opt("protocol") as "text" | "native" } } : {}),
+    ...(flag("think") ? { thinkOnTools: true } : {}),
+    ...(flag("no-verify") ? { verifyClaims: false } : {}),
+  };
   const state = initHarness({ query: c.query, history: c.history, connected: CONNECTED, memory: FIXTURE_MEMORY, today: `Wednesday, ${FIXTURE_TODAY}`, todayIso: FIXTURE_TODAY, config });
   let n = 0;
   const result = await runToCompletion(state, {
@@ -119,11 +126,14 @@ async function runArm(arm: Arm, c: EvalCase, live: boolean): Promise<{ text: str
       n++;
       const protocol = request.nativeTools ? "native" : /<tool_call>\{"name"/.test(request.messages[0].content) ? "text" : "none";
       if (!live) return mockFor(request, protocol);
-      return liveCall(`${arm}-${LANE}-${c.id}-${n}`, request.lane, request.messages, request.maxTokens, request.nativeTools);
+      return liveCall(`${arm}-${LANE}-${c.id}-${n}`, request.lane, request.messages, request.maxTokens, request.nativeTools, request.think);
     },
   });
   const draftText = result.emailDraft ? `To: ${result.emailDraft.to}\nSubject: ${result.emailDraft.subject}\n\n${result.emailDraft.body}` : "";
-  return { text: result.text || draftText, usedTools: result.state.usedTools, modelCalls: n, activity: result.state.activity.events.map((e) => `${e.status === "failed" ? "✗" : "✓"} ${e.label}`) };
+  const v = result.state.verification;
+  const activity = result.state.activity.events.map((e) => `${e.status === "failed" ? "✗" : "✓"} ${e.label}`);
+  if (v) activity.push(`claim check: ${v.checked} checked, ${v.unsupported} unsupported (${v.kinds.join(", ") || "none"}), ${v.stripped} stripped, ${v.flagged} flagged`);
+  return { text: result.text || draftText, usedTools: result.state.usedTools, modelCalls: n, activity, unsupported: v?.unsupported || 0 };
 }
 
 async function main() {

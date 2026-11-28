@@ -4,10 +4,34 @@
  */
 import type { Intent } from "./intent.ts";
 
+export interface ToolParamSpec {
+  type: "string" | "number" | "boolean";
+  description?: string;
+  enum?: string[];
+}
+
 export interface HarnessToolSpec {
   name: string;
   description: string;
   parameters: string[];
+  /** Typed parameter schema for native (structured) tool calls. */
+  params?: Record<string, ToolParamSpec>;
+  /** Required parameters; defaults to all of `parameters`. */
+  required?: string[];
+}
+
+/** OpenAI / vLLM `tools` entry. `strict` asks vLLM to enforce the argument schema with a grammar. */
+export function openAiTool(spec: HarnessToolSpec) {
+  const properties = Object.fromEntries(spec.parameters.map((p) => [p, spec.params?.[p] || { type: "string" }]));
+  return {
+    type: "function" as const,
+    function: {
+      name: spec.name,
+      description: spec.description,
+      parameters: { type: "object" as const, properties, required: spec.required ?? spec.parameters, additionalProperties: false },
+      strict: (process.env.HATCH_TOOL_STRICT || "on") !== "off",
+    },
+  };
 }
 
 export interface SystemPromptInput {
@@ -40,12 +64,13 @@ export const CORE_RULES = [
   "2. Act before asking. If the answer could be in email, files, calendar, or the library, look first. Never ask \"which thread?\" or \"can you clarify?\" when you can search.",
   "3. Read, do not skim. A subject line is not an answer. Use the full message bodies and file text you were given.",
   "4. Lead with the answer. First line = the direct answer (use \"Bottom line:\" ONLY for status briefings). No preamble, no \"Sure!\", no restating the question.",
-  "5. Be concrete: names, dates, amounts, versions, who is waiting on whom, what is due next. Quote short exact phrases when they matter.",
+  "5. Be concrete: names, dates, amounts, versions, who is waiting on whom, what is due next. Quote short exact phrases when they matter, copied word for word; if you are paraphrasing, do not use quotation marks.",
   "6. Be honest about gaps. If something is not in what you read, say so in one line and say where you looked. Never invent facts, numbers, dates, times, attachments, or people. Never assert something is \"complete\", \"done\", \"submitted\", or \"nothing left\" unless the retrieved source text explicitly states that exact status.",
   "7. Ask at most one question, only when a decision is the person's to make or when the ask is genuinely ambiguous and searches returned no strong match.",
   "8. Writes (sending email, creating events, saving files) are only proposed. A person approves them in Hatch. Never say something was sent or saved unless a tool result says so.",
   "9. Cite sources inline with clickable markdown links using the exact URL from the evidence: e.g. ([Monument sign](https://...)). Never invent URLs; if none is provided, name the subject or file in quotes.",
-  "10. Short beats long. Only use the status-briefing template when the ask is a status brief; simple finds get 1-3 direct sentences, and casual chat gets a short natural reply.",
+  "10. Talk to the person as \"you\" (never by name in the third person). Do not add filler like \"no further action is required\" unless a source says so.",
+  "11. Short beats long. Only use the status-briefing template when the ask is a status brief; simple finds get 1-3 direct sentences, and casual chat gets a short natural reply.",
 ];
 
 const EXAMPLE = [
@@ -74,12 +99,22 @@ export function toolProtocolBlock(tools: HarnessToolSpec[], protocol: SystemProm
   ].join("\n");
 }
 
+/** "Coming days: Sat Nov 28, Sun Nov 29, Mon Nov 30, …" so the model never computes a weekday's date. */
+export function comingDays(today: string, days = 8): string {
+  const base = new Date(String(today).split(/,\s*\d{1,2}:\d{2}/)[0]);
+  if (Number.isNaN(base.getTime())) return "";
+  const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const start = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate());
+  const list = Array.from({ length: days }, (_, i) => fmt.format(new Date(start + (i + 1) * 86400e3)).replace(",", ""));
+  return ` Coming days: ${list.join("; ")}.`;
+}
+
 export function buildSystemPrompt(input: SystemPromptInput): string {
   const intent = input.intent;
   const who = [input.firmName ? `Firm: ${input.firmName}.` : "", input.userName ? `You are talking with ${input.userName}.` : ""].filter(Boolean).join(" ");
   if (intent.kind === "chat" && !intent.needsTools && !input.evidenceBlock) {
     const chatSections: string[] = [
-      "You are Hatch, a sharp, concise private AI assistant. Reply directly and naturally in 1-3 short sentences (or just the answer for math/thanks). Never mention firm emails, files, or library unless the user asked about them, and never use a briefing template.",
+      "You are Hatch, a sharp, concise private AI assistant. Reply directly and naturally in 1-3 short sentences (or just the answer for math/thanks). Never mention firm emails, files, records, or correspondence unless the user asked about them, and never use a briefing template. For slang, jokes, or pop culture, answer casually from general knowledge (it is fine to say a phrase is informal or crude) and never tie it to a person or message.",
       `Today is ${input.today}.${who ? ` ${who}` : ""}`,
       input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
       input.guidance || "",
@@ -89,7 +124,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
   const sections: string[] = [
     CORE_RULES.join("\n"),
-    `Today is ${input.today}.${who ? ` ${who}` : ""}`,
+    `Today is ${input.today}.${comingDays(input.today)}${who ? ` ${who}` : ""}`,
     input.connected.length ? `Connected sources: ${input.connected.join(", ")}.` : "No email/Drive/calendar is connected yet. If the answer needs them, say which one to connect in Settings > Connect apps.",
     input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
     input.memoryBlock ? `Firm memory (facts the firm has taught Hatch):\n${input.memoryBlock}` : "",

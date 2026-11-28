@@ -795,3 +795,8 @@ select {
 .source-pill strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
 
 .bubble.agent .artifact-md a, .os-assistant .artifact-md a { color: var(--accent, #2563eb); text-decoration: underline; text-underline-offset: 2px; }
+
+.set-badge { margin-left: auto; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--os-chip, rgba(0,0,0,.06)); }
+.set-badge.is-warn { background: #fef3c7; color: #92400e; }
+.email-draft-reconnect { display: inline-block; margin-left: 6px; font-weight: 600; text-decoration: underline; color: inherit; }
+.set-card-alert { margin: 0; padding: 4px 18px 0; line-height: 1.45; }

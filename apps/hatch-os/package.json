@@ -11,7 +11,9 @@
     "eval:agent": "node --experimental-strip-types eval/agent/run.ts",
     "test:e2e": "playwright test",
     "telegram": "tsx scripts/telegram-bridge.ts",
-    "telegram:keep": "bash scripts/keep-telegram.sh"
+    "telegram:keep": "bash scripts/keep-telegram.sh",
+    "qa:persona": "node --experimental-strip-types qa/persona/run.ts",
+    "qa:ux": "node --experimental-strip-types qa/persona/ux.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.9.0",
