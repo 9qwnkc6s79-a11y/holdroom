@@ -1,4 +1,4 @@
-import { analyzeIntent } from "./intent.ts";
+import { analyzeIntent, fixTypo } from "./intent.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildCorpus, extractClaims, verifyAnswer } from "./verify.ts";
@@ -108,4 +108,12 @@ test("chained follow-ups keep the topic and weekday asks get a date range", () =
   const mon = analyzeIntent("and monday?", { history: [{ role: "user", text: "whats on my calendar tmrw" }, { role: "assistant", text: "n" }], todayIso: "2026-11-27" });
   assert.equal(mon.kind, "schedule");
   assert.deepEqual(mon.dateRange, { from: "2026-11-30", to: "2026-11-30" });
+});
+
+test("typo'd work words are snapped before searching", () => {
+  assert.equal(fixTypo("monumnet"), "monument");
+  assert.equal(fixTypo("celian"), "celina");
+  assert.equal(fixTypo("proper"), "proper");
+  assert.equal(fixTypo("robert"), "robert");
+  assert.ok(analyzeIntent("monumnet sign status??", { todayIso: "2026-11-27" }).queries.some((q) => q.includes("monument")));
 });

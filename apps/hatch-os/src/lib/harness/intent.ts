@@ -80,6 +80,54 @@ const SYNONYMS: Record<string, string[]> = {
   drawings: ["plans", "renderings"],
 };
 
+// Work words people fat-finger on a phone. A typo'd search term matches nothing in Gmail, so the
+// ask silently falls back to older, looser hits ("monumnet sign" found last month's vendor).
+const VOCAB = (
+  "monument signage permit permitting invoice invoices estimate proposal contract agreement schedule calendar meeting " +
+  "payment payments deposit insurance drawings renderings standards submission deadline overdue reminder statement " +
+  "utility utilities landlord property lease contractor inspection installation install quote quotes budget vendor " +
+  "doordash ubereats grubhub payroll receipt receipts refund delivery catering espresso equipment maintenance repair " +
+  "license renewal electric plumbing construction architect engineer approval approved signed signature attachment " +
+  "celina prosper little frisco mcdermott tapmango"
+).split(" ");
+const VOCAB_SET = new Set(VOCAB);
+const TYPO_KEEP = new Set(["proper", "properly", "permits", "invoiced", "scheduled", "meetings", "deposits", "receipt", "approve", "signer", "signee", "statements"]);
+
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  let prev2: number[] = [];
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      // Adjacent swap ("monumnet").
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+      best = Math.min(best, cur[j]);
+    }
+    if (best > max) return max + 1;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Snap a misspelled work word to the vocabulary (same first letter, edit distance 1, or 2 for long words). */
+export function fixTypo(word: string): string {
+  if (VOCAB_SET.has(word) || word.length < 6 || TYPO_KEEP.has(word)) return word;
+  const max = word.length >= 8 ? 2 : 1;
+  let best = word;
+  let bestD = max + 1;
+  for (const v of VOCAB) {
+    if (v[0] !== word[0]) continue;
+    const d = editDistance(word, v, max);
+    if (d < bestD) { best = v; bestD = d; }
+  }
+  return bestD <= max ? best : word;
+}
+
 export function analyzeIntent(
   query: string,
   opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string; depth?: number } = {},
@@ -91,7 +139,8 @@ export function analyzeIntent(
     .replace(/\b(?:abt|bout)\b/g, "about")
     .replace(/\b(?:pls|plz)\b/g, "please")
     .replace(/\b(?:tmrw|tmr|tomm?or?ow)\b/g, "tomorrow")
-    .replace(/\bw\/(?=\s)/g, "with");
+    .replace(/\bw\/(?=\s)/g, "with")
+    .replace(/\b[a-z]{6,}\b/g, fixTypo);
   const connected = opts.connected || new Set<string>();
   const hasMail = ["email", "google", "microsoft"].some((k) => connected.has(k));
   const hasFiles = ["google", "microsoft"].some((k) => connected.has(k));
