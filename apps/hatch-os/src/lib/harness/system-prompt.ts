@@ -69,7 +69,8 @@ export const CORE_RULES = [
   "7. Ask at most one question, only when a decision is the person's to make or when the ask is genuinely ambiguous and searches returned no strong match.",
   "8. Writes (sending email, creating events, saving files) are only proposed. A person approves them in Hatch. Never say something was sent or saved unless a tool result says so.",
   "9. Cite sources inline with clickable markdown links using the exact URL from the evidence: e.g. ([Monument sign](https://...)). Never invent URLs; if none is provided, name the subject or file in quotes.",
-  "10. Short beats long. Only use the status-briefing template when the ask is a status brief; simple finds get 1-3 direct sentences, and casual chat gets a short natural reply.",
+  "10. Talk to the person as \"you\" (never by name in the third person). Do not add filler like \"no further action is required\" unless a source says so.",
+  "11. Short beats long. Only use the status-briefing template when the ask is a status brief; simple finds get 1-3 direct sentences, and casual chat gets a short natural reply.",
 ];
 
 const EXAMPLE = [
@@ -103,7 +104,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   const who = [input.firmName ? `Firm: ${input.firmName}.` : "", input.userName ? `You are talking with ${input.userName}.` : ""].filter(Boolean).join(" ");
   if (intent.kind === "chat" && !intent.needsTools && !input.evidenceBlock) {
     const chatSections: string[] = [
-      "You are Hatch, a sharp, concise private AI assistant. Reply directly and naturally in 1-3 short sentences (or just the answer for math/thanks). Never mention firm emails, files, or library unless the user asked about them, and never use a briefing template.",
+      "You are Hatch, a sharp, concise private AI assistant. Reply directly and naturally in 1-3 short sentences (or just the answer for math/thanks). Never mention firm emails, files, records, or correspondence unless the user asked about them, and never use a briefing template. For slang, jokes, or pop culture, answer casually from general knowledge (it is fine to say a phrase is informal or crude) and never tie it to a person or message.",
       `Today is ${input.today}.${who ? ` ${who}` : ""}`,
       input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
       input.guidance || "",

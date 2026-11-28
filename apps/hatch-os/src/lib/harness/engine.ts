@@ -947,7 +947,8 @@ export function claimCorpus(state: HarnessState) {
   return buildCorpus({
     evidence: [text, ...items.map((e) => `${e.title}\n${e.date || ""}\n${e.text}`)],
     query: state.query,
-    extra: [...state.history.filter((t) => t.role === "user").map((t) => t.text), state.memoryBlock || "", state.earlierSummary || ""],
+    // Earlier assistant turns were verified when they were written, so restating them is fine.
+    extra: [...state.history.map((t) => t.text), state.memoryBlock || "", state.earlierSummary || ""],
     today: state.today,
     todayIso: state.todayIso,
   });

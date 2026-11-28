@@ -6,7 +6,7 @@
  *
  *   QA_BASE_URL=https://<preview>.vercel.app QA_CODE=<invite> QA_CASES=/private/persona.json npm run qa:persona
  *
- * Options (env): QA_VIEWPORTS=phone,desktop  QA_ONLY=id1,id2  QA_OUT=dir  QA_BROWSER=chromium|webkit
+ * Options (env): QA_PROFILE=<preview profile>  QA_VIEWPORTS=phone,desktop  QA_ONLY=id1,id2  QA_OUT=dir  QA_BROWSER=chromium|webkit
  *                QA_MIN_PASS=0.9 (exit 1 below this)  QA_REPORT_TEXT=1 (include answers in the md report)
  * Answers and sources are written only to QA_OUT (default qa/persona/results, git-ignored).
  */
@@ -22,7 +22,9 @@ const OUT = process.env.QA_OUT || path.join(import.meta.dirname, "results");
 const ONLY = process.env.QA_ONLY?.split(",").filter(Boolean);
 const VIEWPORTS = (process.env.QA_VIEWPORTS || "phone,desktop").split(",");
 const MIN_PASS = Number(process.env.QA_MIN_PASS || 0.9);
-const LABEL = process.env.QA_LABEL || "";
+const LABEL = process.env.QA_LABEL || process.env.QA_PROFILE || "";
+/** Preview-only server profile (model/protocol/flags), sent as x-hatch-qa-profile. */
+const PROFILE = process.env.QA_PROFILE || "";
 
 const VIEWPORT = {
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
@@ -190,7 +192,7 @@ async function main() {
     if (!vp) continue;
     for (const scenario of scenarios) {
       // Fresh context = fresh client thread, so scenarios never bleed into each other.
-      const context = await browser.newContext({ ...vp });
+      const context = await browser.newContext({ ...vp, extraHTTPHeaders: PROFILE ? { "x-hatch-qa-profile": PROFILE } : undefined });
       const page = await context.newPage();
       try {
         await signIn(page);
@@ -230,7 +232,7 @@ async function main() {
   });
   const stamp = startedAt.toISOString().replace(/[:.]/g, "-");
   const summary = {
-    label: LABEL, base: BASE.replace(/https?:\/\//, ""), at: startedAt.toISOString(), viewports: VIEWPORTS,
+    label: LABEL, profile: PROFILE, base: BASE.replace(/https?:\/\//, ""), at: startedAt.toISOString(), viewports: VIEWPORTS,
     turns: turns.length, passed, passRate: Math.round(rate * 1000) / 10, p50: pct(0.5), p90: pct(0.9), checks: checkRates,
   };
   writeFileSync(path.join(OUT, `persona-${stamp}.json`), JSON.stringify({ summary, results }, null, 2));

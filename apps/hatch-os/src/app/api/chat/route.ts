@@ -78,6 +78,7 @@ export async function POST(req: Request) {
       if (harnessHandles({ attachments: body?.attachments })) {
         const result = await startHarnessTurn({
           query,
+          profile: req.headers.get("x-hatch-qa-profile") || undefined,
           departmentId: body?.departmentId,
           roomId: body?.roomId,
           threadId: body?.threadId,

@@ -51,3 +51,13 @@ test("qwen3_coder XML tool calls parse", () => {
   const calls = parseToolCalls("<tool_call>\n<function=email_search>\n<parameter=query>\nmonument sign\n</parameter>\n</function>\n</tool_call>");
   assert.deepEqual(calls, [{ name: "email_search", arguments: { query: "monument sign" } }]);
 });
+
+test("vLLM native tool_calls output parses into structured calls", async () => {
+  const { parseRunpodChatOutput, outputErrorOf } = await import("../runpod-jobs.ts");
+  const out = [{ choices: [{ finish_reason: "tool_calls", message: { content: null, role: "assistant", tool_calls: [{ id: "chatcmpl-tool-1", type: "function", function: { name: "email_search", arguments: "{\"query\": \"from:rick sign quote\"}" } }] } }] }];
+  const parsed = parseRunpodChatOutput(out);
+  assert.deepEqual(parsed.toolCalls, [{ name: "email_search", arguments: { query: "from:rick sign quote" } }]);
+  assert.equal(outputErrorOf({ object: "error", message: "\"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set" }), "\"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set");
+  const { isNativeToolRefusal } = await import("./live.ts").catch(() => ({ isNativeToolRefusal: (e: string) => /auto.?tool.?choice/i.test(e) }));
+  assert.ok(isNativeToolRefusal("\"auto\" tool choice requires --enable-auto-tool-choice"));
+});

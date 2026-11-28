@@ -4,7 +4,7 @@
  * harness at a trial RunPod endpoint or flip harness flags. Only non-secret keys are
  * allowed; the RunPod key stays in Vercel env.
  */
-import { PREVIEW_OVERRIDES } from "./preview-overrides.config.ts";
+import { PREVIEW_OVERRIDES, PREVIEW_PROFILES } from "./preview-overrides.config.ts";
 
 const ALLOWED = new Set([
   "HATCH_LLM_BASE_URL",
@@ -15,6 +15,8 @@ const ALLOWED = new Set([
   "HATCH_TOOL_STRICT",
   "HATCH_DAILY_MESSAGE_CAP",
   "HATCH_ASK_CONTEXT_TOKENS",
+  "HATCH_AGENT_TOOL_LANE",
+  "HATCH_AGENT_TOOL_PROTOCOL",
 ]);
 
 export function applyPreviewOverrides(env: NodeJS.ProcessEnv = process.env, table: Record<string, string> = PREVIEW_OVERRIDES): string[] {
@@ -30,3 +32,17 @@ export function applyPreviewOverrides(env: NodeJS.ProcessEnv = process.env, tabl
 }
 
 applyPreviewOverrides();
+
+/** A named QA profile's settings, or null outside preview / for unknown names. */
+export function previewProfile(name: string | undefined | null, env: NodeJS.ProcessEnv = process.env, table = PREVIEW_PROFILES): Record<string, string> | null {
+  if (!name || env.VERCEL_ENV !== "preview") return null;
+  const raw = table[name];
+  if (!raw) return null;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!ALLOWED.has(key) || typeof value !== "string") continue;
+    if (key === "HATCH_LLM_BASE_URL" && !/^https:\/\/api\.runpod\.ai\/v2\/[a-z0-9]+\/openai\/v1$/.test(value)) continue;
+    out[key] = value;
+  }
+  return out;
+}
