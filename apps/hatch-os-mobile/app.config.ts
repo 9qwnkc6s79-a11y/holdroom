@@ -18,7 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   backgroundColor: "#09090B",
   ios: {
     bundleIdentifier: "ai.hatchsystems.os",
-    buildNumber: "7",
+    buildNumber: "8",
     supportsTablet: false,
     infoPlist: {
       CFBundleDisplayName: "Hatch OS",
