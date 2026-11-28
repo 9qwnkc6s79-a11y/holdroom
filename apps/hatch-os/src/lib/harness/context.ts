@@ -113,8 +113,16 @@ export function compactThread(text: string, maxChars: number): string {
  * Fit evidence into a character budget. Higher score gets more room; every
  * item keeps at least a header so the model knows it exists.
  */
+/** Marketing mail pads previews with invisible characters that cost a token each. */
+export function cleanForModel(text: string): string {
+  return String(text || "")
+    .replace(/[\u034F\u00AD\u180E\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\uFEFF]/g, "")
+    .replace(/[ \t\u00A0]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 export function budgetEvidence(items: Evidence[], maxChars: number): { text: string; used: Evidence[]; dropped: number } {
-  const ranked = [...items].sort((a, b) => b.score - a.score);
+  const ranked = [...items].map((item) => ({ ...item, text: cleanForModel(item.text) })).sort((a, b) => b.score - a.score);
   const minEach = 500;
   const blocks: string[] = [];
   const used: Evidence[] = [];
@@ -166,8 +174,9 @@ export interface LaneWindow {
 
 /** How many characters of evidence fit, after the fixed prompt and history. */
 export function evidenceBudgetChars(window: LaneWindow, fixedPromptChars: number): number {
-  const tokensLeft = window.contextTokens - window.outputTokens - Math.ceil(fixedPromptChars / 3.6) - 600; // 600 = tool schemas + safety
-  return Math.max(2000, Math.floor(tokensLeft * 3.3));
+  // Real mail (URLs, numbers, names) runs ~3 chars/token on these tokenizers; keep a 900-token cushion for tool schemas and template overhead.
+  const tokensLeft = window.contextTokens - window.outputTokens - Math.ceil(fixedPromptChars / 3.2) - 900;
+  return Math.max(2000, Math.floor(tokensLeft * 2.9));
 }
 
 function splitCsvLine(line: string): string[] {

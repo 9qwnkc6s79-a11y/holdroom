@@ -18,12 +18,18 @@ export const BETA_ORIGIN = "https://hatch-os-beta.vercel.app";
 
 export type ConnectorKind = "google" | "microsoft" | "email" | "slack" | "notion" | "github" | "linear" | "mcp";
 
+export type ConnectorStatus = "ok" | "missing_scope" | "expired" | "unreadable";
+
 export interface ConnectorPublic {
   id: string;
   kind: ConnectorKind;
   label: string;
   detail: string;
   connectedAt: string;
+  /** Local health check (no network): can Hatch still use this connection for everything it offers? */
+  status?: ConnectorStatus;
+  /** Human list of what is missing, e.g. ["save drafts"] when gmail.compose was not granted. */
+  missing?: string[];
 }
 
 interface StoredConnector extends ConnectorPublic {
@@ -96,8 +102,34 @@ function folder(scope: string) {
   return `connectors/${scopeKey(scope)}`;
 }
 
+const GOOGLE_NEEDS: { scope: string; what: string }[] = [
+  { scope: "gmail.compose", what: "save drafts" },
+  { scope: "gmail.send", what: "send email" },
+];
+
+/** Health from the stored grant only: no token refresh, no network. */
+export function connectorHealth(kind: string, secret: { accessToken?: string; refreshToken?: string; expiresAt?: number; scope?: string } | null): { status: ConnectorStatus; missing: string[] } {
+  if (!secret) return { status: "unreadable", missing: [] };
+  if (kind !== "google" && kind !== "microsoft") return { status: "ok", missing: [] };
+  if (!secret.accessToken) return { status: "expired", missing: [] };
+  if (!secret.refreshToken && secret.expiresAt && secret.expiresAt <= Date.now()) return { status: "expired", missing: [] };
+  if (kind === "google" && typeof secret.scope === "string") {
+    const missing = GOOGLE_NEEDS.filter((need) => !secret.scope!.includes(need.scope)).map((need) => need.what);
+    if (missing.length) return { status: "missing_scope", missing };
+  }
+  return { status: "ok", missing: [] };
+}
+
 function publicOf(row: StoredConnector): ConnectorPublic {
-  return { id: row.id, kind: row.kind, label: row.label, detail: row.detail, connectedAt: row.connectedAt };
+  let health: { status: ConnectorStatus; missing: string[] } = { status: "ok", missing: [] };
+  if (row.kind === "google" || row.kind === "microsoft") {
+    try {
+      health = connectorHealth(row.kind, row.secret ? decryptJson<{ accessToken?: string; refreshToken?: string; expiresAt?: number; scope?: string }>(row.secret) : null);
+    } catch {
+      health = { status: "unreadable", missing: [] };
+    }
+  }
+  return { id: row.id, kind: row.kind, label: row.label, detail: row.detail, connectedAt: row.connectedAt, status: health.status, missing: health.missing.length ? health.missing : undefined };
 }
 
 export async function listConnectors(scope: string): Promise<ConnectorPublic[]> {

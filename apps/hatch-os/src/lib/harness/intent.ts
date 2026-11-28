@@ -82,7 +82,13 @@ export function analyzeIntent(
   opts: { memory?: FirmMemory | null; connected?: Set<string>; history?: { role: string; text: string }[]; todayIso?: string } = {},
 ): Intent {
   const raw = String(query || "").trim();
-  const lower = normalize(raw);
+  // Phone-typing shorthand the user will never search for literally.
+  const lower = normalize(raw)
+    .replace(/\b(?:wat|wut|wht|waht|whta)\b/g, "what")
+    .replace(/\b(?:abt|bout)\b/g, "about")
+    .replace(/\b(?:pls|plz)\b/g, "please")
+    .replace(/\b(?:tmrw|tmr|tomm?or?ow)\b/g, "tomorrow")
+    .replace(/\bw\/(?=\s)/g, "with");
   const connected = opts.connected || new Set<string>();
   const hasMail = ["email", "google", "microsoft"].some((k) => connected.has(k));
   const hasFiles = ["google", "microsoft"].some((k) => connected.has(k));
@@ -116,19 +122,26 @@ export function analyzeIntent(
   const pronounish = /\b(it|that|this|them|those|the same|what about|how about|and the|also|again|still|waiting on|who'?s waiting|who is waiting|the (?:sign|quote|thread|email|mail|message|file|doc|project|permit|proposal|estimate|draft|one))\b/.test(lower);
   const prevEntities = prevUser ? matchEntities(prevUser.text, opts.memory) : [];
   const introducesNewEntity = entities.some((e) => !prevEntities.some((pe) => pe.name === e.name));
-  if (prevUser && pronounish && !introducesNewEntity && tokens.length <= 3 && kind !== "schedule") {
+  // Short sloppy follow-ups with no pronoun: "why only a 2 for fun", "and how much w tax", "phone #?".
+  const shortFollow =
+    /^(?:and|so|ok|okay|but|why|how come|how much|how many|how tall|how long|when|where|which|who|whose|did|does|do|is|are|was|were|can|could|same|what about|what kind|what type|whats the|what's the|what is the|phone|email|address|price|cost)\b/.test(lower) &&
+    raw.trim().split(/\s+/).length <= 8 &&
+    !/^(?:lol|haha|lmao|lmfao)\b/.test(lower) &&
+    !/\d+(?:\.\d+)?\s*(?:plus|minus|times|divided|\+|\*|\/|%)\s*\d/.test(lower);
+  if (prevUser && (pronounish || shortFollow) && !introducesNewEntity && tokens.length <= (pronounish ? 3 : 5) && kind !== "schedule") {
     const prev = analyzeIntent(prevUser.text, { memory: opts.memory, connected });
     if (prev.needsTools) {
       followUp = true;
       newTerms = [...tokens];
       tokens = [...new Set([...prev.terms, ...tokens])];
       entities.push(...prev.entities.filter((e) => !entities.some((x) => x.name === e.name)));
-      if (kind === "chat") kind = prev.kind === "remember" ? "find" : prev.kind;
+      // A short follow-up wants a direct answer, not another full briefing.
+      if (kind === "chat" || (kind === "status_brief" && shortFollow)) kind = prev.kind === "remember" || prev.kind === "status_brief" ? "find" : prev.kind;
     }
   }
 
   // Default to looking things up for work asks; keep math, creative, and casual banter/general asks as plain chat.
-  const mathExpr = /^(?:what(?:'s| is)\s+)?-?\d+(?:\.\d+)?(?:\s*(?:plus|minus|times|multiplied by|divided by|over|\+|-|\*|x|\/)\s*-?\d+(?:\.\d+)?)+\s*\??$/i.test(raw);
+  const mathExpr = /^(?:what(?:'?s| is)\s+)?-?\d+(?:\.\d+)?(?:\s*(?:plus|minus|times|multiplied by|divided by|over|\+|-|\*|x|\/)\s*-?\d+(?:\.\d+)?)+\s*\??$/i.test(raw);
   const mentionsSource = /\b(email|emails|mail|inbox|gmail|outlook|drive|onedrive|doc|docs|file|files|pdf|spreadsheet|sheet|calendar|cal|meeting)\b/.test(lower);
   const ownershipSignal = /\b(my|our|we|us|firm|company|boundaries|little elm|prosper|celina|frisco|grand prairie|mcdermott|tapmango|tacos y rocky|onyx|cintas|twc|1120|hatch os)\b/.test(lower);
   const generalAdvice = /\b(rule of thumb|best practice|general rule|typically|in general|how do i make|how to make)\b/.test(lower) && !ownershipSignal && !mentionsSource && entities.length === 0;

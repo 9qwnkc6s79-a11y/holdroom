@@ -102,7 +102,10 @@ export function EmailDraftCard({ draft, threadId, messageId, onUpdated }: Props)
       {error ? (
         <p className="email-draft-error" role="alert">
           {error}
-          {needsReconnect ? " (Open Settings → Connect apps → Google to grant send/draft access.)" : ""}
+          {needsReconnect ? " Google needs to be reconnected to save or send drafts." : ""}
+          {needsReconnect ? (
+            <a className="email-draft-reconnect" href="/settings?tab=connect">Reconnect Google</a>
+          ) : null}
         </p>
       ) : null}
       {editable ? (

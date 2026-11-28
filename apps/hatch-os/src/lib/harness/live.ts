@@ -421,6 +421,14 @@ export async function advanceHarnessTurn(state: HarnessLiveState): Promise<Harne
       state.harness.modelTurns = Math.max(0, state.harness.modelTurns);
       return drive(state, startedAt);
     }
+    const overflow = /maximum context length|reduce the length of the input|context_length_exceeded/i.test(`${job.error || ""} ${job.outputError || ""}`);
+    if (overflow && (state.harness.contextRetries || 0) < 2) {
+      // Too much evidence for this model's window: shrink the budget and ask again instead of failing the turn.
+      state.harness.contextRetries = (state.harness.contextRetries || 0) + 1;
+      const win = state.harness.config.windows[jobLane];
+      state.harness.config.windows = { ...state.harness.config.windows, [jobLane]: { ...win, contextTokens: Math.floor(win.contextTokens * 0.72) } };
+      return drive(state, startedAt);
+    }
     if (job.failed) return await finish(state, `The model is offline. ${job.error || "The firm model failed."} Nothing was sent to an outside AI lab.`, undefined, true);
     applyModelOutput(state.harness, { text: job.text, toolCalls: job.toolCalls }, purpose);
   }

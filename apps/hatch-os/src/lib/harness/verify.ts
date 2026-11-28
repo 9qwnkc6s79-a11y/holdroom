@@ -9,7 +9,7 @@
  * eval / persona QA graders.
  */
 
-export type ClaimKind = "quote" | "money" | "percent" | "date" | "time" | "id" | "number" | "attachment" | "relative_time";
+export type ClaimKind = "phone" | "quote" | "money" | "percent" | "date" | "time" | "id" | "number" | "attachment" | "relative_time";
 
 export interface Claim {
   kind: ClaimKind;
@@ -88,6 +88,10 @@ function timeKeys(text: string): Set<string> {
 
 export interface Corpus {
   norm: string;
+  words: string[];
+  digits: string;
+  money: number[];
+  todayIso?: string;
   numbers: Set<number>;
   dates: Set<string>;
   times: Set<string>;
@@ -111,7 +115,10 @@ export function buildCorpus(parts: { evidence: string[]; query: string; extra?: 
       dates.add(`${d.getUTCMonth() + 1}-${d.getUTCDate()}`);
     }
   }
-  return { norm: ` ${normText(all)} `, numbers, dates, times: timeKeys(all), query: parts.query.toLowerCase() };
+  const money: number[] = [];
+  for (const m of all.replace(/(\d),(?=\d{3}\b)/g, "$1").matchAll(/\$\s?(\d+(?:\.\d+)?)/g)) money.push(Math.round(Number(m[1]) * 100) / 100);
+  const norm = normText(all);
+  return { norm: ` ${norm} `, words: norm.split(" "), digits: all.replace(/\D+/g, " "), money: [...new Set(money)].slice(0, 80), numbers, dates, times: timeKeys(all), query: parts.query.toLowerCase(), todayIso: parts.todayIso };
 }
 
 /** Pull checkable claims out of an answer. */
@@ -133,7 +140,7 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
     rest = rest.replace(/\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|K|million|M)?\b/g, " ");
     for (const m of rest.matchAll(/\b\d+(?:\.\d+)?\s?%/g)) claims.push({ kind: "percent", raw: m[0], key: String(numVal(m[0])), line });
     rest = rest.replace(/\b\d+(?:\.\d+)?\s?%/g, " ");
-    for (const key of dateKeys(rest)) claims.push({ kind: "date", raw: key, key, line });
+    for (const key of dateKeys(rest)) claims.push({ kind: "date", raw: l.toLowerCase(), key, line });
     rest = rest
       .replace(new RegExp(`\\b${MONTH_RE}\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s*20\\d{2})?\\b`, "gi"), " ")
       .replace(new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}(?:,?\\s*20\\d{2})?\\b`, "gi"), " ")
@@ -141,6 +148,8 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
       .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, " ");
     for (const key of timeKeys(rest)) claims.push({ kind: "time", raw: key, key, line });
     rest = rest.replace(/\b\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?|\b\d{1,2}\s*[ap]\.?m\.?\b/gi, " ");
+    for (const m of rest.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g)) claims.push({ kind: "phone", raw: m[0], key: m[0].replace(/\D/g, "").slice(-10), line });
+    rest = rest.replace(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g, " ");
     for (const m of rest.matchAll(/\b[A-Z]{1,6}-\d[\w-]*\b|#\d{3,}\b/g)) claims.push({ kind: "id", raw: m[0], key: normText(m[0]), line });
     rest = rest.replace(/\b[A-Z]{1,6}-\d[\w-]*\b|#\d{3,}\b/g, " ");
     for (const m of rest.matchAll(/(?<![\w.])\d[\d,]*(?:\.\d+)?(?![\w.]*\d)/g)) {
@@ -159,11 +168,88 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
   return claims;
 }
 
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+function editClose(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) < 5 || Math.abs(a.length - b.length) > 2) return false;
+  // Levenshtein <= 2, early exit.
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    let rowMin = prev[0];
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+      rowMin = Math.min(rowMin, prev[j]);
+    }
+    if (rowMin > 2) return false;
+  }
+  return prev[b.length] <= 2;
+}
+
+/** A quote that matches the source up to typos in either side ("beforr leavjnf her shell"). */
+function fuzzyQuote(words: string[], corpus: string[]): boolean {
+  const n = words.length;
+  if (n < 3) return false;
+  const need = Math.ceil(n * 0.75);
+  const firstIdx: number[] = [];
+  for (let i = 0; i < corpus.length; i++) if (words.slice(0, 3).some((w) => editClose(w, corpus[i]))) firstIdx.push(i);
+  for (const start of firstIdx.slice(0, 400)) {
+    for (const offset of [0, -1, -2]) {
+      const st = start + offset;
+      if (st < 0) continue;
+      let hit = 0;
+      let j = st;
+      for (const w of words) {
+        // allow one skipped word on either side
+        if (corpus[j] && editClose(w, corpus[j])) { hit++; j++; }
+        else if (corpus[j + 1] && editClose(w, corpus[j + 1])) { hit++; j += 2; }
+        else j++;
+      }
+      if (hit >= need) return true;
+    }
+  }
+  return false;
+}
+
+function sumOfSources(v: number, money: number[]): boolean {
+  const near = (a: number) => Math.abs(a - v) < 0.011;
+  for (let i = 0; i < money.length; i++)
+    for (let j = i + 1; j < money.length; j++) {
+      if (near(money[i] + money[j]) || near(Math.abs(money[i] - money[j]))) return true;
+      for (let k = j + 1; k < money.length; k++) if (near(money[i] + money[j] + money[k])) return true;
+    }
+  return false;
+}
+
+function weekdayDateOk(c: Claim, todayIso?: string): boolean {
+  if (!todayIso) return false;
+  const [m, d] = c.key.split("-").map(Number);
+  if (d === 1) return true; // month ranges ("November 1–22")
+  const year = Number(todayIso.slice(0, 4));
+  const base = Date.parse(`${todayIso}T12:00:00Z`);
+  for (const y of [year, year + 1]) {
+    const t = Date.UTC(y, m - 1, d, 12);
+    const days = (t - base) / 86400000;
+    if (days < -14 || days > 21) continue;
+    const name = WEEKDAYS[new Date(t).getUTCDay()];
+    // "Monday, Nov 30" is a computed date the model can state when the weekday agrees.
+    if (c.raw.includes(name) || c.raw.includes(name.slice(0, 3))) return true;
+  }
+  return false;
+}
+
 export function claimSupported(c: Claim, corpus: Corpus): boolean {
   switch (c.kind) {
+    case "phone":
+      return corpus.digits.replace(/ /g, "").includes(c.key) || corpus.digits.includes(`${c.key.slice(0, 3)} ${c.key.slice(3, 6)} ${c.key.slice(6)}`);
     case "quote": {
       if (!c.key) return true;
       if (corpus.norm.includes(` ${c.key} `) || corpus.norm.includes(c.key)) return true;
+      if (fuzzyQuote(c.key.split(" ").filter(Boolean), corpus.words)) return true;
       // Allow a quote that drops a trailing/leading word or punctuation: 85% of words in order.
       const words = c.key.split(" ").filter(Boolean);
       if (words.length >= 4) {
@@ -177,10 +263,12 @@ export function claimSupported(c: Claim, corpus: Corpus): boolean {
     case "percent":
     case "number": {
       const v = Number(c.key);
-      return corpus.numbers.has(v) || corpus.numbers.has(Math.round(v)) || [...corpus.numbers].some((n) => Math.abs(n - v) < 0.005);
+      if (corpus.numbers.has(v) || corpus.numbers.has(Math.round(v)) || [...corpus.numbers].some((n) => Math.abs(n - v) < 0.005)) return true;
+      // Totals the model added up from amounts it read ("two invoices totaling $1,267.95").
+      return c.kind === "money" && sumOfSources(v, corpus.money);
     }
     case "date":
-      return corpus.dates.has(c.key);
+      return corpus.dates.has(c.key) || weekdayDateOk(c, corpus.todayIso);
     case "time":
       return corpus.times.has(c.key);
     case "id":

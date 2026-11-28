@@ -32,7 +32,7 @@ const VIEWPORT = {
 } as const;
 
 const DEFAULT_BUDGET: Record<PersonaTurn["kind"], number> = { chat: 20, lookup: 75, draft: 90, schedule: 60, notfound: 75 };
-const NOT_FOUND = /(couldn'?t|could not|did not|didn'?t|can'?t|cannot) (find|see|locate)|no (emails?|files?|results?|threads?|mention|match)|nothing (about|on|in|came up|matching)|not (find|see) any|found nothing|no sign of/i;
+const NOT_FOUND = /(couldn'?t|could not|did not|didn'?t|can'?t|cannot|was not able to|wasn'?t able to) (find|see|locate|spot)|\bno (emails?|files?|results?|threads?|mentions?|match(es)?|information|info|record|records|details|updates?|messages?)\b|nothing (about|on|in|came up|matching|turned up|found)|not (find|see) any|found nothing|no sign of|(were|was) not (found|located)|isn'?t anything|there'?s nothing/i;
 const TOOL_LOG = /Used a tool|<\/?tool_call>|\bTOOL\s*\{|\b(email_search|email_read|cloud_files_search|cloud_files_read|calendar_list|search_library)\b/;
 const FLAG = /\(not in your sources\)/i;
 
@@ -182,7 +182,42 @@ function grade(turn: PersonaTurn, done: DoneJson | null, seconds: number, cold: 
   return { pass, checks, notes };
 }
 
+/** QA_REGRADE=<results.json>: re-apply the text checks (facts, forbid, anchor, not-found) with the current case file. */
+function regrade(file: string) {
+  const cases = JSON.parse(readFileSync(CASES, "utf8")) as PersonaFile;
+  const data = JSON.parse(readFileSync(file, "utf8")) as { summary: Record<string, unknown>; results: TurnResult[] };
+  for (const r of data.results) {
+    const turn = cases.scenarios.find((sc) => sc.id === r.scenario)?.turns[r.turn - 1];
+    if (!turn || r.kind === "setup") continue;
+    const all = `${r.text}\n${r.draft ? `${r.draft.subject || ""}\n${r.draft.body || ""}` : ""}`;
+    const keep = r.notes.filter((n) => !/^(missing:|said:|lost the thread|did not say it found nothing)/.test(n));
+    const facts = turn.facts || [];
+    const miss = facts.filter((f) => !rx(f).test(all));
+    r.checks.facts = miss.length === 0;
+    if (miss.length) keep.push(`missing: ${miss.join(" | ")}`);
+    const bad = (turn.forbid || []).filter((f) => rx(f).test(all));
+    r.checks.noForbidden = bad.length === 0;
+    if (bad.length) keep.push(`said: ${bad.join(" | ")}`);
+    if (turn.anchor) {
+      r.checks.anchored = rx(turn.anchor).test(all);
+      if (!r.checks.anchored) keep.push(`lost the thread (no /${turn.anchor}/)`);
+    }
+    if (turn.kind === "notfound") {
+      r.checks.honestNotFound = NOT_FOUND.test(r.text);
+      if (!r.checks.honestNotFound) keep.push("did not say it found nothing");
+    }
+    r.notes = keep;
+    r.pass = Object.values(r.checks).every(Boolean);
+  }
+  const turns = data.results.filter((r) => r.kind !== "setup");
+  const passed = turns.filter((r) => r.pass).length;
+  const out = file.replace(/\.json$/, ".regraded.json");
+  writeFileSync(out, JSON.stringify({ summary: { ...data.summary, passed, passRate: Math.round((passed / Math.max(1, turns.length)) * 1000) / 10, regraded: new Date().toISOString() }, results: data.results }, null, 2));
+  console.log(`${passed}/${turns.length} passed after regrade → ${out}`);
+}
+
 async function main() {
+  if (process.env.QA_REGRADE) return regrade(process.env.QA_REGRADE);
   if (!BASE || !CODE) throw new Error("Set QA_BASE_URL and QA_CODE (and QA_CASES for real asks).");
   const file = JSON.parse(readFileSync(CASES, "utf8")) as PersonaFile;
   const scenarios = file.scenarios.filter((s) => !ONLY || ONLY.includes(s.id));
@@ -197,7 +232,7 @@ async function main() {
     if (!vp) continue;
     for (const scenario of scenarios) {
       // Fresh context = fresh client thread, so scenarios never bleed into each other.
-      const context = await browser.newContext({ ...vp, extraHTTPHeaders: PROFILE ? { "x-hatch-qa-profile": PROFILE } : undefined });
+      const context = await browser.newContext({ ...vp, serviceWorkers: "block", extraHTTPHeaders: PROFILE ? { "x-hatch-qa-profile": PROFILE } : undefined });
       const page = await context.newPage();
       try {
         await signIn(page);

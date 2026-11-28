@@ -61,3 +61,25 @@ test("vLLM native tool_calls output parses into structured calls", async () => {
   const { isNativeToolRefusal } = await import("./live.ts").catch(() => ({ isNativeToolRefusal: (e: string) => /auto.?tool.?choice/i.test(e) }));
   assert.ok(isNativeToolRefusal("\"auto\" tool choice requires --enable-auto-tool-choice"));
 });
+
+test("connector health flags missing gmail.compose and expired grants without network", async () => {
+  const { connectorHealth } = await import("../connectors.ts");
+  assert.deepEqual(connectorHealth("google", { accessToken: "x", refreshToken: "r", scope: "openid email https://www.googleapis.com/auth/gmail.readonly" }), { status: "missing_scope", missing: ["save drafts", "send email"] });
+  assert.equal(connectorHealth("google", { accessToken: "x", refreshToken: "r", scope: "gmail.readonly gmail.compose gmail.send" }).status, "ok");
+  assert.equal(connectorHealth("google", { accessToken: "x", expiresAt: Date.now() - 1000 }).status, "expired");
+  assert.equal(connectorHealth("microsoft", { accessToken: "" }).status, "expired");
+  assert.equal(connectorHealth("google", null).status, "unreadable");
+});
+
+test("typo'd source quotes, phone numbers, totals and weekday dates are not false alarms", () => {
+  const c = buildCorpus({
+    evidence: ["She may need time beforr leavjnf her shell.", "Phone: (214) 277-9887", "Invoice $753.75", "Invoice $514.20", "Our App team has fixed the issue."],
+    query: "kaleece",
+    todayIso: "2026-11-27",
+  });
+  const r = verifyAnswer('She may need time "before leaving her shell". Phone 214-277-9887. Two invoices totaling $1,267.95. He will call Monday, Nov 30. TapMango said "our app team has fixed the issue".', c);
+  assert.equal(r.unsupported.length, 0, JSON.stringify(r.unsupported));
+  const bad = verifyAnswer('Robert quoted "$1,200 before tax" and will call Tuesday, Nov 30.', c);
+  assert.ok(bad.unsupported.some((x) => x.kind === "quote"));
+  assert.ok(bad.unsupported.some((x) => x.kind === "date"));
+});

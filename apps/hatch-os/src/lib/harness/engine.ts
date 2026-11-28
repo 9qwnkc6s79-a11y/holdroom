@@ -171,6 +171,8 @@ export interface HarnessState {
   verification?: { checked: number; unsupported: number; stripped: number; flagged: number; kinds: string[] };
   /** Set when the endpoint refused native tools and the harness fell back to the text protocol. */
   nativeFallback?: boolean;
+  /** Times the window was shrunk after a context-length error. */
+  contextRetries?: number;
 }
 
 export interface InitInput {
@@ -948,7 +950,7 @@ export function claimCorpus(state: HarnessState) {
     evidence: [text, ...items.map((e) => `${e.title}\n${e.date || ""}\n${e.text}`)],
     query: state.query,
     // Earlier assistant turns were verified when they were written, so restating them is fine.
-    extra: [...state.history.map((t) => t.text), state.memoryBlock || "", state.earlierSummary || ""],
+    extra: [...state.history.map((t) => t.text), state.memoryBlock || "", state.earlierSummary || "", ...state.searched, ...state.intent.queries],
     today: state.today,
     todayIso: state.todayIso,
   });

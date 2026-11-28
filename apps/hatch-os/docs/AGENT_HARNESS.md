@@ -120,3 +120,24 @@ its prompt, so offline scores measure retrieval/reading/routing/context, not
 writing. Live mode measures the real model. Rubric (100/case): routing 15,
 facts 40, no needless clarifying question 15, leads with the answer 10,
 names its source 10, honesty 10.
+
+
+## Native tool calls (structured)
+
+When a lane's protocol is `native`, tools go in the OpenAI `tools` field with typed JSON schemas
+(`openAiTool()`, `strict: true`), vLLM returns `tool_calls`, and the next turn replays them as an
+assistant `tool_calls` message plus one `tool` message per result. Qwen3.8 needs the endpoint started
+with `ENABLE_AUTO_TOOL_CHOICE=true`, `TOOL_CALL_PARSER=qwen3_coder`, `REASONING_PARSER=qwen3`. If an
+endpoint refuses tools (no auto tool choice), the harness falls back to the text protocol for that
+turn automatically. `<function=...><parameter=...>` XML that leaks into text is parsed too.
+
+`HATCH_THINK_ON_TOOLS=on` lets Qwen reason on tool-choice turns only; final answers never think.
+
+## Claim check
+
+`verify.ts` checks every quoted phrase, date, time, amount, percentage, ID and multi-digit number in
+the final answer (and in email draft bodies) against what Hatch read this turn, the user's own words,
+earlier turns, firm memory and today's date. Unsupported bullets are dropped with a one-line note;
+other unsupported claims are flagged inline "(not in your sources)". Drafts lose sentences that
+invent an attachment or a "tomorrow"/"tonight" meeting the user did not ask for. Counts (never text)
+are returned as `verification` on the turn result. `HATCH_VERIFY_CLAIMS=off` disables it.
