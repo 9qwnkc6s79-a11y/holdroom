@@ -9,6 +9,7 @@
  * The state that round-trips through the client is HMAC-signed, so a client
  * cannot swap in another tester's scope or edit the gathered evidence.
  */
+import "../preview-overrides.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { approvalCardForCall } from "../approvals.ts";
 import { newChatMessage } from "../chat.ts";
