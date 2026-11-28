@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { EmptyNote, Screen, T } from "@/components/chrome";
 import { IconClose, IconSearch } from "@/components/icons";
 import { loadConnectors, type ConnectedAccount, type OAuthSetup } from "@/api/connectors";
+import { anyNeedsReconnect } from "@/api/reconnect";
 import { FOR_YOU, PLUGIN_CATEGORIES, PLUGINS, pluginsIn, type PluginDef } from "@/plugins/catalog";
 import { useRequireSession, useSession } from "@/state/session";
 import { colors, type } from "@/theme/presenceTokens";
@@ -64,15 +65,19 @@ export default function PluginsScreen() {
           <>
             <T style={[type.rowTitle, { color: colors.fg, marginBottom: 8 }]}>For you</T>
             <View style={{ gap: 8, marginBottom: 22 }}>
-              {suggestions.map((plugin) => (
-                <Pressable key={plugin.id} accessibilityLabel={plugin.name} onPress={() => router.push(`/plugins/${plugin.id}`)} style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
+              {suggestions.map((plugin) => {
+                const accounts = accountsFor(plugin, connected);
+                const reconnect = anyNeedsReconnect(accounts);
+                return (
+                <Pressable key={plugin.id} accessibilityLabel={reconnect ? `${plugin.name}, Reconnect` : plugin.name} onPress={() => router.push(`/plugins/${plugin.id}`)} style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <View style={{ flex: 1 }}>
                     <T style={[type.rowTitle, { color: colors.fg }]}>{plugin.name}</T>
                     <T style={[type.cardSubcopy, { color: colors.muted, marginTop: 2 }]}>{plugin.reason}</T>
                   </View>
-                  <ConnectMark plugin={plugin} count={accountsFor(plugin, connected).length} />
+                  <ConnectMark plugin={plugin} count={accounts.length} reconnect={reconnect} />
                 </Pressable>
-              ))}
+                );
+              })}
             </View>
           </>
         ) : null}
@@ -80,9 +85,11 @@ export default function PluginsScreen() {
         {shown.length === 0 ? <EmptyNote title="No plugins" body={category === "CRM" ? "No CRM plugins are on the host." : "Nothing matches that search."} /> : null}
         <View style={{ gap: 8 }}>
           {shown.map((plugin) => {
-            const count = accountsFor(plugin, connected).length;
+            const accounts = accountsFor(plugin, connected);
+            const count = accounts.length;
+            const reconnect = anyNeedsReconnect(accounts);
             return (
-              <Pressable key={plugin.id} accessibilityLabel={plugin.name} onPress={() => router.push(`/plugins/${plugin.id}`)} style={{ minHeight: 64, backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <Pressable key={plugin.id} accessibilityLabel={reconnect ? `${plugin.name}, Reconnect` : plugin.name} onPress={() => router.push(`/plugins/${plugin.id}`)} style={{ minHeight: 64, backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.avatarBg, alignItems: "center", justifyContent: "center" }}>
                   <T style={[type.metaLabel, { color: colors.fg }]}>{plugin.name.slice(0, 1)}</T>
                 </View>
@@ -92,7 +99,7 @@ export default function PluginsScreen() {
                     {count ? `${count} account${count === 1 ? "" : "s"}` : plugin.blurb}
                   </T>
                 </View>
-                <ConnectMark plugin={plugin} count={count} />
+                <ConnectMark plugin={plugin} count={count} reconnect={reconnect} />
               </Pressable>
             );
           })}
@@ -106,12 +113,16 @@ export default function PluginsScreen() {
   );
 }
 
-function ConnectMark({ plugin, count }: { plugin: PluginDef; count: number }) {
-  const label = !plugin.wired ? "Coming soon" : plugin.auth === "local" ? "On this iPhone" : count ? "Connected" : "Connect";
-  const quiet = !plugin.wired || count > 0 || plugin.auth === "local";
+function ConnectMark({ plugin, count, reconnect = false }: { plugin: PluginDef; count: number; reconnect?: boolean }) {
+  const label = !plugin.wired ? "Coming soon" : plugin.auth === "local" ? "On this iPhone" : reconnect ? "Reconnect" : count ? "Connected" : "Connect";
+  const warn = reconnect && plugin.wired;
+  const quiet = !warn && (!plugin.wired || count > 0 || plugin.auth === "local");
   return (
-    <View style={{ minHeight: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: quiet ? colors.surfaceRaised : colors.fg }}>
-      <T style={[type.metaLabel, { color: quiet ? colors.muted : colors.bg }]}>{label}</T>
+    <View
+      accessibilityLabel={label}
+      style={{ minHeight: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: warn ? colors.amber : quiet ? colors.surfaceRaised : colors.fg }}
+    >
+      <T style={[type.metaLabel, { color: warn ? colors.bg : quiet ? colors.muted : colors.bg }]}>{label}</T>
     </View>
   );
 }

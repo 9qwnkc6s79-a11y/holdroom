@@ -6,6 +6,7 @@ import { EmptyNote, Screen, T } from "@/components/chrome";
 import { IconClose } from "@/components/icons";
 import { PressableScale } from "@/components/PressableScale";
 import { connectWithToken, disconnectAccount, loadConnectors, probeOAuth, oauthReturnUrl, syncProvider, type ConnectedAccount } from "@/api/connectors";
+import { needsReconnect, reconnectCta, reconnectReason } from "@/api/reconnect";
 import { oneParam } from "@/lib/derive";
 import { pluginById } from "@/plugins/catalog";
 import { useRequireSession, useSession } from "@/state/session";
@@ -162,6 +163,9 @@ export default function PluginDetailScreen() {
           <View key={account.id} style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8 }}>
             <T style={[type.rowTitle, { color: colors.fg }]}>{account.label}</T>
             <T style={[type.cardSubcopy, { color: colors.muted }]}>{account.detail || "Connected"}</T>
+            {needsReconnect(account) ? (
+              <T style={[type.cardSubcopy, { color: colors.amberSoft }]} accessibilityRole="alert">{reconnectReason(account)}</T>
+            ) : null}
             <View style={{ flexDirection: "row", gap: 16 }}>
               {(account.kind === "google" || account.kind === "microsoft") ? (
                 <PressableScale accessibilityRole="button" accessibilityLabel={`Sync ${account.label}`} disabled={busy} onPress={() => void syncAccount(account.kind === "microsoft" ? "microsoft" : "google")} style={{ minHeight: 36, justifyContent: "center" }}>
@@ -188,8 +192,8 @@ export default function PluginDetailScreen() {
           </View>
         ) : null}
         {plugin.wired && plugin.auth !== "local" ? (
-          <PressableScale accessibilityRole="button" accessibilityLabel={accounts.length ? `Add account ${plugin.name}` : `Connect ${plugin.name}`} disabled={busy} onPress={() => void connect()} style={{ height: 48, borderRadius: 14, backgroundColor: colors.fg, alignItems: "center", justifyContent: "center" }}>
-            <T style={[type.ctaLabel, { color: colors.bg }]}>{busy ? "Working…" : accounts.length ? "Add account" : "Connect"}</T>
+          <PressableScale accessibilityRole="button" accessibilityLabel={accounts.length ? reconnectCta(plugin.provider, plugin.name) : `Connect ${plugin.name}`} disabled={busy} onPress={() => void connect()} style={{ height: 48, borderRadius: 14, backgroundColor: colors.fg, alignItems: "center", justifyContent: "center" }}>
+            <T style={[type.ctaLabel, { color: colors.bg }]}>{busy ? "Working…" : accounts.length ? reconnectCta(plugin.provider, plugin.name) : `Connect ${plugin.name}`}</T>
           </PressableScale>
         ) : (
           <View style={{ height: 48, borderRadius: 14, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>

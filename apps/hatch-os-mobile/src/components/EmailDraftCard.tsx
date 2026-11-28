@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import { TextInput, View } from "react-native";
 import type { EmailDraftCard as EmailDraft } from "@/api/types";
 import { T } from "@/components/chrome";
@@ -10,13 +11,15 @@ export function EmailDraftCard({
   onAction,
 }: {
   draft: EmailDraft;
-  onAction: (action: "send" | "save_draft" | "discard", fields: { to: string; subject: string; body: string }) => Promise<string | null>;
+  onAction: (action: "send" | "save_draft" | "discard", fields: { to: string; subject: string; body: string }) => Promise<{ error: string; needsReconnect?: boolean } | null>;
 }) {
+  const router = useRouter();
   const [to, setTo] = useState(draft.to || "");
   const [subject, setSubject] = useState(draft.subject || "");
   const [body, setBody] = useState(draft.body || "");
   const [busy, setBusy] = useState<"send" | "save_draft" | "discard" | null>(null);
   const [error, setError] = useState("");
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   useEffect(() => {
     setTo(draft.to || "");
@@ -30,9 +33,13 @@ export function EmailDraftCard({
     if (busy) return;
     setBusy(action);
     setError("");
-    const err = await onAction(action, { to, subject, body });
+    setNeedsReconnect(false);
+    const result = await onAction(action, { to, subject, body });
     setBusy(null);
-    if (err) setError(err);
+    if (result) {
+      setError(result.error || "Could not complete that action.");
+      setNeedsReconnect(Boolean(result.needsReconnect));
+    }
   }
 
   return (
@@ -121,7 +128,24 @@ export function EmailDraftCard({
         />
       </View>
 
-      {error ? <T style={[type.cardSubcopy, { color: colors.amberSoft }]}>{error}</T> : null}
+      {error ? (
+        <View style={{ gap: 6 }}>
+          <T style={[type.cardSubcopy, { color: colors.amberSoft }]}>
+            {error}
+            {needsReconnect && !/reconnect/i.test(error) ? " Google needs to be reconnected to save or send drafts." : ""}
+          </T>
+          {needsReconnect ? (
+            <PressableScale
+              accessibilityRole="link"
+              accessibilityLabel="Reconnect Google"
+              onPress={() => router.push("/plugins")}
+              style={{ alignSelf: "flex-start", minHeight: 36, justifyContent: "center" }}
+            >
+              <T style={[type.metaLabel, { color: colors.blueSky, fontWeight: "600" }]}>Reconnect Google</T>
+            </PressableScale>
+          ) : null}
+        </View>
+      ) : null}
 
       {editable ? (
         <View style={{ gap: 8, marginTop: 2 }}>
