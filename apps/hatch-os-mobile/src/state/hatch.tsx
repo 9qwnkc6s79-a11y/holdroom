@@ -57,7 +57,7 @@ interface HatchValue {
   refresh: () => Promise<void>;
   send: (input: SendInput) => Promise<{ text: string; failed: boolean }>;
   decide: (input: { threadId: string; messageId: string; decision: "approved" | "cancelled"; edits?: RoutineEdits }) => Promise<string | null>;
-  actOnEmailDraft: (input: { threadId?: string; messageId: string; action: "send" | "save_draft" | "discard"; to: string; subject: string; body: string; draft?: Partial<EmailDraftCardType> }) => Promise<string | null>;
+  actOnEmailDraft: (input: { threadId?: string; messageId: string; action: "send" | "save_draft" | "discard"; to: string; subject: string; body: string; draft?: Partial<EmailDraftCardType> }) => Promise<{ error: string; needsReconnect?: boolean } | null>;
   prepareAttachment: (file: LocalUpload & { id?: string }, departmentId: string, onUpdate?: (patch: Partial<DraftFile>) => void) => Promise<DraftFile>;
   startThread: (agentId: string) => Promise<string | null>;
   archiveThread: (threadId: string) => Promise<void>;
@@ -479,7 +479,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     }) => {
       try {
         const res = await postEmailDraft(input);
-        if (!res.ok || !res.emailDraft) return res.error || "Could not complete that action.";
+        if (!res.ok || !res.emailDraft) return { error: res.error || "Could not complete that action.", needsReconnect: res.needsReconnect };
         const nextDraft = res.emailDraft;
         setThreads((prev) =>
           prev.map((thread) =>
@@ -510,7 +510,10 @@ export function HatchProvider({ children }: { children: ReactNode }) {
         await refresh();
         return null;
       } catch (error) {
-        return messageOf(error);
+        return {
+          error: messageOf(error),
+          needsReconnect: error instanceof ApiError ? error.needsReconnect : undefined,
+        };
       }
     },
     [refresh, writeTurn],

@@ -42,11 +42,13 @@ function applyAuth(headers: Headers) {
 
 export class ApiError extends Error {
   status: number;
+  needsReconnect?: boolean;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, extras?: { needsReconnect?: boolean }) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    if (extras?.needsReconnect) this.needsReconnect = true;
   }
 }
 
@@ -76,7 +78,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
       unauthorizedHandler?.();
     }
     const message = typeof data.error === "string" ? data.error : `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, { needsReconnect: Boolean((data as { needsReconnect?: boolean }).needsReconnect) });
   }
   return data;
 }

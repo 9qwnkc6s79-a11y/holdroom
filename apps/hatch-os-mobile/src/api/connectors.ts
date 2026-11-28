@@ -1,11 +1,15 @@
 import { apiJson } from "./client";
 
+import type { ConnectorStatus } from "./reconnect";
+
 export interface ConnectedAccount {
   id: string;
   kind: string;
   label: string;
   detail: string;
   connectedAt?: string;
+  status?: ConnectorStatus;
+  missing?: string[];
 }
 
 export interface OAuthSetup {
