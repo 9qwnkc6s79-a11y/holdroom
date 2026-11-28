@@ -171,7 +171,7 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
     }
     // Asserted end states ("the order is complete") must be stated by a source, not inferred.
     // Skip quoted spans — those are already checked as quotes.
-    for (const m of rest.matchAll(STATUS_RE)) claims.push({ kind: "status", raw: m[0], key: m[2].toLowerCase(), line });
+    for (const m of rest.matchAll(STATUS_RE)) claims.push({ kind: "status", raw: l, key: m[2].toLowerCase(), line });
     if (opts.draft) {
       if (/\b(attached|attaching|enclosed|i'?ve attached|see attached|attachment)\b/i.test(l)) claims.push({ kind: "attachment", raw: "attachment", key: "attach", line });
       const rel = l.match(/\b(tomorrow|tonight|this (?:morning|afternoon|evening|week)|later today)\b/i);
@@ -182,11 +182,20 @@ export function extractClaims(answer: string, opts: { draft?: boolean } = {}): C
 }
 
 const STATUS_RE = /\b(is|are|was|were|has been|have been|now|fully|already)\s+(complete|completed|done|finished|submitted|approved|paid|resolved|closed)\b/gi;
-const STATUS_STEMS: Record<string, RegExp> = {
-  complete: /\bcomplet/, completed: /\bcomplet/, done: /\b(done|complet|finish)/, finished: /\b(finish|complet)/,
-  submitted: /\bsubmit/, approved: /\bapprov/, paid: /\b(paid|payment (received|processed|complete|sent)|deposit)/,
-  resolved: /\b(resolv|fixed)/, closed: /\bclos/,
-};
+const STATUS_STOP = new Set("is are was were been have has the and your you this that with from they them their bottom line latest next steps further action required part now fully already status".split(" "));
+
+/** An end-state is supported only when the source uses that word near a topic word from the same sentence. */
+function statusSupported(c: Claim, corpus: Corpus): boolean {
+  const topics = [...new Set(c.raw.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && w !== c.key && !STATUS_STOP.has(w)))].slice(0, 8);
+  const word = new RegExp(`\\b${escapeRe(c.key)}(?:d|ed)?\\b`, "i");
+  const text = corpus.norm;
+  if (!topics.length) return word.test(text);
+  // Same sentence only — a "picnic is complete" must not license "the order is complete".
+  for (const sentence of text.split(/[.!?\n]+/)) {
+    if (word.test(sentence) && topics.some((t) => sentence.includes(t))) return true;
+  }
+  return false;
+}
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -304,7 +313,7 @@ export function claimSupported(c: Claim, corpus: Corpus): boolean {
     case "relative_time":
       return corpus.query.includes(c.key.split(" ").pop() || c.key);
     case "status":
-      return (STATUS_STEMS[c.key] || new RegExp(`\\b${c.key}`)).test(corpus.norm);
+      return statusSupported(c, corpus);
   }
 }
 

@@ -119,9 +119,9 @@ test("typo'd work words are snapped before searching", () => {
 });
 
 test("an inferred end state is not allowed to stand", () => {
-  const corpus = buildCorpus({ evidence: ["Winter board launched Nov 13 per the social calendar."], query: "any update on the drive thru menu board order", todayIso: "2026-11-27" });
+  const corpus = buildCorpus({ evidence: ["Winter board launched Nov 13 per the social calendar. The picnic is complete."], query: "any update on the drive thru menu board order", todayIso: "2026-11-27" });
   const out = verifyAnswer("Bottom line: I found no order record.\n\n- The winter board launched Nov 13.\n- The order is complete and the board is live.", corpus);
-  assert.ok(!/is complete/.test(out.text));
+  assert.ok(!/is complete/.test(out.text), out.text);
   const ok = verifyAnswer("The permit was approved on Nov 13.", buildCorpus({ evidence: ["City approved the permit Nov 13"], query: "permit", todayIso: "2026-11-27" }));
-  assert.equal(ok.unsupported.length, 0);
+  assert.equal(ok.unsupported.length, 0, ok.text);
 });
