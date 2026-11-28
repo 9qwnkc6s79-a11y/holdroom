@@ -799,3 +799,4 @@ select {
 .set-badge { margin-left: auto; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--os-chip, rgba(0,0,0,.06)); }
 .set-badge.is-warn { background: #fef3c7; color: #92400e; }
 .email-draft-reconnect { display: inline-block; margin-left: 6px; font-weight: 600; text-decoration: underline; color: inherit; }
+.set-card-alert { margin: 0; padding: 4px 18px 0; line-height: 1.45; }

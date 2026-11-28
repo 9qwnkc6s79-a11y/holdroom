@@ -150,7 +150,7 @@ export function ConnectApps({ scope }: { scope: string }) {
             <span className="set-main"><strong>{active.name}</strong><span>{live ? live.detail : active.blurb}</span></span>
           </div>
           {live && live.status && live.status !== "ok" ? (
-            <p className="os-error" role="alert">{reconnectReason(live)}</p>
+            <p className="os-error set-card-alert" role="alert">{reconnectReason(live)}</p>
           ) : null}
           {live ? (
             <div className="row-actions">

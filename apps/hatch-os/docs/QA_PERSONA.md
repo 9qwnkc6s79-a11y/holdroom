@@ -44,3 +44,25 @@ follow-up stayed on the thread), `maxSeconds`.
 claim check, thinking). The runner sends `x-hatch-qa-profile`; the server honors it **only when
 `VERCEL_ENV=preview`** and only for allow-listed, non-secret keys pointing at the firm's RunPod.
 Keep `PREVIEW_OVERRIDES` / `PREVIEW_PROFILES` empty on main.
+
+## UX sweep (`npm run qa:ux`)
+
+`qa/persona/ux.ts` walks every web surface at 390x844 and 1280x800 and writes `report.md` (pass/fail per
+check, with a screenshot per surface) and `report.json` to `qa/persona/results/ux-*` (or `QA_OUT`).
+
+```
+QA_BASE_URL=https://hatch-os.vercel.app QA_CODE=<invite> npm run qa:ux
+```
+
+It signs in for real, but every write is intercepted by Playwright and answered by the test, so it is safe on
+production: email send/save/discard, connector disconnect and OAuth start, routines writes (in-memory
+fake), Model & Ethics saves, approvals, and thread saves. Chat replies for the card, citation, loading and
+error states are mocked with fictional `[QA]` data, so the sweep uses no GPU time.
+
+Surfaces: sign-in (bad code, good code), empty chat, loading line, citations and source pills, email
+draft card (edit, Save as Gmail draft, Send only on press, Discard, missing-scope reconnect), server error
+Retry, expired session Sign in, long-thread scroll and Jump to latest, settings home, light/dark contrast
+(WCAG 4.5:1, computed), Model & Ethics save, Connect apps (healthy, missing gmail.compose, expired
+Microsoft, API error, Disconnect, Connect Microsoft), routines (empty, create, cap message, pause, edit,
+delete), sign-out (cookie rejected afterwards) and the Bearer flow (pair token works, tampered and
+missing tokens get 401; the token is never printed). `QA_ONLY=routines,connect` limits the run.
