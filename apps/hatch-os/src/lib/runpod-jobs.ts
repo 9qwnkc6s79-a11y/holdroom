@@ -125,6 +125,8 @@ export interface RunpodJobView {
   text: string;
   toolCalls: ToolCall[];
   error?: string;
+  /** Error the model server returned inside a completed job (e.g. tools refused). */
+  outputError?: string;
 }
 
 export async function readRunpodJob(endpoint: LlmEndpoint, jobId: string): Promise<RunpodJobView> {
@@ -148,8 +150,21 @@ export async function readRunpodJob(endpoint: LlmEndpoint, jobId: string): Promi
     failed,
     text: parsed.text,
     toolCalls: parsed.toolCalls,
+    outputError: done ? outputErrorOf(json.output) : undefined,
     error: failed ? json.error || `RunPod job ${status}` : undefined,
   };
+}
+
+/** vLLM errors come back inside a COMPLETED job when RAW_OPENAI_OUTPUT is on. */
+export function outputErrorOf(output: unknown): string | undefined {
+  const seen = Array.isArray(output) ? output : [output];
+  for (const item of seen) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as { error?: unknown; message?: unknown; object?: unknown };
+    if (rec.error) return typeof rec.error === "string" ? rec.error : JSON.stringify(rec.error).slice(0, 400);
+    if (rec.object === "error" && typeof rec.message === "string") return rec.message;
+  }
+  return undefined;
 }
 
 /** Accept the shapes the vLLM worker returns: a completion, a wrapper, a one-item array, or streamed chunks. */

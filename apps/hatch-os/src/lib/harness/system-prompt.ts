@@ -4,10 +4,34 @@
  */
 import type { Intent } from "./intent.ts";
 
+export interface ToolParamSpec {
+  type: "string" | "number" | "boolean";
+  description?: string;
+  enum?: string[];
+}
+
 export interface HarnessToolSpec {
   name: string;
   description: string;
   parameters: string[];
+  /** Typed parameter schema for native (structured) tool calls. */
+  params?: Record<string, ToolParamSpec>;
+  /** Required parameters; defaults to all of `parameters`. */
+  required?: string[];
+}
+
+/** OpenAI / vLLM `tools` entry. `strict` asks vLLM to enforce the argument schema with a grammar. */
+export function openAiTool(spec: HarnessToolSpec) {
+  const properties = Object.fromEntries(spec.parameters.map((p) => [p, spec.params?.[p] || { type: "string" }]));
+  return {
+    type: "function" as const,
+    function: {
+      name: spec.name,
+      description: spec.description,
+      parameters: { type: "object" as const, properties, required: spec.required ?? spec.parameters, additionalProperties: false },
+      strict: (process.env.HATCH_TOOL_STRICT || "on") !== "off",
+    },
+  };
 }
 
 export interface SystemPromptInput {

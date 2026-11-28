@@ -25,6 +25,8 @@ import type { ApprovalCard, ChatAttachment, EmailDraftCard, Source, ToolEvent, T
 import { scrubVaultSecrets } from "../vault.ts";
 import { vaultKey } from "../vault-crypto.ts";
 import type { Evidence } from "./context.ts";
+import { openAiTool } from "./system-prompt.ts";
+import type { RunpodChatBody } from "../runpod-jobs.ts";
 import { advance, applyModelOutput, currentStatus, finishRemember, initHarness, type HarnessConfig, type HarnessState, type Lane, type ModelRequest } from "./engine.ts";
 import type { ActivityEvent } from "./events.ts";
 import { connectedKinds, liveRunNamed, liveTools } from "./live-sources.ts";
@@ -41,7 +43,7 @@ export interface HarnessLiveState {
   startedAt: number;
   temperature?: number;
   harness: HarnessState;
-  job?: { id: string; endpointId: string; lane: Lane; purpose: ModelRequest["purpose"]; submittedAt?: number };
+  job?: { id: string; endpointId: string; lane: Lane; purpose: ModelRequest["purpose"]; submittedAt?: number; native?: boolean };
   sig?: string;
 }
 
@@ -62,6 +64,8 @@ export interface HarnessTurnResult {
   error?: boolean;
   modelOffline?: boolean;
   harness?: true;
+  /** Claim-check counts for the final answer (no text). */
+  verification?: HarnessState["verification"];
 }
 
 export interface HarnessTurnInput {
@@ -98,6 +102,8 @@ export function harnessConfigFromEnv(ethicsModel?: string): Partial<HarnessConfi
     toolLane,
     synthLane: synth === "ask" || synth === "agent" ? synth : "same",
     windows: { ask: { contextTokens: askWindow, outputTokens: 1600 }, agent: { contextTokens: agentWindow, outputTokens: 1400 } },
+    verifyClaims: (process.env.HATCH_VERIFY_CLAIMS || "on").toLowerCase() !== "off",
+    thinkOnTools: (process.env.HATCH_THINK_ON_TOOLS || "off").toLowerCase() === "on",
     toolProtocol: {
       ask: (process.env.HATCH_ASK_TOOL_PROTOCOL || "text") === "native" ? "native" : "text",
       agent: (process.env.HATCH_AGENT_TOOL_PROTOCOL || "native") === "text" ? "text" : "native",
@@ -205,6 +211,7 @@ function pack(state: HarnessLiveState, result: Omit<HarnessTurnResult, "threadId
     activity: state.harness.activity.events,
     status: result.phase === "done" ? "" : status,
     note: result.phase === "wait" ? result.note || status : undefined,
+    verification: result.phase === "done" ? state.harness.verification : undefined,
   };
   if (out.state) out.state.sig = sign(out.state);
   return out;
@@ -244,6 +251,11 @@ async function finish(
   });
 }
 
+/** vLLM's answer when tools are sent to a server without auto tool choice. */
+export function isNativeToolRefusal(error: string): boolean {
+  return /auto.?tool.?choice|tool.?call.?parser|tool_choice|enable-auto-tool-choice/i.test(error);
+}
+
 async function waitNoteForJob(
   endpoint: LlmEndpoint,
   jobStatus: string,
@@ -271,25 +283,20 @@ async function submit(state: HarnessLiveState, request: ModelRequest): Promise<H
   if (!endpointId || !endpoint.apiKey) {
     return await finish(state, "The firm model is offline. The RunPod key is not set on this system. Nothing was sent to an outside AI lab.", undefined, true);
   }
-  const tools = request.nativeTools?.map((tool) => ({
-    type: "function" as const,
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: { type: "object" as const, properties: Object.fromEntries(tool.parameters.map((p) => [p, { type: "string" }])), required: tool.parameters },
-    },
-  }));
+  const tools = request.nativeTools?.map(openAiTool);
   const [jobId, health] = await Promise.all([
     submitRunpodChat(endpoint, {
       model: endpoint.model,
-      messages: request.messages,
+      messages: request.messages as RunpodChatBody["messages"],
       tools,
       temperature: typeof state.temperature === "number" ? Math.min(state.temperature, 0.5) : 0.3,
-      extras: { ...thinkingOffExtras(true), max_tokens: request.maxTokens },
+      extras: request.think
+        ? { max_tokens: request.maxTokens, chat_template_kwargs: { enable_thinking: true } }
+        : { ...thinkingOffExtras(true), max_tokens: request.maxTokens },
     }),
     readRunpodHealth(endpoint),
   ]);
-  state.job = { id: jobId, endpointId, lane, purpose: request.purpose, submittedAt: Date.now() };
+  state.job = { id: jobId, endpointId, lane, purpose: request.purpose, submittedAt: Date.now(), native: request.protocol === "native" };
   const cold = health !== null && health.readyWorkers === 0;
   return pack(state, {
     phase: "wait",
@@ -391,7 +398,17 @@ export async function advanceHarnessTurn(state: HarnessLiveState): Promise<Harne
       return pack(state, { phase: "wait", state, note });
     }
     const purpose = state.job.purpose;
+    const wasNative = Boolean(state.job.native);
+    const jobLane = state.job.lane;
     state.job = undefined;
+    const nativeRefused = state.job === undefined && wasNative && isNativeToolRefusal(job.error || job.outputError || "");
+    if (nativeRefused) {
+      // The endpoint was started without --enable-auto-tool-choice: retry this turn with the text protocol.
+      state.harness.config.toolProtocol = { ...state.harness.config.toolProtocol, [jobLane]: "text" };
+      state.harness.nativeFallback = true;
+      state.harness.modelTurns = Math.max(0, state.harness.modelTurns);
+      return drive(state, startedAt);
+    }
     if (job.failed) return await finish(state, `The model is offline. ${job.error || "The firm model failed."} Nothing was sent to an outside AI lab.`, undefined, true);
     applyModelOutput(state.harness, { text: job.text, toolCalls: job.toolCalls }, purpose);
   }

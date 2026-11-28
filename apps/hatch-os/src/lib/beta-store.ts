@@ -143,7 +143,9 @@ export async function readRecords<T>(folder: string): Promise<T[]> {
 export async function consumeDailyMessage(code: string): Promise<{ ok: boolean; used: number; cap: number }> {
   const cap = dailyMessageCap();
   const day = new Date().toISOString().slice(0, 10);
-  const key = `usage/${safeCode(code)}/${day}`;
+  // Preview/test deployments count separately so automated QA never eats a tester's real daily quota.
+  const prefix = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production" ? `usage-${process.env.VERCEL_ENV}` : "usage";
+  const key = `${prefix}/${safeCode(code)}/${day}`;
   let used = 0;
   try {
     const raw = await readText(`${key}.json`);

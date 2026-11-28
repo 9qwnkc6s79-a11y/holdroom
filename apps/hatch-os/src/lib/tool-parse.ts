@@ -6,7 +6,17 @@ export interface ToolCall {
 const TOOL_LINE = /(?:^|\n)TOOL\s*(\{[\s\S]*\})\s*$/;
 const HERMES_TOOL_CALL = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
 
+/** Qwen3.8 / qwen3_coder format: <function=name><parameter=query>value</parameter></function>. */
+function parseToolXml(raw: string): ToolCall | null {
+  const fn = raw.match(/<function=([\w.-]+)>([\s\S]*?)(?:<\/function>|$)/);
+  if (!fn) return null;
+  const args: Record<string, unknown> = {};
+  for (const m of fn[2].matchAll(/<parameter=([\w.-]+)>\s*([\s\S]*?)\s*(?:<\/parameter>|(?=<parameter=)|$)/g)) args[m[1]] = m[2].trim();
+  return { name: fn[1], arguments: args };
+}
+
 function parseToolJson(raw: string): ToolCall | null {
+  if (/^\s*<function=/.test(raw)) return parseToolXml(raw);
   try {
     const json = JSON.parse(raw) as {
       name?: string;
