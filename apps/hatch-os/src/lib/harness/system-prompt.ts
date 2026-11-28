@@ -54,6 +54,10 @@ export interface SystemPromptInput {
   earlierSummary?: string;
   /** Extra guidance when follow-up is anchored or retrieved evidence is weak/ambiguous. */
   guidance?: string;
+  /** User settings the model may confirm or describe (not change). */
+  settingsBlock?: string;
+  /** Precomputed "Coming days: …" in the user time zone. */
+  comingDays?: string;
 }
 
 export const CORE_RULES = [
@@ -109,14 +113,22 @@ export function comingDays(today: string, days = 8): string {
   return ` Coming days: ${list.join("; ")}.`;
 }
 
+
+function clockLine(input: SystemPromptInput, who: string): string {
+  const today = input.today.startsWith("Current date and time:") ? input.today : `Today is ${input.today}.`;
+  const coming = input.comingDays || comingDays(input.today);
+  return `${today}${coming ? ` ${coming}` : ""}${who ? ` ${who}` : ""}`;
+}
+
 export function buildSystemPrompt(input: SystemPromptInput): string {
   const intent = input.intent;
   const who = [input.firmName ? `Firm: ${input.firmName}.` : "", input.userName ? `You are talking with ${input.userName}.` : ""].filter(Boolean).join(" ");
   if (intent.kind === "chat" && !intent.needsTools && !input.evidenceBlock) {
     const chatSections: string[] = [
       "You are Hatch, a sharp, concise private AI assistant. Reply directly and naturally in 1-3 short sentences (or just the answer for math/thanks). Never mention firm emails, files, records, or correspondence unless the user asked about them, and never use a briefing template. For slang, jokes, or pop culture, answer casually from general knowledge (it is fine to say a phrase is informal or crude) and never tie it to a person or message.",
-      `Today is ${input.today}.${who ? ` ${who}` : ""}`,
+      clockLine(input, who),
       input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
+      input.settingsBlock || "",
       input.guidance || "",
       "Never use <think> tags. Reply with the answer only.",
     ];
@@ -124,9 +136,10 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
   const sections: string[] = [
     CORE_RULES.join("\n"),
-    `Today is ${input.today}.${comingDays(input.today)}${who ? ` ${who}` : ""}`,
+    clockLine(input, who),
     input.connected.length ? `Connected sources: ${input.connected.join(", ")}.` : "No email/Drive/calendar is connected yet. If the answer needs them, say which one to connect in Settings > Connect apps.",
     input.ethics ? `Firm rules from Model & Ethics (follow these):\n${input.ethics}` : "",
+    input.settingsBlock || "",
     input.memoryBlock ? `Firm memory (facts the firm has taught Hatch):\n${input.memoryBlock}` : "",
     input.earlierSummary ? `Earlier conversation summary (before recent messages):\n${input.earlierSummary}` : "",
     `What this ask looks like: ${intent.kind.replace("_", " ")}${intent.entities.length ? ` about ${intent.entities.map((e) => e.name).join(", ")}` : ""}${intent.followUp ? " (a follow-up to the earlier turn)" : ""}.`,

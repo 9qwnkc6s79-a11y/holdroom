@@ -173,6 +173,10 @@ export interface HarnessState {
   nativeFallback?: boolean;
   /** Times the window was shrunk after a context-length error. */
   contextRetries?: number;
+  /** User settings the model may confirm or describe. */
+  settingsBlock?: string;
+  /** Precomputed coming-days line in the user time zone. */
+  comingDays?: string;
 }
 
 export interface InitInput {
@@ -188,6 +192,8 @@ export interface InitInput {
   /** YYYY-MM-DD in the user's time zone, for "tmrw" / "this week". */
   todayIso?: string;
   config?: Partial<HarnessConfig>;
+  settingsBlock?: string;
+  comingDays?: string;
 }
 
 /** Tools the model may call itself (beyond what Hatch already gathered). */
@@ -301,6 +307,8 @@ export function initHarness(input: InitInput): HarnessState {
     usedTools: false,
     config,
     todayIso: input.todayIso,
+    settingsBlock: input.settingsBlock,
+    comingDays: input.comingDays,
   };
 }
 
@@ -793,6 +801,8 @@ export function buildRequest(state: HarnessState, lane: Lane, finalPass: boolean
     earlierSummary: state.earlierSummary,
     ethics: state.ethics,
     connected: state.connected,
+    settingsBlock: state.settingsBlock,
+    comingDays: state.comingDays,
     toolProtocol: protocol,
     tools,
     searched: state.searched.filter((s) => !s.includes("{")).slice(-8),
