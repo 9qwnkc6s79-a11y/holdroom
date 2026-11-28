@@ -40,6 +40,14 @@ export function normText(s: string): string {
     .replace(/&#39;|&apos;|[‘’`´]/g, "'")
     .replace(/&quot;|[“”]/g, '"')
     .replace(/&amp;/g, "&")
+    // "You've" in the source and "You have" in a quote are the same words.
+    .replace(/\b(can)'t\b/g, "$1 not")
+    .replace(/n't\b/g, " not")
+    .replace(/'ve\b/g, " have")
+    .replace(/'re\b/g, " are")
+    .replace(/'ll\b/g, " will")
+    .replace(/\bi'm\b/g, "i am")
+    .replace(/\b(it|that|there|what|here)'s\b/g, "$1 is")
     .replace(/(\d),(?=\d{3}\b)/g, "$1")
     .replace(/[^a-z0-9$%.]+/g, " ")
     .replace(/\s+/g, " ")
@@ -224,6 +232,12 @@ function sumOfSources(v: number, money: number[]): boolean {
       if (near(money[i] + money[j]) || near(Math.abs(money[i] - money[j]))) return true;
       for (let k = j + 1; k < money.length; k++) if (near(money[i] + money[j] + money[k])) return true;
     }
+  // Four-invoice totals, over the first 40 amounts only (about 91k sums).
+  const m = money.slice(0, 40);
+  for (let i = 0; i < m.length; i++)
+    for (let j = i + 1; j < m.length; j++)
+      for (let k = j + 1; k < m.length; k++)
+        for (let l = k + 1; l < m.length; l++) if (near(m[i] + m[j] + m[k] + m[l])) return true;
   return false;
 }
 
