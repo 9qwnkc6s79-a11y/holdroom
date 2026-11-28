@@ -15,6 +15,10 @@ import { approvalCardForCall } from "../approvals.ts";
 import { newChatMessage } from "../chat.ts";
 import { NORTH_DESK, migrateWorkspaceId } from "../departments.ts";
 import { compileEthics, loadEthics } from "../ethics.ts";
+import { listConnectors } from "../connectors.ts";
+import { loadDoc } from "../routines/store.ts";
+import { comingDaysLine, formatNowForPrompt, todayIsoInZone, buildSettingsBlock, DEFAULT_USER_TZ } from "./user-context.ts";
+import { sourcesUsedInAnswer } from "./citations.ts";
 import { forStorage } from "../images.ts";
 import { agentLlmConfig, llmConfig, type LlmEndpoint } from "../llm.ts";
 import { readRunpodHealth, readRunpodJob, runpodEndpointId, submitRunpodChat } from "../runpod-jobs.ts";
@@ -30,7 +34,7 @@ import { openAiTool } from "./system-prompt.ts";
 import type { RunpodChatBody } from "../runpod-jobs.ts";
 import { advance, applyModelOutput, currentStatus, finishRemember, initHarness, type HarnessConfig, type HarnessState, type Lane, type ModelRequest } from "./engine.ts";
 import type { ActivityEvent } from "./events.ts";
-import { connectedKinds, liveRunNamed, liveTools } from "./live-sources.ts";
+import { liveRunNamed, liveTools } from "./live-sources.ts";
 import { loadMemory, rememberFact } from "./memory-store.ts";
 
 export interface HarnessLiveState {
@@ -118,15 +122,8 @@ export function harnessConfigFromEnv(ethicsModel?: string, profile?: string): Pa
   };
 }
 
-function todayIsoCentral(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: process.env.HATCH_TIME_ZONE || "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-}
-
-function todayHuman(now = new Date()): string {
-  const tz = process.env.HATCH_TIME_ZONE || "America/Chicago";
-  const datePart = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(now);
-  const timePart = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(now);
-  return `${datePart}, ${timePart} CT`;
+function userTimeZone(): string {
+  return process.env.HATCH_TIME_ZONE || DEFAULT_USER_TZ;
 }
 
 function sign(state: HarnessLiveState): string {
@@ -162,18 +159,6 @@ function toolEvents(state: HarnessState): ToolEvent[] {
     .map((event) => ({ name: event.source || "search", ok: event.status !== "failed", detail: event.label }));
 }
 
-function sourcesOf(evidence: Evidence[]): Source[] {
-  return evidence
-    .filter((item) => !item.shallow && item.source !== "memory")
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map((item) => ({
-      file: item.title,
-      room: item.source === "mail" ? "Email" : item.source === "files" ? "Files" : item.source === "calendar" ? "Calendar" : "Library",
-      snippet: item.text.replace(/\s+/g, " ").slice(0, 240),
-      ...(item.url ? { url: item.url } : {}),
-    }));
-}
 
 function extractTurnAnchor(state: HarnessState): TurnAnchor | undefined {
   const used = state.evidence
@@ -240,7 +225,7 @@ async function finish(
     ...newChatMessage("assistant", text),
     id: state.messageId,
     done: true,
-    sources: sourcesOf(state.harness.evidence),
+    sources: sourcesUsedInAnswer(text, state.harness.evidence),
     tools: toolEvents(state.harness),
     approval,
     emailDraft,
@@ -359,7 +344,15 @@ export async function startHarnessTurn(input: HarnessTurnInput): Promise<Harness
     { name: "ask", ok: true, detail: scrubVaultSecrets(`${agent.name}: ${query}`).slice(0, 400), departmentId: workspaceId },
     { actor: input.actor || "signed-in", agentId: agent.id, kind: "ask" },
   );
-  const [ethics, kinds, memory] = await Promise.all([loadEthics(scope, agent.id), connectedKinds(scope), loadMemory(scope)]);
+  const [ethics, connectors, memory, routineDoc] = await Promise.all([
+    loadEthics(scope, agent.id),
+    listConnectors(scope).catch(() => []),
+    loadMemory(scope),
+    loadDoc(scope).catch(() => ({ routines: [] as { name: string; schedule?: string; enabled?: boolean; trigger?: { query?: string } }[] })),
+  ]);
+  const kinds = [...new Set(connectors.map((row) => row.kind))];
+  const tz = userTimeZone();
+  const now = new Date();
   const attachedText = (input.attachments || [])
     .filter((file) => file.text)
     .map((file) => `Attached file "${file.name}":\n${String(file.text).slice(0, 6000)}`)
@@ -373,8 +366,18 @@ export async function startHarnessTurn(input: HarnessTurnInput): Promise<Harness
     connected: kinds,
     memory,
     ethics: compileEthics(ethics, { toolTurn: true }),
-    today: todayHuman(),
-    todayIso: todayIsoCentral(),
+    today: formatNowForPrompt(now, tz),
+    todayIso: todayIsoInZone(now, tz),
+    comingDays: comingDaysLine(now, tz),
+    settingsBlock: buildSettingsBlock({
+      model: ethics.model,
+      ethicsPreset: ethics.preset,
+      tone: ethics.tone,
+      posture: ethics.posture,
+      length: ethics.length,
+      connectors,
+      routines: routineDoc.routines,
+    }),
     config: harnessConfigFromEnv(ethics.model, input.profile),
   });
   // Plain agent:true from the web composer is a hint, not an order: the harness decides.

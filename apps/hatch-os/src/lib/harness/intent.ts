@@ -211,12 +211,24 @@ export function analyzeIntent(
     !workSignal &&
     (/^(?:lol|haha|lmao|lmfao|wtf|bruh|bro|wait|yo)\b/i.test(lower) ||
       /^(?:what(?:'s| is)(?: a| an| the)?|who(?:'s| is)|why(?: is| are)?|how(?: does| do| to)?)\b/.test(lower));
+  const aboutHatchSettings =
+    (
+      /\b(?:my|your|the|hatch)?\s*settings\b/.test(lower) ||
+      /\bmodel\s+(?:and\s+)?ethics\b/.test(lower) ||
+      /\b(?:which|what) model(?:\s+(?:am i|are you|is hatch|are we|do i|do we)|\s+using)\b/.test(lower) ||
+      /\bconnected apps?\b/.test(lower) ||
+      /\b(?:my|the|saved) routines?\b/.test(lower)
+    ) &&
+    !mentionsSource &&
+    entities.length === 0;
   const general =
     mathExpr ||
     generalAdvice ||
     casualGreeting ||
     casualQuestion ||
+    aboutHatchSettings ||
     /\b(haiku|poem|limerick|joke|song|story|riddle|translate|definition|define|synonym|explain (how|what|why)|what is an? |who was|capital of)\b|\d+(\.\d+)?\s*%\s*of\s*\d|^[\d\s+\-*\/x%().,=?]+$|\b(hi|hello|hey|thanks|thank you)\W*$/i.test(raw);
+  if (aboutHatchSettings) kind = "chat";
   if (kind === "chat" && !general && tokens.length && (hasMail || hasFiles)) kind = "find";
   if (kind === "chat" && !mathExpr && (entities.length || mentionsSource) && tokens.length) kind = entities.some((e) => e.kind === "project") ? "status_brief" : "find";
 
