@@ -70,6 +70,8 @@ function rx(s: string) {
 
 async function signIn(page: Page) {
   await page.route("**/sw.js", (route) => route.abort());
+  // Start every scenario on a fresh thread: hide server-side history from this browser (like a new device).
+  await page.route("**/api/threads", (route) => (route.request().method() === "GET" ? route.fulfill({ json: { threads: [] } }) : route.fallback()));
   await page.goto(`${BASE}/signin`);
   await page.locator('input[name="invite"]').fill(CODE);
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -80,6 +82,9 @@ async function signIn(page: Page) {
     if (await got.isVisible().catch(() => false)) await got.click();
   }
   await page.getByLabel("Ask Hatch").waitFor({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  const restored = await page.locator(".turn").count();
+  if (restored) throw new Error(`expected a fresh thread, found ${restored} restored turns`);
 }
 
 async function askAndWait(page: Page, ask: string, timeoutMs: number): Promise<{ done: DoneJson | null; seconds: number; sawWarm: boolean }> {
@@ -96,7 +101,7 @@ async function askAndWait(page: Page, ask: string, timeoutMs: number): Promise<{
   page.on("response", onResponse);
   const started = Date.now();
   await page.getByLabel("Ask Hatch").fill(ask);
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.locator('button.send[aria-label="Send"]').click();
   const deadline = started + timeoutMs;
   while (!done && Date.now() < deadline) await page.waitForTimeout(400);
   const seconds = Math.round((Date.now() - started) / 100) / 10;

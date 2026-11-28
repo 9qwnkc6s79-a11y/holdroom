@@ -60,4 +60,17 @@ export const CASES: EvalCase[] = [
   { id: "casual-advice", query: "yo whats a good rule of thumb for espresso extraction time?", needsTools: false, facts: [] },
   { id: "followup-anchor", query: "who is waiting on who with the sign again?", history: SIGN_HISTORY, needsTools: true,
     facts: ["survey|approv|deposit"], forbid: ["Brent", "Highpoint"] },
+  // Harder sloppy asks: topic switches, short follow-ups, drafts that must not invent, not-found, schedule.
+  { id: "switch-topic", query: "ok diff topic - is the espresso machine fixed at prosper", history: SIGN_HISTORY, needsTools: true,
+    facts: ["burr|grinder|back in service|replaced"], forbid: ["19,?250", "setback"] },
+  { id: "short-followup-due", query: "and when's that due", history: SIGN_HISTORY, needsTools: true, facts: ["nov(ember)? 28|fri"], forbid: ["Highpoint"] },
+  { id: "short-followup-price", query: "how much again", history: SIGN_HISTORY, needsTools: true, facts: ["19,?250"] },
+  { id: "draft-no-invent", query: "draft rick a short note saying we approve v3", needsTools: true, facts: ["v3|approv"],
+    forbid: ["attached", "attaching", "enclosed", "I have sent", "meeting tomorrow"] },
+  { id: "calendar-date", query: "anything on the cal dec 1", needsTools: true, facts: ["insurance|jordan"] },
+  { id: "heaters-typo", query: "patio heatrs prosper??", needsTools: true, facts: ["dec(ember)? 3"] },
+  { id: "insurance-sloppy", query: "insurance thing - whats due", needsTools: true, facts: ["dec(ember)? 1"] },
+  { id: "notfound-zamboni", query: "whats the status of the zamboni rental for the holiday party", needsTools: true, facts: [], expectNotFound: true, forbid: ["\\$\\d", "confirmed"] },
+  { id: "notfound-person", query: "did kevin from the bank email me", needsTools: true, facts: [], expectNotFound: true, forbid: ["kevin (said|wrote|sent)"] },
+  { id: "casual-joke", query: "tell me a quick coffee joke", needsTools: false, facts: [] },
 ];

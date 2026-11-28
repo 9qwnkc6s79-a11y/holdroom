@@ -7,11 +7,13 @@ export const PREVIEW_OVERRIDES: Record<string, string> = {
 export const PREVIEW_PROFILES: Record<string, Record<string, string>> = {
   before: { HATCH_VERIFY_CLAIMS: "off", HATCH_ASK_TOOL_PROTOCOL: "text" },
   after: { HATCH_VERIFY_CLAIMS: "on", HATCH_ASK_TOOL_PROTOCOL: "text" },
+  "qwen27b-prod-text": { HATCH_AGENT_TOOL_LANE: "ask", HATCH_ASK_TOOL_PROTOCOL: "text", HATCH_VERIFY_CLAIMS: "on" },
   "hermes36b-native": { HATCH_AGENT_TOOL_LANE: "agent", HATCH_AGENT_TOOL_PROTOCOL: "native", HATCH_VERIFY_CLAIMS: "on" },
   "qwen27b-native": {
     HATCH_LLM_BASE_URL: "https://api.runpod.ai/v2/0sr9gxadk8ns9f/openai/v1",
     HATCH_LLM_MODEL: "Qwen/Qwen3.8-27B-FP8",
     HATCH_ASK_TOOL_PROTOCOL: "native",
+    HATCH_AGENT_TOOL_LANE: "ask",
     HATCH_VERIFY_CLAIMS: "on",
   },
   "qwen27b-native-think": {
@@ -19,6 +21,7 @@ export const PREVIEW_PROFILES: Record<string, Record<string, string>> = {
     HATCH_LLM_MODEL: "Qwen/Qwen3.8-27B-FP8",
     HATCH_ASK_TOOL_PROTOCOL: "native",
     HATCH_THINK_ON_TOOLS: "on",
+    HATCH_AGENT_TOOL_LANE: "ask",
     HATCH_VERIFY_CLAIMS: "on",
   },
 };
